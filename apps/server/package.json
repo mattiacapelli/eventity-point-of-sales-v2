@@ -1,0 +1,33 @@
+{
+  "name": "@pos/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.0",
+    "@fastify/jwt": "^8.0.1",
+    "@fastify/swagger": "^8.15.0",
+    "@fastify/swagger-ui": "^4.2.0",
+    "@fastify/websocket": "^10.0.0",
+    "@pos/core": "workspace:*",
+    "@pos/db": "workspace:*",
+    "@pos/event-bus": "workspace:*",
+    "@pos/module-kitchen": "workspace:*",
+    "@pos/module-payments": "workspace:*",
+    "@pos/module-sales": "workspace:*",
+    "@pos/shared-types": "workspace:*",
+    "fastify": "^4.27.0",
+    "fastify-plugin": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.4.0"
+  }
+}

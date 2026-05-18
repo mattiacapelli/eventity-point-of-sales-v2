@@ -1,0 +1,169 @@
+import { randomUUID } from "node:crypto";
+import * as argon2 from "argon2";
+import { eq, lt, and, users, sessions } from "@pos/db";
+import type { DbClient } from "@pos/db";
+import type { UserRole } from "@pos/shared-types";
+import type { SessionContext } from "@pos/shared-types";
+
+export interface LoginInput {
+  readonly username: string;
+  readonly pin: string;
+}
+
+export interface LoginResult {
+  readonly token: string;
+  readonly session: SessionContext;
+}
+
+export class AuthService {
+  constructor(
+    private readonly db: DbClient,
+    private readonly sessionTtlSeconds: number
+  ) {}
+
+  async login(input: LoginInput): Promise<LoginResult> {
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.username, input.username))
+      .limit(1);
+
+    if (user === undefined || !user.active) {
+      throw new AuthError("Invalid credentials");
+    }
+
+    if (user.pin === null || user.pin === undefined) {
+      throw new AuthError("User has no PIN configured");
+    }
+
+    const valid = await argon2.verify(user.pin, input.pin);
+    if (!valid) {
+      throw new AuthError("Invalid credentials");
+    }
+
+    return this.createSession(user as { id: string; role: string; username: string });
+  }
+
+  async loginByPin(pin: string): Promise<LoginResult> {
+    const activeUsers = await this.db
+      .select()
+      .from(users)
+      .where(and(eq(users.active, true)));
+
+    for (const user of activeUsers) {
+      if (user.pin === null || user.pin === undefined) continue;
+      const valid = await argon2.verify(user.pin, pin);
+      if (valid) {
+        return this.createSession(user as { id: string; role: string; username: string });
+      }
+    }
+
+    throw new AuthError("Invalid credentials");
+  }
+
+  private async createSession(user: { id: string; role: string; username: string }): Promise<LoginResult> {
+    const token = randomUUID();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + this.sessionTtlSeconds * 1000);
+
+    await this.db.insert(sessions).values({
+      id: randomUUID(),
+      userId: user.id,
+      token,
+      createdAt: now,
+      expiresAt,
+    });
+
+    return {
+      token,
+      session: {
+        sessionId: token,
+        userId: user.id,
+        role: user.role as UserRole,
+        username: user.username,
+      },
+    };
+  }
+
+  async validateToken(token: string): Promise<SessionContext> {
+    const [session] = await this.db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.token, token))
+      .limit(1);
+
+    if (session === undefined) {
+      throw new AuthError("Session not found");
+    }
+
+    if (session.expiresAt < new Date()) {
+      await this.db.delete(sessions).where(eq(sessions.token, token));
+      throw new AuthError("Session expired");
+    }
+
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.id, session.userId))
+      .limit(1);
+
+    if (user === undefined || !user.active) {
+      throw new AuthError("User not found or inactive");
+    }
+
+    return {
+      sessionId: session.id,
+      userId: user.id,
+      role: user.role as UserRole,
+      username: user.username,
+    };
+  }
+
+  async logout(token: string): Promise<void> {
+    await this.db.delete(sessions).where(eq(sessions.token, token));
+  }
+
+  async purgeExpiredSessions(): Promise<void> {
+    await this.db.delete(sessions).where(lt(sessions.expiresAt, new Date()));
+  }
+
+  async createUser(input: {
+    name: string;
+    username: string;
+    role: UserRole;
+    pin: string;
+  }): Promise<string> {
+    const hashedPin = await argon2.hash(input.pin);
+    const id = randomUUID();
+
+    await this.db.insert(users).values({
+      id,
+      name: input.name,
+      username: input.username,
+      role: input.role,
+      pin: hashedPin,
+      active: true,
+      createdAt: new Date(),
+    });
+
+    return id;
+  }
+}
+
+export class AuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthError";
+  }
+}
+
+export function requireRole(
+  session: SessionContext,
+  ...roles: UserRole[]
+): void {
+  if (!roles.includes(session.role)) {
+    throw new AuthError(
+      `Role "${session.role}" is not allowed. Required: ${roles.join(", ")}`
+    );
+  }
+}

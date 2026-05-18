@@ -1,0 +1,35 @@
+{
+  "$schema": "../schemas/modules.schema.json",
+  "modules": [
+    {
+      "name": "sales",
+      "package": "@pos/module-sales",
+      "enabled": true,
+      "priority": 1
+    },
+    {
+      "name": "kitchen",
+      "package": "@pos/module-kitchen",
+      "enabled": true,
+      "priority": 2
+    },
+    {
+      "name": "tables",
+      "package": "@pos/module-tables",
+      "enabled": true,
+      "priority": 3
+    },
+    {
+      "name": "events",
+      "package": "@pos/module-events",
+      "enabled": true,
+      "priority": 4
+    },
+    {
+      "name": "inventory",
+      "package": "@pos/module-inventory",
+      "enabled": true,
+      "priority": 5
+    }
+  ]
+}
