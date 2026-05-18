@@ -3,8 +3,21 @@ import type { FastifyPluginAsync } from "fastify";
 import { eq } from "@pos/db";
 import { printers } from "@pos/db";
 import { randomUUID } from "node:crypto";
+import { requireRole, AuthError } from "@pos/core";
 
 const printersRoutes: FastifyPluginAsync = async (fastify) => {
+  fastify.addHook("onRequest", async (request, reply) => {
+    await fastify.authenticate(request);
+    try {
+      requireRole(request.session!, "admin");
+    } catch (err) {
+      if (err instanceof AuthError) {
+        return reply.status(403).send({ error: err.message });
+      }
+      throw err;
+    }
+  });
+
   fastify.get("/printers", {
     schema: { tags: ["printers"], summary: "List all printers" },
   }, async (_request, reply) => {
@@ -99,9 +112,17 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = request.params as { id: string };
     const [printer] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, id));
     if (!printer) return reply.status(404).send({ error: "Not found" });
-    // Mock adapter — in production this would call the PrinterService
-    fastify.log.info(`[test-print] printer=${printer.name} host=${printer.host ?? "local"}`);
-    return reply.send({ success: true, message: `Test print sent to ${printer.name}` });
+
+    const result = await fastify.ctx.printerService.printDirect({
+      printerId: printer.id,
+      content: `## Test stampa\n\nStampante: ${printer.name}\nOra: ${new Date().toLocaleString("it-IT")}\n`,
+      type: "receipt",
+      ...(printer.host && printer.port
+        ? { printerConfig: { host: printer.host, port: printer.port } }
+        : {}),
+    });
+
+    return reply.send(result);
   });
 };
 

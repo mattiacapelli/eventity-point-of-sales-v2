@@ -5,12 +5,12 @@ import type { Order, OrderStatus } from "@pos/shared-types";
 
 const orderItemSchema = {
   type: "object",
-  required: ["productId", "name", "quantity", "unitPrice"],
+  required: ["productId", "name", "quantity"],
   properties: {
     productId: { type: "string" },
     name: { type: "string" },
     quantity: { type: "integer", minimum: 1 },
-    unitPrice: { type: "number", minimum: 0 },
+    selectedOptionIds: { type: "array", items: { type: "string" } },
     notes: { type: "string" },
   },
 } as const;

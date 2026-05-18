@@ -23,9 +23,11 @@ export function CartPanel() {
           productId: c.productId,
           name: c.name,
           quantity: c.quantity,
-          unitPrice: c.finalPrice,
           ...(c.selectedOptions.length > 0
-            ? { notes: JSON.stringify(c.selectedOptions.map((o) => (o.isRemoval ? `senza ${o.name}` : o.name))) }
+            ? {
+                selectedOptionIds: c.selectedOptions.map((o) => o.optionId),
+                notes: JSON.stringify(c.selectedOptions.map((o) => (o.isRemoval ? `senza ${o.name}` : o.name))),
+              }
             : c.notes !== undefined ? { notes: c.notes } : {}),
         })),
       });

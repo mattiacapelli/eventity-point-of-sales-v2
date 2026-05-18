@@ -3,8 +3,21 @@ import type { FastifyPluginAsync } from "fastify";
 import { eq, asc } from "@pos/db";
 import { categories } from "@pos/db";
 import { randomUUID } from "node:crypto";
+import { requireRole, AuthError } from "@pos/core";
 
 const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
+  fastify.addHook("onRequest", async (request, reply) => {
+    await fastify.authenticate(request);
+    try {
+      requireRole(request.session!, "admin");
+    } catch (err) {
+      if (err instanceof AuthError) {
+        return reply.status(403).send({ error: err.message });
+      }
+      throw err;
+    }
+  });
+
   fastify.get("/categories", {
     schema: { tags: ["categories"], summary: "List all categories" },
   }, async (_request, reply) => {

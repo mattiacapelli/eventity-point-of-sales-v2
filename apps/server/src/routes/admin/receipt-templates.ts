@@ -3,8 +3,21 @@ import type { FastifyPluginAsync } from "fastify";
 import { eq } from "@pos/db";
 import { receiptTemplates } from "@pos/db";
 import { randomUUID } from "node:crypto";
+import { requireRole, AuthError } from "@pos/core";
 
 const receiptTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
+  fastify.addHook("onRequest", async (request, reply) => {
+    await fastify.authenticate(request);
+    try {
+      requireRole(request.session!, "admin");
+    } catch (err) {
+      if (err instanceof AuthError) {
+        return reply.status(403).send({ error: err.message });
+      }
+      throw err;
+    }
+  });
+
   fastify.get("/receipt-templates", {
     schema: { tags: ["receipt-templates"], summary: "List receipt templates" },
   }, async (_request, reply) => {

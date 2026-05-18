@@ -37,10 +37,18 @@ export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, ReadonlyArray<OrderSt
   cancelled: [],
 };
 
+export interface CreateOrderItemInput {
+  readonly productId: string;
+  readonly name: string;
+  readonly quantity: number;
+  readonly selectedOptionIds?: ReadonlyArray<string>;
+  readonly notes?: string;
+}
+
 export interface CreateOrderInput {
   readonly tableId?: string;
   readonly eventId?: string;
-  readonly items: ReadonlyArray<Omit<OrderItem, "id">>;
+  readonly items: ReadonlyArray<CreateOrderItemInput>;
 }
 
 export interface UpdateOrderInput {

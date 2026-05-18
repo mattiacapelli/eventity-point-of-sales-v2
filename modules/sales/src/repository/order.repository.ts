@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq, desc, orders, orderItems } from "@pos/db";
+import { eq, desc, inArray, orders, orderItems, products, options } from "@pos/db";
 import type { DbClient } from "@pos/db";
 import type { Order, OrderItem, CreateOrderInput, OrderStatus } from "@pos/shared-types";
 
@@ -84,10 +84,40 @@ export class OrderRepository {
     const id = randomUUID();
     const now = new Date();
 
-    const itemsWithIds = input.items.map((item) => ({
-      ...item,
-      id: randomUUID(),
-    }));
+    // Resolve canonical prices from DB — never trust client-supplied prices
+    const productIds = [...new Set(input.items.map((i) => i.productId))];
+    const productRows = await this.db
+      .select({ id: products.id, price: products.price })
+      .from(products)
+      .where(inArray(products.id, productIds));
+    const productPriceMap = new Map(productRows.map((p) => [p.id, p.price]));
+
+    // Collect all option IDs across all items
+    const allOptionIds = input.items.flatMap((i) => i.selectedOptionIds ?? []);
+    const optionDeltaMap = new Map<string, number>();
+    if (allOptionIds.length > 0) {
+      const optionRows = await this.db
+        .select({ id: options.id, priceDelta: options.priceDelta })
+        .from(options)
+        .where(inArray(options.id, allOptionIds));
+      for (const o of optionRows) optionDeltaMap.set(o.id, o.priceDelta);
+    }
+
+    const itemsWithIds = input.items.map((item) => {
+      const basePrice = productPriceMap.get(item.productId) ?? 0;
+      const optionDelta = (item.selectedOptionIds ?? []).reduce(
+        (sum, oid) => sum + (optionDeltaMap.get(oid) ?? 0),
+        0
+      );
+      return {
+        id: randomUUID(),
+        productId: item.productId,
+        name: item.name,
+        quantity: item.quantity,
+        unitPrice: basePrice + optionDelta,
+        notes: item.notes ?? null,
+      };
+    });
 
     const totalAmount = itemsWithIds.reduce(
       (sum, item) => sum + item.unitPrice * item.quantity,
@@ -113,7 +143,7 @@ export class OrderRepository {
           name: item.name,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          notes: item.notes ?? null,
+          notes: item.notes,
         }))
       );
     }
@@ -129,15 +159,7 @@ export class OrderRepository {
         updatedAt: now,
         syncedAt: null,
       },
-      itemsWithIds.map((item) => ({
-        id: item.id,
-        orderId: id,
-        productId: item.productId,
-        name: item.name,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        notes: item.notes ?? null,
-      }))
+      itemsWithIds.map((item) => ({ ...item, orderId: id }))
     );
   }
 

@@ -7,6 +7,7 @@ import {
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
+import { requireRole, AuthError } from "@pos/core";
 
 interface BackupMeta {
   id: string;
@@ -65,6 +66,18 @@ function computeSha256(filePath: string): Promise<string> {
 const backupsRoutes: FastifyPluginAsync = async (fastify) => {
   backupsDir = join(process.cwd(), "backups");
   loadRegistry(backupsDir);
+
+  fastify.addHook("onRequest", async (request, reply) => {
+    await fastify.authenticate(request);
+    try {
+      requireRole(request.session!, "admin");
+    } catch (err) {
+      if (err instanceof AuthError) {
+        return reply.status(403).send({ error: err.message });
+      }
+      throw err;
+    }
+  });
 
   // POST /api/admin/backups/create
   fastify.post("/admin/backups/create", {

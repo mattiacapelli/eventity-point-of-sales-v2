@@ -72,6 +72,9 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
       printerId: receiptPrinter.id,
       content,
       type: "receipt",
+      ...(receiptPrinter.host && receiptPrinter.port
+        ? { printerConfig: { host: receiptPrinter.host, port: receiptPrinter.port } }
+        : {}),
     });
   });
 };

@@ -3,8 +3,21 @@ import type { FastifyPluginAsync } from "fastify";
 import { eq, and } from "@pos/db";
 import { productionCenters, productionCenterCategories, categories } from "@pos/db";
 import { randomUUID } from "node:crypto";
+import { requireRole, AuthError } from "@pos/core";
 
 const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
+  fastify.addHook("onRequest", async (request, reply) => {
+    await fastify.authenticate(request);
+    try {
+      requireRole(request.session!, "admin");
+    } catch (err) {
+      if (err instanceof AuthError) {
+        return reply.status(403).send({ error: err.message });
+      }
+      throw err;
+    }
+  });
+
   fastify.get("/production-centers", {
     schema: { tags: ["production-centers"], summary: "List all production centers" },
   }, async (_request, reply) => {

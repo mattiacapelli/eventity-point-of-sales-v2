@@ -3,8 +3,21 @@ import type { FastifyPluginAsync } from "fastify";
 import { eq, desc, and, isNull } from "@pos/db";
 import { shifts } from "@pos/db";
 import { randomUUID } from "node:crypto";
+import { requireRole, AuthError } from "@pos/core";
 
 const shiftsRoutes: FastifyPluginAsync = async (fastify) => {
+  fastify.addHook("onRequest", async (request, reply) => {
+    await fastify.authenticate(request);
+    try {
+      requireRole(request.session!, "admin", "cashier");
+    } catch (err) {
+      if (err instanceof AuthError) {
+        return reply.status(403).send({ error: err.message });
+      }
+      throw err;
+    }
+  });
+
   fastify.get("/shifts/current", {
     schema: { tags: ["shifts"], summary: "Get the current open shift" },
   }, async (request, reply) => {

@@ -5,6 +5,8 @@ export interface PrintJob {
   printerId: string;
   content: string;
   type: "receipt" | "kitchen";
+  /** If provided, a TCP adapter is created/reused for this printer. */
+  printerConfig?: PrinterConfig;
 }
 
 export interface PrintResult {
@@ -38,17 +40,28 @@ function sleep(ms: number): Promise<void> {
 }
 
 export class PrinterService {
-  private readonly adapter: PrinterAdapter;
+  private readonly fallbackAdapter: PrinterAdapter;
+  private readonly adapterPool = new Map<string, TcpPrinterAdapter>();
   private readonly queue: PrintJob[] = [];
   private readonly deadLetterQueue: PrintJob[] = [];
   private processing = false;
 
-  constructor(logger: Logger, config?: PrinterConfig) {
-    if (config?.host) {
-      this.adapter = new TcpPrinterAdapter(config.host, config.port, logger);
-    } else {
-      this.adapter = new MockPrinterAdapter(logger);
+  constructor(private readonly logger: Logger) {
+    this.fallbackAdapter = new MockPrinterAdapter(logger);
+  }
+
+  /** Get or create a TCP adapter for a given printerId + config. */
+  private getAdapter(job: PrintJob): PrinterAdapter {
+    const cfg = job.printerConfig;
+    if (!cfg) return this.fallbackAdapter;
+
+    const key = `${job.printerId}:${cfg.host}:${cfg.port}`;
+    let adapter = this.adapterPool.get(key);
+    if (!adapter) {
+      adapter = new TcpPrinterAdapter(cfg.host, cfg.port, this.logger);
+      this.adapterPool.set(key, adapter);
     }
+    return adapter;
   }
 
   enqueue(job: PrintJob): void {
@@ -67,21 +80,21 @@ export class PrinterService {
   }
 
   private async printWithRetry(job: PrintJob): Promise<void> {
+    const adapter = this.getAdapter(job);
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const result = await this.adapter.print(job);
+        const result = await adapter.print(job);
         if (result.success) return;
         if (attempt < MAX_RETRIES) await sleep(RETRY_DELAY_MS);
       } catch {
         if (attempt < MAX_RETRIES) await sleep(RETRY_DELAY_MS);
       }
     }
-    // All retries exhausted — send to dead-letter queue
     this.deadLetterQueue.push(job);
   }
 
   async printDirect(job: PrintJob): Promise<PrintResult> {
-    return this.adapter.print(job);
+    return this.getAdapter(job).print(job);
   }
 
   getDeadLetterQueue(): readonly PrintJob[] {
@@ -90,5 +103,10 @@ export class PrinterService {
 
   clearDeadLetterQueue(): void {
     this.deadLetterQueue.length = 0;
+  }
+
+  destroyAdapterPool(): void {
+    for (const adapter of this.adapterPool.values()) adapter.destroy();
+    this.adapterPool.clear();
   }
 }
