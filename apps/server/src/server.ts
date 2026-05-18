@@ -1,0 +1,63 @@
+import Fastify from "fastify";
+import cors from "@fastify/cors";
+import websocket from "@fastify/websocket";
+import swaggerPlugin from "./plugins/swagger.plugin.js";
+import coreContextPlugin from "./plugins/core-context.plugin.js";
+import authPlugin from "./plugins/auth.plugin.js";
+import moduleLoaderPlugin from "./plugins/module-loader.plugin.js";
+import printerTriggerPlugin from "./plugins/printer-trigger.plugin.js";
+import wsGateway from "./ws/ws-gateway.js";
+import healthRoute from "./routes/health.js";
+import authRoutes from "./routes/auth.js";
+import diagnosticsRoutes from "./routes/diagnostics.js";
+import { salesModule } from "@pos/module-sales";
+import { kitchenModule } from "@pos/module-kitchen";
+import { paymentsModule } from "@pos/module-payments";
+import type { AppConfig } from "@pos/core";
+import categoriesRoutes from "./routes/admin/categories.js";
+import productsRoutes from "./routes/admin/products.js";
+import productionCentersRoutes from "./routes/admin/production-centers.js";
+import optionGroupsRoutes from "./routes/admin/option-groups.js";
+import paymentMethodsRoutes from "./routes/admin/payment-methods.js";
+import printersRoutes from "./routes/admin/printers.js";
+import receiptTemplatesRoutes from "./routes/admin/receipt-templates.js";
+import shiftsRoutes from "./routes/admin/shifts.js";
+import bootstrapRoutes from "./routes/bootstrap.js";
+import backupsRoutes from "./routes/admin/backups.js";
+
+export async function buildServer(config: AppConfig) {
+  const fastify = Fastify({
+    logger: false, // pino logger is managed by CoreContext
+  });
+
+  // Infrastructure
+  await fastify.register(cors, { origin: true });
+  await fastify.register(websocket);
+  await fastify.register(swaggerPlugin);
+
+  // Core — must be first so ctx is available to everything below
+  await fastify.register(coreContextPlugin, { config });
+  await fastify.register(authPlugin);
+  await fastify.register(moduleLoaderPlugin, {
+    modules: [salesModule, kitchenModule, paymentsModule],
+  });
+  await fastify.register(printerTriggerPlugin);
+  await fastify.register(wsGateway);
+
+  // Routes
+  await fastify.register(healthRoute);
+  await fastify.register(authRoutes, { prefix: "/api" });
+  await fastify.register(diagnosticsRoutes, { prefix: "/api" });
+  await fastify.register(categoriesRoutes, { prefix: "/api" });
+  await fastify.register(productsRoutes, { prefix: "/api" });
+  await fastify.register(productionCentersRoutes, { prefix: "/api" });
+  await fastify.register(optionGroupsRoutes, { prefix: "/api" });
+  await fastify.register(paymentMethodsRoutes, { prefix: "/api" });
+  await fastify.register(printersRoutes, { prefix: "/api" });
+  await fastify.register(receiptTemplatesRoutes, { prefix: "/api" });
+  await fastify.register(shiftsRoutes, { prefix: "/api" });
+  await fastify.register(bootstrapRoutes, { prefix: "/api" });
+  await fastify.register(backupsRoutes, { prefix: "/api" });
+
+  return fastify;
+}
