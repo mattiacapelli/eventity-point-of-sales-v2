@@ -4,13 +4,14 @@ import { authClient } from "../../core/auth-client.js";
 import { wsClient } from "../../core/ws-client.js";
 import { useStore } from "../../state/global-store.js";
 
-const PIN_LENGTH = 6;
+const MIN_PIN = 4;
+const MAX_PIN = 12;
 
 const KEYPAD = [
   ["1", "2", "3"],
   ["4", "5", "6"],
   ["7", "8", "9"],
-  ["", "0", "⌫"],
+  ["⌫", "0", "✓"],
 ];
 
 export function LoginScreen() {
@@ -21,25 +22,12 @@ export function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleKeypad = useCallback(
-    (key: string) => {
-      if (key === "⌫") {
-        setPin((p) => p.slice(0, -1));
-        setError(null);
-        return;
-      }
-      if (pin.length >= PIN_LENGTH) return;
-      setPin((p) => p + key);
-    },
-    [pin],
-  );
-
-  const handleLogin = useCallback(async () => {
-    if (pin.length === 0) return;
+  const handleLogin = useCallback(async (currentPin: string) => {
+    if (currentPin.length < MIN_PIN) return;
     setError(null);
     setLoading(true);
     try {
-      const result = await authClient.login(pin);
+      const result = await authClient.login(currentPin);
       authClient.storeToken(result.token);
 
       setSession({
@@ -49,11 +37,7 @@ export function LoginScreen() {
         username: "",
       });
 
-      wsClient.connect(
-        `ws://${window.location.host}/ws`,
-        result.token,
-      );
-
+      wsClient.connect(`ws://${window.location.host}/ws`, result.token);
       navigate("/pos");
     } catch (err) {
       setError(err instanceof Error ? err.message : "PIN non valido");
@@ -61,14 +45,46 @@ export function LoginScreen() {
     } finally {
       setLoading(false);
     }
-  }, [pin, setSession, navigate]);
+  }, [setSession, navigate]);
 
-  // Auto-submit when PIN reaches max length
+  const handleKeypad = useCallback(
+    (key: string) => {
+      if (loading) return;
+      if (key === "⌫") {
+        setPin((p) => p.slice(0, -1));
+        setError(null);
+        return;
+      }
+      if (key === "✓") {
+        void handleLogin(pin);
+        return;
+      }
+      if (pin.length >= MAX_PIN) return;
+      const next = pin + key;
+      setPin(next);
+    },
+    [pin, loading, handleLogin],
+  );
+
+  // Also allow physical keyboard entry
   React.useEffect(() => {
-    if (pin.length === PIN_LENGTH) {
-      void handleLogin();
-    }
-  }, [pin, handleLogin]);
+    const handler = (e: KeyboardEvent) => {
+      if (loading) return;
+      if (e.key >= "0" && e.key <= "9") {
+        setPin((p) => p.length < MAX_PIN ? p + e.key : p);
+        setError(null);
+      } else if (e.key === "Backspace") {
+        setPin((p) => p.slice(0, -1));
+        setError(null);
+      } else if (e.key === "Enter") {
+        setPin((p) => { void handleLogin(p); return p; });
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [loading, handleLogin]);
+
+  const canSubmit = pin.length >= MIN_PIN && !loading;
 
   return (
     <div
@@ -78,21 +94,14 @@ export function LoginScreen() {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        background: "linear-gradient(160deg, var(--color-brand) 0%, var(--color-brand-dark) 100%)",
+        background: "linear-gradient(160deg, var(--color-brand) 0%, #1a4a1e 100%)",
         padding: "var(--sp-xl)",
         gap: "var(--sp-xl)",
       }}
     >
       {/* Logo */}
       <div style={{ textAlign: "center" }}>
-        <div
-          style={{
-            fontSize: "var(--text-hero)",
-            fontWeight: 700,
-            color: "var(--color-accent)",
-            letterSpacing: "-0.5px",
-          }}
-        >
+        <div style={{ fontSize: "var(--text-hero)", fontWeight: 700, color: "var(--color-accent)", letterSpacing: "-0.5px" }}>
           Eventity
         </div>
         <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "var(--text-md)", marginTop: "4px" }}>
@@ -119,68 +128,86 @@ export function LoginScreen() {
             Inserisci PIN
           </div>
           <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>
-            {PIN_LENGTH} cifre
+            Minimo {MIN_PIN} cifre · premi ✓ per confermare
           </div>
         </div>
 
-        {/* PIN dots */}
-        <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
-          {Array.from({ length: PIN_LENGTH }).map((_, i) => (
+        {/* PIN dots — show actual entered length, min MIN_PIN slots */}
+        <div style={{ display: "flex", gap: "10px", justifyContent: "center", minHeight: "24px", alignItems: "center" }}>
+          {Array.from({ length: Math.max(pin.length, MIN_PIN) }).map((_, i) => (
             <div
               key={i}
               style={{
-                width: "16px",
-                height: "16px",
+                width: "14px",
+                height: "14px",
                 borderRadius: "50%",
                 background: i < pin.length ? "var(--color-brand)" : "var(--color-gray-200)",
                 transition: "background var(--transition)",
+                flexShrink: 0,
               }}
             />
           ))}
         </div>
 
         {error && (
-          <div
-            style={{
-              background: "rgba(239,68,68,0.1)",
-              color: "var(--color-danger)",
-              padding: "10px 14px",
-              borderRadius: "var(--radius-md)",
-              fontSize: "var(--text-sm)",
-              fontWeight: 500,
-              textAlign: "center",
-            }}
-          >
+          <div style={{
+            background: "rgba(239,68,68,0.1)", color: "var(--color-danger)",
+            padding: "10px 14px", borderRadius: "var(--radius-md)",
+            fontSize: "var(--text-sm)", fontWeight: 500, textAlign: "center",
+          }}>
             {error}
           </div>
         )}
 
         {/* Keypad */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
-          {KEYPAD.flat().map((key, i) => (
-            <button
-              key={i}
-              onClick={() => { if (key) handleKeypad(key); }}
-              disabled={!key || loading}
-              style={{
-                height: "64px",
-                borderRadius: "var(--radius-lg)",
-                background: key ? "var(--color-gray-50)" : "transparent",
-                border: key ? "2px solid var(--color-gray-200)" : "none",
-                fontSize: key === "⌫" ? "var(--text-lg)" : "var(--text-xl)",
-                fontWeight: 600,
-                color: "var(--color-gray-900)",
-                cursor: key ? "pointer" : "default",
-                fontFamily: "var(--font)",
-                transition: "background var(--transition)",
-              }}
-              onPointerDown={(e) => { if (key) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-gray-100)"; }}
-              onPointerUp={(e) => { if (key) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-gray-50)"; }}
-              onPointerLeave={(e) => { if (key) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-gray-50)"; }}
-            >
-              {loading && key === "0" ? "…" : key}
-            </button>
-          ))}
+          {KEYPAD.flat().map((key, i) => {
+            const isConfirm = key === "✓";
+            const isActive = isConfirm ? canSubmit : !!key;
+            return (
+              <button
+                key={i}
+                onClick={() => { if (key) handleKeypad(key); }}
+                disabled={!key || loading || (isConfirm && !canSubmit)}
+                style={{
+                  height: "64px",
+                  borderRadius: "var(--radius-lg)",
+                  background: isConfirm
+                    ? (canSubmit ? "var(--color-brand)" : "var(--color-gray-100)")
+                    : (key ? "var(--color-gray-50)" : "transparent"),
+                  border: isConfirm
+                    ? "none"
+                    : (key ? "2px solid var(--color-gray-200)" : "none"),
+                  fontSize: (key === "⌫" || key === "✓") ? "var(--text-lg)" : "var(--text-xl)",
+                  fontWeight: 600,
+                  color: isConfirm
+                    ? (canSubmit ? "var(--color-white)" : "var(--color-gray-300)")
+                    : "var(--color-gray-900)",
+                  cursor: (key && isActive) ? "pointer" : "default",
+                  fontFamily: "var(--font)",
+                  transition: "background var(--transition)",
+                  opacity: loading ? 0.6 : 1,
+                }}
+                onPointerDown={(e) => {
+                  if (!key || !isActive) return;
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    isConfirm ? "var(--color-brand-dark, #1a4a1e)" : "var(--color-gray-100)";
+                }}
+                onPointerUp={(e) => {
+                  if (!key || !isActive) return;
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    isConfirm ? "var(--color-brand)" : "var(--color-gray-50)";
+                }}
+                onPointerLeave={(e) => {
+                  if (!key || !isActive) return;
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    isConfirm ? "var(--color-brand)" : "var(--color-gray-50)";
+                }}
+              >
+                {loading && key === "✓" ? "…" : key}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
