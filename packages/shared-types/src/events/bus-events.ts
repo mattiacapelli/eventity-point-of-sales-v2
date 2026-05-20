@@ -95,6 +95,29 @@ export interface PlatformEventMap {
     readonly error: string;
     readonly timestamp: Date;
   };
+  MODULE_STATE_CHANGED: {
+    readonly traceId: string;
+    readonly moduleName: string;
+    readonly enabled: boolean;
+    readonly timestamp: Date;
+  };
+
+  // Inventory
+  INVENTORY_UPDATED: {
+    readonly traceId: string;
+    readonly itemId: string;
+    readonly movementType: string;
+    readonly quantity: number;
+    readonly timestamp: Date;
+  };
+  LOW_STOCK_ALERT: {
+    readonly traceId: string;
+    readonly itemId: string;
+    readonly itemName: string;
+    readonly currentStock: number;
+    readonly minStock: number;
+    readonly timestamp: Date;
+  };
 }
 
 export type PlatformEventName = keyof PlatformEventMap;

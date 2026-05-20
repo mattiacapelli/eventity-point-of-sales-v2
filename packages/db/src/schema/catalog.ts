@@ -77,3 +77,17 @@ export const shifts = sqliteTable("shifts", {
   totalOrders:   integer("total_orders").notNull().default(0),
   notes:         text("notes"),
 });
+
+export const appSettings = sqliteTable("app_settings", {
+  key:   text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
+export const modules = sqliteTable("modules", {
+  name:      text("name").primaryKey(),
+  enabled:   integer("enabled", { mode: "boolean" }).notNull().default(true),
+  version:   text("version").notNull().default("0.1.0"),
+  config:    text("config"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});

@@ -115,6 +115,9 @@ importers:
       '@pos/event-bus':
         specifier: workspace:*
         version: link:../../packages/event-bus
+      '@pos/module-inventory':
+        specifier: workspace:*
+        version: link:../../modules/inventory
       '@pos/module-kitchen':
         specifier: workspace:*
         version: link:../../modules/kitchen
@@ -159,13 +162,25 @@ importers:
 
   modules/inventory:
     dependencies:
+      '@pos/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@pos/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@pos/event-bus':
         specifier: workspace:*
         version: link:../../packages/event-bus
       '@pos/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
+      fastify:
+        specifier: ^4.29.1
+        version: 4.29.1
     devDependencies:
+      '@fastify/swagger':
+        specifier: '8'
+        version: 8.15.0
       typescript:
         specifier: ^5.4.0
         version: 5.9.3

@@ -20,12 +20,17 @@ import {
   DocumentTextIcon,
   ClockIcon,
   ArrowDownTrayIcon,
+  CircleStackIcon,
+  Squares2X2Icon,
+  ListBulletIcon,
+  ArrowPathIcon,
 } from "../../components/ui/icons.js";
+import type { ModuleInfo, InventoryItemRecord, InventoryMovementRecord } from "../../core/admin-api.js";
 import { BackupTab } from "./BackupTab.js";
 
 // ─── Tab types ───────────────────────────────────────────────────────────────
 
-type Tab = "products" | "categories" | "production-centers" | "payment-methods" | "printers" | "receipt-template" | "shifts" | "backup";
+type Tab = "products" | "categories" | "production-centers" | "payment-methods" | "printers" | "receipt-template" | "shifts" | "backup" | "mode" | "modules" | "inventory" | "movements";
 
 const TABS: { key: Tab; label: string; Icon: React.ComponentType<React.SVGProps<SVGSVGElement>> }[] = [
   { key: "products", label: "Prodotti", Icon: CubeIcon },
@@ -36,6 +41,10 @@ const TABS: { key: Tab; label: string; Icon: React.ComponentType<React.SVGProps<
   { key: "receipt-template", label: "Scontrino", Icon: DocumentTextIcon },
   { key: "shifts", label: "Turni", Icon: ClockIcon },
   { key: "backup", label: "Backup", Icon: ArrowDownTrayIcon },
+  { key: "mode", label: "Modalità", Icon: WrenchScrewdriverIcon },
+  { key: "modules", label: "Moduli", Icon: Squares2X2Icon },
+  { key: "inventory", label: "Inventario", Icon: CircleStackIcon },
+  { key: "movements", label: "Movimenti", Icon: ListBulletIcon },
 ];
 
 // ─── Styles helpers ───────────────────────────────────────────────────────────
@@ -1745,6 +1754,95 @@ function ReceiptTemplateTab() {
   );
 }
 
+// ─── Mode Tab ────────────────────────────────────────────────────────────────
+
+function ModeTab() {
+  const [expressMode, setExpressMode] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    adminApi.settings.get().then((s) => setExpressMode(s.expressMode)).catch(() => {});
+  }, []);
+
+  async function handleToggle() {
+    if (expressMode === null) return;
+    const next = !expressMode;
+    setSaving(true);
+    try {
+      await adminApi.settings.update({ expressMode: next });
+      setExpressMode(next);
+    } catch { /* ignore */ } finally {
+      setSaving(false);
+    }
+  }
+
+  if (expressMode === null) {
+    return (
+      <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)", padding: "var(--sp-lg)" }}>
+        Caricamento...
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-lg)", maxWidth: "560px" }}>
+      <div style={{
+        background: "var(--color-white)",
+        border: "1px solid var(--color-gray-100)",
+        borderRadius: "var(--radius-xl)",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+        padding: "24px",
+      }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--sp-md)" }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-900)", marginBottom: "6px" }}>
+              Modalità Express
+            </div>
+            <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", lineHeight: 1.5 }}>
+              Salta il workflow cucina — l'ordine viene completato direttamente al pagamento senza passare per i stati confermato / in preparazione / pronto.
+            </div>
+            <div style={{ marginTop: "12px", fontSize: "var(--text-xs)", fontWeight: 600,
+              color: expressMode ? "var(--color-success, #059669)" : "var(--color-gray-400)",
+            }}>
+              {expressMode ? "Attiva — gli ordini vengono completati al pagamento" : "Disattiva — gli ordini seguono il flusso cucina"}
+            </div>
+          </div>
+          <button
+            role="switch"
+            aria-checked={expressMode}
+            disabled={saving}
+            onClick={handleToggle}
+            style={{
+              width: "52px",
+              height: "28px",
+              borderRadius: "14px",
+              background: expressMode ? "var(--color-brand)" : "var(--color-gray-200)",
+              border: "none",
+              cursor: saving ? "not-allowed" : "pointer",
+              position: "relative",
+              transition: "background 0.2s",
+              flexShrink: 0,
+              opacity: saving ? 0.6 : 1,
+            }}
+          >
+            <span style={{
+              position: "absolute",
+              top: "3px",
+              left: expressMode ? "27px" : "3px",
+              width: "22px",
+              height: "22px",
+              borderRadius: "50%",
+              background: "var(--color-white)",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+              transition: "left 0.2s",
+            }} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Shifts Tab ───────────────────────────────────────────────────────────────
 
 function ShiftsTab() {
@@ -1925,6 +2023,385 @@ function ShiftsTab() {
   );
 }
 
+// ─── Modules Tab ─────────────────────────────────────────────────────────────
+
+function ModulesTab() {
+  const [modules, setModules] = useState<ModuleInfo[]>([]);
+  const [loading_, setLoading_] = useState(true);
+  const [toggling, setToggling] = useState<string | null>(null);
+  const [error_, setError_] = useState<string | null>(null);
+
+  async function loadModules() {
+    setLoading_(true);
+    try {
+      const data = await adminApi.modules.list();
+      setModules(data);
+    } catch (e) {
+      setError_(e instanceof Error ? e.message : "Errore");
+    } finally {
+      setLoading_(false);
+    }
+  }
+
+  useEffect(() => { void loadModules(); }, []);
+
+  async function handleToggle(name: string) {
+    setToggling(name);
+    setError_(null);
+    try {
+      const updated = await adminApi.modules.toggle(name);
+      setModules((prev) => prev.map((m) => m.name === name ? { ...m, enabled: updated.enabled } : m));
+    } catch (e) {
+      setError_(e instanceof Error ? e.message : "Errore");
+    } finally {
+      setToggling(null);
+    }
+  }
+
+  if (loading_) {
+    return <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)", padding: "var(--sp-lg)" }}>Caricamento...</div>;
+  }
+
+  return (
+    <div style={{ padding: "var(--sp-lg)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--sp-lg)" }}>
+        <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-gray-800)", margin: 0 }}>Moduli</h2>
+        <button onClick={() => void loadModules()} style={{ padding: "6px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", display: "flex", color: "var(--color-gray-500)" }}>
+          <ArrowPathIcon style={{ width: "16px", height: "16px" }} />
+        </button>
+      </div>
+      {error_ && (
+        <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "var(--radius-md)", padding: "12px 16px", marginBottom: "16px", fontSize: "var(--text-sm)", color: "#DC2626" }}>
+          {error_}
+        </div>
+      )}
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        {modules.map((mod) => (
+          <div key={mod.name} style={{ background: "var(--color-white)", borderRadius: "var(--radius-xl)", padding: "20px 24px", boxShadow: "var(--shadow-sm)" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
+                  <span style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-800)" }}>{mod.name}</span>
+                  <span style={{
+                    fontSize: "var(--text-xs)", fontWeight: 600, padding: "2px 8px", borderRadius: "999px",
+                    background: mod.enabled ? "rgba(34,197,94,0.12)" : "var(--color-gray-100)",
+                    color: mod.enabled ? "#15803D" : "var(--color-gray-400)",
+                  }}>
+                    {mod.enabled ? "attivo" : "disabilitato"}
+                  </span>
+                  <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>v{mod.version}</span>
+                </div>
+                {mod.dependencies.length > 0 && (
+                  <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
+                    Dipende da: {mod.dependencies.join(", ")}
+                  </div>
+                )}
+                {mod.dependencyErrors.length > 0 && (
+                  <div style={{ marginTop: "6px", fontSize: "var(--text-xs)", color: "#DC2626", fontWeight: 600 }}>
+                    {mod.dependencyErrors[0]}
+                  </div>
+                )}
+              </div>
+              <button
+                role="switch"
+                aria-checked={mod.enabled}
+                disabled={toggling === mod.name}
+                onClick={() => void handleToggle(mod.name)}
+                style={{
+                  width: "48px", height: "26px", borderRadius: "13px",
+                  background: mod.enabled ? "var(--color-brand)" : "var(--color-gray-200)",
+                  border: "none", cursor: toggling === mod.name ? "not-allowed" : "pointer",
+                  position: "relative", transition: "background 0.2s", flexShrink: 0,
+                  opacity: toggling === mod.name ? 0.6 : 1,
+                }}
+              >
+                <span style={{
+                  position: "absolute", top: "3px",
+                  left: mod.enabled ? "25px" : "3px",
+                  width: "20px", height: "20px", borderRadius: "50%",
+                  background: "var(--color-white)",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                  transition: "left 0.2s",
+                }} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Inventory Tab ────────────────────────────────────────────────────────────
+
+function InventoryTab() {
+  const [items, setItems] = useState<InventoryItemRecord[]>([]);
+  const [loading_, setLoading_] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<InventoryItemRecord | null>(null);
+  const [adjustTarget, setAdjustTarget] = useState<InventoryItemRecord | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: "", sku: "", unit: "pz", currentStock: "0", minStock: "0" });
+  const [adjustQty, setAdjustQty] = useState("0");
+  const [adjustReason, setAdjustReason] = useState("");
+
+  async function load() {
+    setLoading_(true);
+    try { setItems(await adminApi.inventory.listItems()); } catch { /* ignore */ } finally { setLoading_(false); }
+  }
+
+  useEffect(() => { void load(); }, []);
+
+  function openCreate() {
+    setEditTarget(null);
+    setForm({ name: "", sku: "", unit: "pz", currentStock: "0", minStock: "0" });
+    setModalOpen(true);
+  }
+
+  function openEdit(item: InventoryItemRecord) {
+    setEditTarget(item);
+    setForm({ name: item.name, sku: item.sku ?? "", unit: item.unit, currentStock: String(item.currentStock), minStock: String(item.minStock) });
+    setModalOpen(true);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      if (editTarget) {
+        const updated = await adminApi.inventory.updateItem(editTarget.id, {
+          name: form.name,
+          sku: form.sku === "" ? null : form.sku,
+          unit: form.unit,
+          minStock: Number(form.minStock),
+        });
+        setItems((prev) => prev.map((i) => i.id === editTarget.id ? updated : i));
+      } else {
+        const created = await adminApi.inventory.createItem({
+          name: form.name,
+          ...(form.sku !== "" ? { sku: form.sku } : {}),
+          unit: form.unit,
+          currentStock: Number(form.currentStock),
+          minStock: Number(form.minStock),
+        });
+        setItems((prev) => [...prev, created]);
+      }
+      setModalOpen(false);
+    } finally { setSaving(false); }
+  }
+
+  async function handleDelete(id: string) {
+    await adminApi.inventory.deleteItem(id);
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    setDeleteId(null);
+  }
+
+  async function handleAdjust() {
+    if (!adjustTarget) return;
+    setSaving(true);
+    try {
+      const updated = await adminApi.inventory.adjustStock(adjustTarget.id, Number(adjustQty), adjustReason || undefined);
+      setItems((prev) => prev.map((i) => i.id === adjustTarget.id ? updated : i));
+      setAdjustTarget(null);
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div style={{ padding: "var(--sp-lg)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--sp-lg)" }}>
+        <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-gray-800)", margin: 0 }}>Inventario</h2>
+        <Button size="sm" onClick={openCreate} icon={<PlusIcon style={{ width: "16px", height: "16px" }} />}>Nuovo item</Button>
+      </div>
+      <div style={{ background: "var(--color-white)", borderRadius: "var(--radius-xl)", overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
+        {loading_ ? (
+          <div style={{ padding: "32px", textAlign: "center", color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>Caricamento...</div>
+        ) : items.length === 0 ? (
+          <div style={{ padding: "32px", textAlign: "center", color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>Nessun item inventario.</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableHeaderStyle}>Nome</th>
+                <th style={tableHeaderStyle}>SKU</th>
+                <th style={tableHeaderStyle}>Unità</th>
+                <th style={{ ...tableHeaderStyle, textAlign: "right" }}>Stock</th>
+                <th style={{ ...tableHeaderStyle, textAlign: "right" }}>Min</th>
+                <th style={{ ...tableHeaderStyle, textAlign: "center" }}>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => {
+                const isLow = item.minStock > 0 && item.currentStock <= item.minStock;
+                return (
+                  <tr key={item.id} style={{ background: isLow ? "rgba(239,68,68,0.04)" : undefined }}>
+                    <td style={tableCellStyle}>
+                      <span style={{ fontWeight: 600, color: "var(--color-gray-800)" }}>{item.name}</span>
+                      {isLow && <span style={{ marginLeft: "8px", fontSize: "var(--text-xs)", color: "#DC2626", fontWeight: 700 }}>SCORTA BASSA</span>}
+                    </td>
+                    <td style={tableCellStyle}>{item.sku ?? "—"}</td>
+                    <td style={tableCellStyle}>{item.unit}</td>
+                    <td style={{ ...tableCellStyle, textAlign: "right", fontWeight: 600, color: isLow ? "#DC2626" : "var(--color-gray-800)" }}>{item.currentStock}</td>
+                    <td style={{ ...tableCellStyle, textAlign: "right" }}>{item.minStock}</td>
+                    <td style={{ ...tableCellStyle, textAlign: "center" }}>
+                      <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
+                        <button onClick={() => { setAdjustTarget(item); setAdjustQty("0"); setAdjustReason(""); }} style={{ padding: "5px 10px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-gray-600)", fontFamily: "var(--font)" }}>Rettifica</button>
+                        <button onClick={() => openEdit(item)} style={{ padding: "6px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", color: "var(--color-gray-600)", display: "flex" }}><PencilSquareIcon style={{ width: "14px", height: "14px" }} /></button>
+                        <button onClick={() => setDeleteId(item.id)} style={{ padding: "6px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-danger)", background: "var(--color-white)", cursor: "pointer", color: "var(--color-danger)", display: "flex" }}><TrashIcon style={{ width: "14px", height: "14px" }} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editTarget ? "Modifica item" : "Nuovo item inventario"}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div>
+            <label style={labelStyle}>Nome</label>
+            <input style={inputStyle} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Es. Birra, Pane, ecc." autoFocus />
+          </div>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>SKU</label>
+              <input style={inputStyle} value={form.sku} onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))} placeholder="Codice opzionale" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Unità</label>
+              <input style={inputStyle} value={form.unit} onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))} placeholder="pz, kg, lt..." />
+            </div>
+          </div>
+          {!editTarget && (
+            <div>
+              <label style={labelStyle}>Stock iniziale</label>
+              <input style={inputStyle} type="number" value={form.currentStock} onChange={(e) => setForm((f) => ({ ...f, currentStock: e.target.value }))} />
+            </div>
+          )}
+          <div>
+            <label style={labelStyle}>Stock minimo (soglia alert)</label>
+            <input style={inputStyle} type="number" value={form.minStock} onChange={(e) => setForm((f) => ({ ...f, minStock: e.target.value }))} />
+          </div>
+          <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+            <Button variant="ghost" size="sm" onClick={() => setModalOpen(false)}>Annulla</Button>
+            <Button size="sm" loading={saving} disabled={!form.name.trim()} onClick={() => void handleSave()}>{editTarget ? "Salva" : "Aggiungi"}</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={adjustTarget !== null} onClose={() => setAdjustTarget(null)} title={`Rettifica stock — ${adjustTarget?.name ?? ""}`}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div>
+            <label style={labelStyle}>Quantità (positivo = aggiunta, negativo = consumo)</label>
+            <input style={inputStyle} type="number" value={adjustQty} onChange={(e) => setAdjustQty(e.target.value)} autoFocus />
+          </div>
+          <div>
+            <label style={labelStyle}>Motivo (opzionale)</label>
+            <input style={inputStyle} value={adjustReason} onChange={(e) => setAdjustReason(e.target.value)} placeholder="Inventario fisico, scarico, ecc." />
+          </div>
+          <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+            <Button variant="ghost" size="sm" onClick={() => setAdjustTarget(null)}>Annulla</Button>
+            <Button size="sm" loading={saving} onClick={() => void handleAdjust()}>Applica</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={deleteId !== null} onClose={() => setDeleteId(null)} title="Elimina item">
+        <p style={{ color: "var(--color-gray-600)", fontSize: "var(--text-sm)", marginBottom: "20px" }}>Eliminare questo item inventario?</p>
+        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+          <Button variant="ghost" size="sm" onClick={() => setDeleteId(null)}>Annulla</Button>
+          <Button variant="danger" size="sm" onClick={() => deleteId && void handleDelete(deleteId)}>Elimina</Button>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ─── Movements Tab ────────────────────────────────────────────────────────────
+
+const MOVEMENT_TYPE_LABELS: Record<string, string> = {
+  sale: "Vendita",
+  restock: "Rifornimento",
+  manual: "Manuale",
+  waste: "Scarto",
+};
+
+function MovementsTab() {
+  const [movements, setMovements] = useState<InventoryMovementRecord[]>([]);
+  const [loading_, setLoading_] = useState(true);
+  const [typeFilter, setTypeFilter] = useState<string>("");
+
+  async function load(type?: string) {
+    setLoading_(true);
+    try {
+      const data = await adminApi.inventory.listMovements(type ? { type } : undefined);
+      setMovements(data);
+    } catch { /* ignore */ } finally { setLoading_(false); }
+  }
+
+  useEffect(() => { void load(typeFilter || undefined); }, [typeFilter]);
+
+  return (
+    <div style={{ padding: "var(--sp-lg)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "var(--sp-lg)" }}>
+        <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-gray-800)", margin: 0 }}>Movimenti inventario</h2>
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          style={{ ...inputStyle, width: "160px", height: "38px", fontSize: "var(--text-sm)" }}
+        >
+          <option value="">Tutti i tipi</option>
+          <option value="sale">Vendita</option>
+          <option value="restock">Rifornimento</option>
+          <option value="manual">Manuale</option>
+          <option value="waste">Scarto</option>
+        </select>
+      </div>
+      <div style={{ background: "var(--color-white)", borderRadius: "var(--radius-xl)", overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
+        {loading_ ? (
+          <div style={{ padding: "32px", textAlign: "center", color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>Caricamento...</div>
+        ) : movements.length === 0 ? (
+          <div style={{ padding: "32px", textAlign: "center", color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>Nessun movimento registrato.</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableHeaderStyle}>Data</th>
+                <th style={tableHeaderStyle}>Tipo</th>
+                <th style={{ ...tableHeaderStyle, textAlign: "right" }}>Quantità</th>
+                <th style={tableHeaderStyle}>Motivo / Ordine</th>
+              </tr>
+            </thead>
+            <tbody>
+              {movements.map((m) => (
+                <tr key={m.id}>
+                  <td style={tableCellStyle}>{new Date(m.createdAt * 1000).toLocaleString("it-IT")}</td>
+                  <td style={tableCellStyle}>
+                    <span style={{
+                      fontSize: "var(--text-xs)", fontWeight: 600, padding: "2px 8px", borderRadius: "999px",
+                      background: m.type === "sale" ? "rgba(239,68,68,0.1)" : m.type === "restock" ? "rgba(34,197,94,0.1)" : "var(--color-gray-100)",
+                      color: m.type === "sale" ? "#DC2626" : m.type === "restock" ? "#15803D" : "var(--color-gray-600)",
+                    }}>
+                      {MOVEMENT_TYPE_LABELS[m.type] ?? m.type}
+                    </span>
+                  </td>
+                  <td style={{ ...tableCellStyle, textAlign: "right", fontWeight: 600, color: m.quantity < 0 ? "#DC2626" : "#15803D" }}>
+                    {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
+                  </td>
+                  <td style={{ ...tableCellStyle, color: "var(--color-gray-500)" }}>
+                    {m.reason ?? (m.orderId ? `Ordine #${m.orderId.slice(-6).toUpperCase()}` : "—")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── AdminScreen ──────────────────────────────────────────────────────────────
 
 export function AdminScreen() {
@@ -2050,6 +2527,10 @@ export function AdminScreen() {
             {activeTab === "receipt-template" && <ReceiptTemplateTab />}
             {activeTab === "shifts" && <ShiftsTab />}
             {activeTab === "backup" && <BackupTab />}
+            {activeTab === "mode" && <ModeTab />}
+            {activeTab === "modules" && <ModulesTab />}
+            {activeTab === "inventory" && <InventoryTab />}
+            {activeTab === "movements" && <MovementsTab />}
           </div>
         )}
       </div>

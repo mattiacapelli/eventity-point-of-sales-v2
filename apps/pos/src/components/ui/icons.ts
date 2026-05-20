@@ -33,6 +33,10 @@ export {
   ChevronDownIcon,
   ChevronUpIcon,
   ArrowDownTrayIcon,
+  CircleStackIcon,
+  Squares2X2Icon,
+  ListBulletIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 
 export {

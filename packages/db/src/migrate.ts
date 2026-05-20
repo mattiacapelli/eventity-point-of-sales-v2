@@ -154,6 +154,49 @@ CREATE TABLE IF NOT EXISTS shifts (
   total_orders INTEGER NOT NULL DEFAULT 0,
   notes        TEXT
 );
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS modules (
+  name       TEXT PRIMARY KEY,
+  enabled    INTEGER NOT NULL DEFAULT 1,
+  version    TEXT NOT NULL DEFAULT '0.1.0',
+  config     TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS inventory_items (
+  id                   TEXT PRIMARY KEY,
+  name                 TEXT NOT NULL,
+  sku                  TEXT,
+  unit                 TEXT NOT NULL DEFAULT 'pz',
+  current_stock        REAL NOT NULL DEFAULT 0,
+  min_stock            REAL NOT NULL DEFAULT 0,
+  production_center_id TEXT REFERENCES production_centers(id),
+  created_at           INTEGER NOT NULL,
+  updated_at           INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS inventory_movements (
+  id         TEXT PRIMARY KEY,
+  item_id    TEXT NOT NULL REFERENCES inventory_items(id),
+  type       TEXT NOT NULL CHECK(type IN ('sale','restock','manual','waste')),
+  quantity   REAL NOT NULL,
+  reason     TEXT,
+  order_id   TEXT REFERENCES orders(id),
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS product_ingredients (
+  id                TEXT PRIMARY KEY,
+  product_id        TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  inventory_item_id TEXT NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
+  quantity          REAL NOT NULL DEFAULT 1
+);
 `;
 
 const EXTRA_COLUMNS = `
@@ -167,6 +210,13 @@ ALTER TABLE products ADD COLUMN image_data TEXT;
 ALTER TABLE products ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE products ADD COLUMN created_at INTEGER;
 ALTER TABLE products ADD COLUMN updated_at INTEGER;
+ALTER TABLE orders ADD COLUMN shift_id TEXT REFERENCES shifts(id);
+INSERT OR IGNORE INTO app_settings(key, value) VALUES('express_mode', 'false');
+INSERT OR IGNORE INTO modules(name, enabled, version, created_at, updated_at) VALUES('pos', 1, '0.2.0', unixepoch(), unixepoch());
+INSERT OR IGNORE INTO modules(name, enabled, version, created_at, updated_at) VALUES('kitchen', 1, '0.2.0', unixepoch(), unixepoch());
+INSERT OR IGNORE INTO modules(name, enabled, version, created_at, updated_at) VALUES('payments', 1, '0.2.0', unixepoch(), unixepoch());
+INSERT OR IGNORE INTO modules(name, enabled, version, created_at, updated_at) VALUES('inventory', 0, '0.2.0', unixepoch(), unixepoch());
+INSERT OR IGNORE INTO modules(name, enabled, version, created_at, updated_at) VALUES('tables', 0, '0.2.0', unixepoch(), unixepoch());
 `;
 
 export function runMigrations(dbPath: string): void {

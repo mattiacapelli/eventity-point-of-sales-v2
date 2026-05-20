@@ -13,6 +13,7 @@ import diagnosticsRoutes from "./routes/diagnostics.js";
 import { salesModule } from "@pos/module-sales";
 import { kitchenModule } from "@pos/module-kitchen";
 import { paymentsModule } from "@pos/module-payments";
+import { inventoryModule } from "@pos/module-inventory";
 import type { AppConfig } from "@pos/core";
 import categoriesRoutes from "./routes/admin/categories.js";
 import productsRoutes from "./routes/admin/products.js";
@@ -24,6 +25,9 @@ import receiptTemplatesRoutes from "./routes/admin/receipt-templates.js";
 import shiftsRoutes from "./routes/admin/shifts.js";
 import bootstrapRoutes from "./routes/bootstrap.js";
 import backupsRoutes from "./routes/admin/backups.js";
+import appSettingsRoutes from "./routes/admin/app-settings.js";
+import modulesRoutes from "./routes/admin/modules.js";
+import statsRoutes from "./routes/stats.js";
 
 export async function buildServer(config: AppConfig) {
   const fastify = Fastify({
@@ -39,7 +43,7 @@ export async function buildServer(config: AppConfig) {
   await fastify.register(coreContextPlugin, { config });
   await fastify.register(authPlugin);
   await fastify.register(moduleLoaderPlugin, {
-    modules: [salesModule, kitchenModule, paymentsModule],
+    modules: [salesModule, kitchenModule, paymentsModule, inventoryModule],
   });
   await fastify.register(printerTriggerPlugin);
   await fastify.register(wsGateway);
@@ -58,6 +62,9 @@ export async function buildServer(config: AppConfig) {
   await fastify.register(shiftsRoutes, { prefix: "/api" });
   await fastify.register(bootstrapRoutes, { prefix: "/api" });
   await fastify.register(backupsRoutes, { prefix: "/api" });
+  await fastify.register(appSettingsRoutes, { prefix: "/api" });
+  await fastify.register(modulesRoutes, { prefix: "/api" });
+  await fastify.register(statsRoutes, { prefix: "/api" });
 
   return fastify;
 }

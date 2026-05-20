@@ -59,13 +59,14 @@
 
   /* Typography */
   --font:         'Lexend', sans-serif;
-  --text-xs:      11px;
-  --text-sm:      13px;
-  --text-md:      15px;
-  --text-lg:      18px;
-  --text-xl:      22px;
-  --text-xxl:     28px;
-  --text-hero:    36px;
+  --scale:        1;
+  --text-xs:      calc(11px * var(--scale));
+  --text-sm:      calc(13px * var(--scale));
+  --text-md:      calc(15px * var(--scale));
+  --text-lg:      calc(18px * var(--scale));
+  --text-xl:      calc(22px * var(--scale));
+  --text-xxl:     calc(28px * var(--scale));
+  --text-hero:    calc(36px * var(--scale));
 
   /* Shadows */
   --shadow-sm:    0 1px 3px rgba(0,0,0,0.08);
@@ -75,6 +76,40 @@
 
   /* Misc */
   --transition:   150ms ease;
+}
+
+/* Font scale selectors */
+[data-font-scale="small"]  { --scale: 0.875; }
+[data-font-scale="normal"] { --scale: 1; }
+[data-font-scale="large"]  { --scale: 1.125; }
+[data-font-scale="xlarge"] { --scale: 1.25; }
+
+/* Dark mode */
+[data-theme="dark"] {
+  --color-white:     #1A1D27;
+  --color-gray-50:   #1A1D27;
+  --color-gray-100:  #1F2335;
+  --color-gray-200:  #2D3748;
+  --color-gray-300:  #4A5568;
+  --color-gray-400:  #718096;
+  --color-gray-500:  #A0AEC0;
+  --color-gray-600:  #CBD5E0;
+  --color-gray-700:  #E2E8F0;
+  --color-gray-800:  #EDF2F7;
+  --color-gray-900:  #F7FAFC;
+
+  /* Shadows adjusted for dark */
+  --shadow-sm:    0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md:    0 4px 16px rgba(0,0,0,0.4);
+  --shadow-lg:    0 8px 32px rgba(0,0,0,0.6);
+
+  /* Brand/accent unchanged */
+  /* --color-brand: #306B34 */
+  /* --color-accent: #C2E812 */
+}
+
+html {
+  transition: background-color 200ms ease, color 200ms ease;
 }
 
 html, body {

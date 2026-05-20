@@ -1,6 +1,44 @@
 import type { Category, Product, ProductionCenter, OptionGroupWithOptions, Option, PaymentMethodRecord, Printer, ReceiptTemplate, Shift } from "@pos/shared-types";
 import { useStore } from "../state/global-store.js";
 
+export interface ModuleInfo {
+  name: string;
+  enabled: boolean;
+  version: string;
+  config: Record<string, unknown> | null;
+  dependencies: string[];
+  dependencyErrors: string[];
+}
+
+export interface InventoryItemRecord {
+  id: string;
+  name: string;
+  sku: string | null;
+  unit: string;
+  currentStock: number;
+  minStock: number;
+  productionCenterId: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface InventoryMovementRecord {
+  id: string;
+  itemId: string;
+  type: "sale" | "restock" | "manual" | "waste";
+  quantity: number;
+  reason: string | null;
+  orderId: string | null;
+  createdAt: number;
+}
+
+export interface ProductIngredientRecord {
+  id: string;
+  productId: string;
+  inventoryItemId: string;
+  quantity: number;
+}
+
 export interface BackupMeta {
   id: string;
   filename: string;
@@ -84,7 +122,7 @@ export const adminApi = {
     update: (id: string, data: Partial<{ name: string; type: string; connectionType: string; host: string | null; port: number | null; active: boolean; receiptEnabled: boolean; kitchenEnabled: boolean }>) =>
       req<Printer>("PATCH", `/printers/${id}`, data),
     delete: (id: string) => req<void>("DELETE", `/printers/${id}`),
-    testPrint: (id: string) => req<{ success: boolean; message: string }>("POST", `/printers/${id}/test-print`),
+    testPrint: (id: string) => req<{ success: boolean; message: string }>("POST", `/printers/${id}/test-print`, {}),
   },
   receiptTemplates: {
     list: () => req<ReceiptTemplate[]>("GET", "/receipt-templates"),
@@ -109,5 +147,39 @@ export const adminApi = {
     create: () => req<BackupMeta>("POST", "/admin/backups/create"),
     delete: (id: string) => req<void>("DELETE", `/admin/backups/${id}`),
     downloadUrl: (id: string) => `/api/admin/backups/download/${id}`,
+  },
+  settings: {
+    get: () => req<{ expressMode: boolean }>("GET", "/admin/settings"),
+    update: (data: { expressMode: boolean }) =>
+      req<{ expressMode: boolean }>("PATCH", "/admin/settings", data),
+  },
+  modules: {
+    list: () => req<ModuleInfo[]>("GET", "/admin/modules"),
+    toggle: (name: string) => req<{ name: string; enabled: boolean }>("PATCH", `/admin/modules/${name}/toggle`),
+    updateConfig: (name: string, config: Record<string, unknown>) =>
+      req<{ name: string; config: Record<string, unknown> }>("PATCH", `/admin/modules/${name}/config`, { config }),
+    reload: (name: string) => req<{ name: string; state: string }>("POST", `/admin/modules/${name}/reload`),
+  },
+  inventory: {
+    listItems: () => req<InventoryItemRecord[]>("GET", "/inventory/items"),
+    createItem: (data: { name: string; sku?: string; unit?: string; currentStock?: number; minStock?: number; productionCenterId?: string }) =>
+      req<InventoryItemRecord>("POST", "/inventory/items", data),
+    updateItem: (id: string, data: Partial<{ name: string; sku: string | null; unit: string; minStock: number; productionCenterId: string | null }>) =>
+      req<InventoryItemRecord>("PATCH", `/inventory/items/${id}`, data),
+    deleteItem: (id: string) => req<void>("DELETE", `/inventory/items/${id}`),
+    adjustStock: (id: string, quantity: number, reason?: string) =>
+      req<InventoryItemRecord>("POST", `/inventory/items/${id}/adjust`, { quantity, ...(reason !== undefined ? { reason } : {}) }),
+    getMovements: (id: string) => req<InventoryMovementRecord[]>("GET", `/inventory/items/${id}/movements`),
+    listMovements: (params?: { type?: string; from?: number; to?: number }) => {
+      const q = params ? new URLSearchParams(
+        Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      ).toString() : "";
+      return req<InventoryMovementRecord[]>("GET", `/inventory/movements${q ? `?${q}` : ""}`);
+    },
+    getAlerts: () => req<InventoryItemRecord[]>("GET", "/inventory/alerts"),
+    getIngredients: (productId: string) => req<ProductIngredientRecord[]>("GET", `/inventory/ingredients/${productId}`),
+    createIngredient: (data: { productId: string; inventoryItemId: string; quantity?: number }) =>
+      req<ProductIngredientRecord>("POST", "/inventory/ingredients", data),
+    deleteIngredient: (id: string) => req<void>("DELETE", `/inventory/ingredients/${id}`),
   },
 };
