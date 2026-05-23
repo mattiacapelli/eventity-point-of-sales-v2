@@ -24,7 +24,7 @@ async function request<T>(
   return res.json() as Promise<T>;
 }
 
-type OrderFilters = { status?: string; shiftId?: string; from?: number; to?: number };
+type OrderFilters = { status?: string; shiftId?: string; from?: number; to?: number; limit?: number; offset?: number };
 
 type ShiftStats = {
   totalSales: number;
@@ -32,6 +32,28 @@ type ShiftStats = {
   avgTicket: number;
   byPaymentMethod: { method: string; amount: number }[];
   byCategory: { categoryName: string; amount: number }[];
+};
+
+export type ZReport = {
+  shift: {
+    id: string;
+    openedAt: string;
+    closedAt: string | null;
+    openingCash: number;
+    closingCash: number | null;
+    notes: string | null;
+  };
+  summary: {
+    totalSales: number;
+    totalOrders: number;
+    cancelledOrders: number;
+    avgTicket: number;
+    refundTotal: number;
+    netSales: number;
+  };
+  byPaymentMethod: { method: string; count: number; amount: number }[];
+  byCategory: { categoryName: string; quantity: number; amount: number }[];
+  topProducts: { name: string; quantity: number; amount: number }[];
 };
 
 type PeriodStats = {
@@ -50,6 +72,8 @@ export const apiClient = {
       if (filters?.shiftId) params.set("shiftId", filters.shiftId);
       if (filters?.from !== undefined) params.set("from", String(filters.from));
       if (filters?.to !== undefined) params.set("to", String(filters.to));
+      if (filters?.limit !== undefined) params.set("limit", String(filters.limit));
+      if (filters?.offset !== undefined) params.set("offset", String(filters.offset));
       const qs = params.toString();
       return request<Order[]>("GET", qs ? `/orders?${qs}` : "/orders");
     },
@@ -75,12 +99,16 @@ export const apiClient = {
       request<Payment>("POST", "/payments", input),
     listByOrder: (orderId: string) =>
       request<{ payments: Payment[] }>("GET", `/payments/order/${orderId}`),
+    refund: (paymentId: string, reason?: string) =>
+      request<Payment>("POST", `/payments/${paymentId}/refund`, { ...(reason !== undefined ? { reason } : {}) }),
   },
   stats: {
     shift: (shiftId: string) =>
       request<ShiftStats>("GET", `/stats/shift/${shiftId}`),
     period: (from: number, to: number) =>
       request<PeriodStats>("GET", `/stats/period?from=${from}&to=${to}`),
+    zreport: (shiftId: string) =>
+      request<ZReport>("GET", `/stats/zreport/${shiftId}`),
   },
   auth: {
     changePin: (currentPin: string, newPin: string) =>

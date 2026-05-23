@@ -25,7 +25,9 @@ import {
   ListBulletIcon,
   ArrowPathIcon,
 } from "../../components/ui/icons.js";
-import type { ModuleInfo, InventoryItemRecord, InventoryMovementRecord } from "../../core/admin-api.js";
+import type { ModuleInfo, InventoryItemRecord, InventoryMovementRecord, ProductIngredientRecord } from "../../core/admin-api.js";
+import { apiClient } from "../../core/api-client.js";
+import type { ZReport } from "../../core/api-client.js";
 import { BackupTab } from "./BackupTab.js";
 
 // ─── Tab types ───────────────────────────────────────────────────────────────
@@ -479,6 +481,87 @@ interface ProductFormData {
   color: string;
 }
 
+function IngredientsModal({ product, onClose }: { product: Product | null; onClose: () => void }) {
+  const [items, setItems] = useState<InventoryItemRecord[]>([]);
+  const [ingredients, setIngredients] = useState<ProductIngredientRecord[]>([]);
+  const [loading_, setLoading_] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [selectedItemId, setSelectedItemId] = useState("");
+  const [qty, setQty] = useState("1");
+
+  useEffect(() => {
+    if (!product) return;
+    setLoading_(true);
+    Promise.all([adminApi.inventory.listItems(), adminApi.inventory.getIngredients(product.id)])
+      .then(([its, ings]) => { setItems(its); setIngredients(ings); })
+      .catch(() => {})
+      .finally(() => setLoading_(false));
+  }, [product?.id]);
+
+  async function handleAdd() {
+    if (!product || !selectedItemId) return;
+    setAdding(true);
+    try {
+      const created = await adminApi.inventory.createIngredient({ productId: product.id, inventoryItemId: selectedItemId, quantity: parseFloat(qty) || 1 });
+      setIngredients((prev) => [...prev, created]);
+      setSelectedItemId(""); setQty("1");
+    } finally { setAdding(false); }
+  }
+
+  async function handleDelete(id: string) {
+    await adminApi.inventory.deleteIngredient(id);
+    setIngredients((prev) => prev.filter((i) => i.id !== id));
+  }
+
+  const usedItemIds = new Set(ingredients.map((i) => i.inventoryItemId));
+  const availableItems = items.filter((it) => !usedItemIds.has(it.id));
+
+  return (
+    <Modal open={product !== null} onClose={onClose} title={`Ingredienti — ${product?.name ?? ""}`}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "16px", minWidth: "360px" }}>
+        {loading_ ? (
+          <div style={{ textAlign: "center", color: "var(--color-gray-400)", padding: "20px" }}>Caricamento...</div>
+        ) : (
+          <>
+            {ingredients.length === 0 && (
+              <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)", textAlign: "center", padding: "8px" }}>
+                Nessun ingrediente configurato. Lo stock non verrà decrementato automaticamente.
+              </div>
+            )}
+            {ingredients.map((ing) => {
+              const item = items.find((it) => it.id === ing.inventoryItemId);
+              return (
+                <div key={ing.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 12px", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)" }}>
+                  <span style={{ flex: 1, fontSize: "var(--text-sm)", fontWeight: 600 }}>{item?.name ?? ing.inventoryItemId}</span>
+                  <span style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)" }}>{ing.quantity} {item?.unit ?? ""}</span>
+                  <button onClick={() => void handleDelete(ing.id)} style={{ border: "none", background: "none", cursor: "pointer", color: "var(--color-danger)", padding: "2px" }}>
+                    <TrashIcon style={{ width: "15px", height: "15px" }} />
+                  </button>
+                </div>
+              );
+            })}
+            {availableItems.length > 0 && (
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", paddingTop: "4px", borderTop: "1px solid var(--color-gray-100)" }}>
+                <select value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)}
+                  style={{ flex: 1, height: "38px", padding: "0 10px", borderRadius: "var(--radius-md)", border: "1.5px solid var(--color-gray-200)", fontFamily: "var(--font)", fontSize: "var(--text-sm)" }}>
+                  <option value="">Seleziona item...</option>
+                  {availableItems.map((it) => <option key={it.id} value={it.id}>{it.name} ({it.unit})</option>)}
+                </select>
+                <input type="number" min="0.01" step="0.01" value={qty} onChange={(e) => setQty(e.target.value)}
+                  style={{ width: "70px", height: "38px", padding: "0 8px", borderRadius: "var(--radius-md)", border: "1.5px solid var(--color-gray-200)", fontFamily: "var(--font)", fontSize: "var(--text-sm)" }} />
+                <Button size="sm" loading={adding} onClick={() => void handleAdd()} disabled={!selectedItemId}>Aggiungi</Button>
+              </div>
+            )}
+          </>
+        )}
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <Button size="sm" variant="ghost" onClick={onClose}>Chiudi</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function ProductsTab() {
   const { products, categories, upsertProduct, removeProduct, setProducts } = useAdminStore();
   const [modalOpen, setModalOpen] = useState(false);
@@ -487,6 +570,7 @@ function ProductsTab() {
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
+  const [ingredientsProduct, setIngredientsProduct] = useState<Product | null>(null);
 
   function openCreate() {
     setEditTarget(null);
@@ -632,6 +716,21 @@ function ProductsTab() {
                           <CubeIcon style={{ width: "13px", height: "13px" }} />
                           Opzioni
                         </button>
+                        <button
+                          onClick={() => setIngredientsProduct(p)}
+                          title="Ingredienti inventario"
+                          style={{
+                            padding: "6px 10px", borderRadius: "var(--radius-md)",
+                            border: "1px solid var(--color-gray-200)",
+                            background: "var(--color-white)", cursor: "pointer",
+                            color: "var(--color-gray-500)",
+                            display: "flex", alignItems: "center", gap: "4px",
+                            fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font)",
+                          }}
+                        >
+                          <CircleStackIcon style={{ width: "13px", height: "13px" }} />
+                          Ingredienti
+                        </button>
                         <button onClick={() => openEdit(p)} title="Modifica"
                           style={{ padding: "6px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", color: "var(--color-gray-600)", display: "flex", alignItems: "center" }}>
                           <PencilSquareIcon style={{ width: "16px", height: "16px" }} />
@@ -747,6 +846,8 @@ function ProductsTab() {
           </Button>
         </div>
       </Modal>
+
+      <IngredientsModal product={ingredientsProduct} onClose={() => setIngredientsProduct(null)} />
     </div>
   );
 }
@@ -1845,6 +1946,99 @@ function ModeTab() {
 
 // ─── Shifts Tab ───────────────────────────────────────────────────────────────
 
+function ZReportModal({ shiftId, onClose }: { shiftId: string | null; onClose: () => void }) {
+  const [report, setReport] = useState<ZReport | null>(null);
+  const [loading_, setLoading_] = useState(false);
+
+  useEffect(() => {
+    if (!shiftId) { setReport(null); return; }
+    setLoading_(true);
+    apiClient.stats.zreport(shiftId).then(setReport).catch(() => {}).finally(() => setLoading_(false));
+  }, [shiftId]);
+
+  const METHOD_LABELS: Record<string, string> = { cash: "Contanti", card: "Carta", digital_wallet: "Wallet", tab: "Conto" };
+
+  return (
+    <Modal open={shiftId !== null} onClose={onClose} title="Z-Report — Fine turno">
+      <div style={{ minWidth: "460px", maxWidth: "560px" }}>
+        {loading_ || !report ? (
+          <div style={{ textAlign: "center", padding: "32px", color: "var(--color-gray-400)" }}>
+            {loading_ ? "Caricamento..." : "Nessun dato"}
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            {/* Summary grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
+              {[
+                { label: "Vendite nette", value: `€${report.summary.netSales.toFixed(2)}`, highlight: true },
+                { label: "Ordini completati", value: String(report.summary.totalOrders) },
+                { label: "Scontrino medio", value: `€${report.summary.avgTicket.toFixed(2)}` },
+                { label: "Totale lordo", value: `€${report.summary.totalSales.toFixed(2)}` },
+                { label: "Rimborsi", value: `€${report.summary.refundTotal.toFixed(2)}` },
+                { label: "Annullati", value: String(report.summary.cancelledOrders) },
+              ].map(({ label, value, highlight }) => (
+                <div key={label} style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", padding: "12px" }}>
+                  <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", fontWeight: 600, marginBottom: "4px" }}>{label}</div>
+                  <div style={{ fontSize: highlight ? "var(--text-lg)" : "var(--text-md)", fontWeight: 700, color: highlight ? "var(--color-brand)" : "var(--color-gray-800)" }}>{value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* By payment method */}
+            {report.byPaymentMethod.length > 0 && (
+              <div>
+                <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-gray-400)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>Per metodo di pagamento</div>
+                <div style={{ background: "var(--color-white)", border: "1px solid var(--color-gray-100)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
+                  {report.byPaymentMethod.map((m, i) => (
+                    <div key={m.method} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", borderBottom: i < report.byPaymentMethod.length - 1 ? "1px solid var(--color-gray-100)" : "none" }}>
+                      <span style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-700)" }}>{METHOD_LABELS[m.method] ?? m.method} ({m.count})</span>
+                      <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-800)" }}>€{m.amount.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* By category */}
+            {report.byCategory.length > 0 && (
+              <div>
+                <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-gray-400)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>Per categoria</div>
+                <div style={{ background: "var(--color-white)", border: "1px solid var(--color-gray-100)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
+                  {report.byCategory.sort((a, b) => b.amount - a.amount).map((c, i) => (
+                    <div key={c.categoryName} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", borderBottom: i < report.byCategory.length - 1 ? "1px solid var(--color-gray-100)" : "none" }}>
+                      <span style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-700)" }}>{c.categoryName} ({c.quantity} pz)</span>
+                      <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-800)" }}>€{c.amount.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Top products */}
+            {report.topProducts.length > 0 && (
+              <div>
+                <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-gray-400)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>Top prodotti</div>
+                <div style={{ background: "var(--color-white)", border: "1px solid var(--color-gray-100)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
+                  {report.topProducts.map((p, i) => (
+                    <div key={p.name + i} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", borderBottom: i < report.topProducts.length - 1 ? "1px solid var(--color-gray-100)" : "none" }}>
+                      <span style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-700)" }}>{i + 1}. {p.name} ({p.quantity} pz)</span>
+                      <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-800)" }}>€{p.amount.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <Button size="sm" variant="ghost" onClick={onClose}>Chiudi</Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 function ShiftsTab() {
   const [history, setHistory] = useState<Array<{
     id: string; userId: string; openedAt: number; closedAt: number | null;
@@ -1857,6 +2051,7 @@ function ShiftsTab() {
   const [openingCash, setOpeningCash] = useState("0");
   const [closingCash, setClosingCash] = useState("0");
   const [saving, setSaving] = useState(false);
+  const [zReportShiftId, setZReportShiftId] = useState<string | null>(null);
   const store = useAdminStore();
 
   async function loadShifts() {
@@ -1968,6 +2163,7 @@ function ShiftsTab() {
                       <th style={tableHeaderStyle}>Vendite</th>
                       <th style={tableHeaderStyle}>Ordini</th>
                       <th style={tableHeaderStyle}>Fondo cassa</th>
+                      <th style={tableHeaderStyle}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1979,6 +2175,14 @@ function ShiftsTab() {
                         <td style={{ ...tableCellStyle, fontWeight: 600, color: "var(--color-brand)" }}>€{s.totalSales.toFixed(2)}</td>
                         <td style={tableCellStyle}>{s.totalOrders}</td>
                         <td style={tableCellStyle}>{s.closingCash !== null ? `€${s.closingCash.toFixed(2)}` : "—"}</td>
+                        <td style={tableCellStyle}>
+                          <button
+                            onClick={() => setZReportShiftId(s.id)}
+                            style={{ padding: "5px 10px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font)", color: "var(--color-gray-600)" }}
+                          >
+                            Z-Report
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -2019,6 +2223,8 @@ function ShiftsTab() {
           </div>
         </div>
       </Modal>
+
+      <ZReportModal shiftId={zReportShiftId} onClose={() => setZReportShiftId(null)} />
     </div>
   );
 }
@@ -2408,6 +2614,7 @@ export function AdminScreen() {
   const [activeTab, setActiveTab] = useState<Tab>("products");
   const { setCategories, setProducts, setProductionCenters, setLoading, loading } = useAdminStore();
   const navigate = useNavigate();
+  const [lowStockCount, setLowStockCount] = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -2423,6 +2630,8 @@ export function AdminScreen() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
+
+    adminApi.inventory.getAlerts().then((alerts) => setLowStockCount(alerts.length)).catch(() => {});
   }, []);
 
   const activeTab_ = TABS.find((t) => t.key === activeTab) ?? TABS[0]!
@@ -2472,6 +2681,15 @@ export function AdminScreen() {
           <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-500)" }}>
             {activeTab_.label}
           </span>
+          {lowStockCount > 0 && (
+            <button
+              onClick={() => setActiveTab("inventory")}
+              title={`${lowStockCount} prodott${lowStockCount === 1 ? "o" : "i"} sotto scorta`}
+              style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "6px", padding: "5px 12px", borderRadius: "999px", background: "#fef2f2", border: "1px solid #fca5a5", cursor: "pointer", color: "#dc2626", fontSize: "var(--text-xs)", fontWeight: 700 }}
+            >
+              ⚠ {lowStockCount} sotto scorta
+            </button>
+          )}
         </div>
 
         {/* Nav pills */}

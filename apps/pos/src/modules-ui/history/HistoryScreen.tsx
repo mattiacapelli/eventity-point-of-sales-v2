@@ -87,6 +87,59 @@ function CancelModal({
   );
 }
 
+// ─── Refund modal ─────────────────────────────────────────────────────────────
+
+function RefundModal({
+  paymentId,
+  amount,
+  onConfirm,
+  onClose,
+}: {
+  paymentId: string | null;
+  amount: number;
+  onConfirm: (paymentId: string, reason?: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [reason, setReason] = useState("");
+
+  async function handleConfirm() {
+    if (!paymentId) return;
+    setLoading(true);
+    await onConfirm(paymentId, reason || undefined);
+    setLoading(false);
+    setReason("");
+    onClose();
+  }
+
+  return (
+    <Modal open={paymentId !== null} onClose={onClose} title="Rimborsa pagamento">
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-md)" }}>
+        <p style={{ margin: 0, color: "var(--color-gray-700)", fontSize: "var(--text-sm)" }}>
+          Stai rimborsando <strong>€{amount.toFixed(2)}</strong>. Questa operazione è irreversibile.
+        </p>
+        <input
+          placeholder="Motivazione (opzionale)"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          style={{
+            height: "44px", padding: "0 14px",
+            borderRadius: "var(--radius-lg)",
+            border: "2px solid var(--color-gray-200)",
+            fontFamily: "var(--font)", fontSize: "var(--text-sm)",
+          }}
+        />
+        <div style={{ display: "flex", gap: "var(--sp-sm)" }}>
+          <Button variant="ghost" size="sm" onClick={onClose} style={{ flex: 1 }}>Annulla</Button>
+          <Button variant="danger" size="sm" onClick={handleConfirm} loading={loading} style={{ flex: 1 }}>
+            Conferma rimborso
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Order row ────────────────────────────────────────────────────────────────
 
 function OrderRow({
@@ -94,13 +147,16 @@ function OrderRow({
   isAdmin,
   onReprint,
   onCancel,
+  onRefund,
 }: {
   order: Order;
   isAdmin: boolean;
   onReprint: (id: string) => void;
   onCancel: (order: Order) => void;
+  onRefund: (order: Order) => void;
 }) {
   const canCancel = isAdmin && order.status !== "completed" && order.status !== "cancelled";
+  const canRefund = isAdmin && order.status === "completed";
   const itemSummary = order.items.length > 0
     ? order.items.map((i) => `${i.quantity}× ${i.name}`).join(", ")
     : "—";
@@ -139,6 +195,12 @@ function OrderRow({
           <Button size="sm" variant="ghost" onClick={() => onReprint(order.id)}>
             Ristampa
           </Button>
+          {canRefund && (
+            <Button size="sm" variant="ghost" onClick={() => onRefund(order)}
+              style={{ color: "#b45309", borderColor: "#fcd34d" }}>
+              Rimborsa
+            </Button>
+          )}
           {canCancel && (
             <Button size="sm" variant="danger" onClick={() => onCancel(order)}>
               Annulla
@@ -162,6 +224,8 @@ const ORDER_STATUSES: { value: string; label: string }[] = [
   { value: "cancelled", label: "Annullato" },
 ];
 
+const PAGE_SIZE = 50;
+
 export function HistoryScreen() {
   const session = useStore((s) => s.session);
   const isAdmin = session?.role === "admin";
@@ -170,6 +234,8 @@ export function HistoryScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [offset, setOffset] = useState(0);
 
   // Filters
   const [filterStatus, setFilterStatus] = useState("");
@@ -178,8 +244,9 @@ export function HistoryScreen() {
   const [filterShiftId, setFilterShiftId] = useState("");
   const [shifts, setShifts] = useState<Shift[]>([]);
 
-  // Cancel modal
+  // Modals
   const [cancelOrder, setCancelOrder] = useState<Order | null>(null);
+  const [refundOrder, setRefundOrder] = useState<{ paymentId: string; amount: number } | null>(null);
 
   function showToast(msg: string, type: "success" | "error") {
     setToast({ msg, type });
@@ -190,21 +257,28 @@ export function HistoryScreen() {
     adminApi.shifts.history().then(setShifts).catch(() => {});
   }, []);
 
-  const load = useCallback(() => {
+  const load = useCallback((currentOffset = 0, append = false) => {
     setLoading(true);
     setError(null);
-    const filters: { status?: string; shiftId?: string; from?: number; to?: number } = {};
+    const filters: { status?: string; shiftId?: string; from?: number; to?: number; limit?: number; offset?: number } = {
+      limit: PAGE_SIZE,
+      offset: currentOffset,
+    };
     if (filterStatus) filters.status = filterStatus;
     if (filterShiftId) filters.shiftId = filterShiftId;
     if (filterFrom) filters.from = new Date(filterFrom).getTime();
     if (filterTo) filters.to = new Date(filterTo + "T23:59:59").getTime();
     apiClient.orders.list(filters)
-      .then(setOrders)
+      .then((data) => {
+        setOrders((prev) => append ? [...prev, ...data] : data);
+        setHasMore(data.length === PAGE_SIZE);
+        setOffset(currentOffset + data.length);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [filterStatus, filterShiftId, filterFrom, filterTo]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(0, false); }, [load]);
 
   async function handleReprint(id: string) {
     try {
@@ -219,9 +293,30 @@ export function HistoryScreen() {
     try {
       await apiClient.orders.cancel(id);
       showToast("Ordine annullato", "success");
-      load();
+      load(0, false);
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Errore annullamento", "error");
+    }
+  }
+
+  async function handleRefundClick(order: Order) {
+    try {
+      const { payments: pmts } = await apiClient.payments.listByOrder(order.id);
+      const completed = pmts.find((p) => p.status === "completed");
+      if (!completed) { showToast("Nessun pagamento rimborsabile trovato", "error"); return; }
+      setRefundOrder({ paymentId: completed.id, amount: completed.amount });
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Errore", "error");
+    }
+  }
+
+  async function handleRefundConfirm(paymentId: string, reason?: string) {
+    try {
+      await apiClient.payments.refund(paymentId, reason);
+      showToast("Rimborso effettuato", "success");
+      load(0, false);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Errore rimborso", "error");
     }
   }
 
@@ -252,7 +347,7 @@ export function HistoryScreen() {
           <h1 style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-gray-900)", margin: 0 }}>
             Storico ordini
           </h1>
-          <Button size="sm" variant="ghost" onClick={load}>Aggiorna</Button>
+          <Button size="sm" variant="ghost" onClick={() => load(0, false)}>Aggiorna</Button>
         </div>
 
         {/* Filters */}
@@ -312,14 +407,36 @@ export function HistoryScreen() {
             isAdmin={isAdmin}
             onReprint={handleReprint}
             onCancel={setCancelOrder}
+            onRefund={handleRefundClick}
           />
         ))}
+
+        {hasMore && !loading && (
+          <div style={{ textAlign: "center", paddingBottom: "var(--sp-md)" }}>
+            <Button size="sm" variant="ghost" onClick={() => load(offset, true)}>
+              Carica altri
+            </Button>
+          </div>
+        )}
+
+        {loading && orders.length > 0 && (
+          <div style={{ textAlign: "center", padding: "var(--sp-md)" }}>
+            <span style={{ width: "24px", height: "24px", border: "3px solid var(--color-gray-200)", borderTopColor: "var(--color-brand)", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />
+          </div>
+        )}
       </div>
 
       <CancelModal
         order={cancelOrder}
         onConfirm={handleCancel}
         onClose={() => setCancelOrder(null)}
+      />
+
+      <RefundModal
+        paymentId={refundOrder?.paymentId ?? null}
+        amount={refundOrder?.amount ?? 0}
+        onConfirm={handleRefundConfirm}
+        onClose={() => setRefundOrder(null)}
       />
 
       {toast && (
