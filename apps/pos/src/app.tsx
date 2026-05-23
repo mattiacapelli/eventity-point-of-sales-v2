@@ -9,6 +9,12 @@ import { LoginScreen } from "./modules-ui/auth/LoginScreen.js";
 import { SetupScreen } from "./modules-ui/setup/SetupScreen.js";
 import "./styles/globals.css";
 
+// Apply persisted theme + font scale at boot
+const _savedTheme = localStorage.getItem("pos_theme");
+if (_savedTheme) document.documentElement.setAttribute("data-theme", _savedTheme);
+const _savedFont = localStorage.getItem("pos_font_size");
+if (_savedFont) document.documentElement.setAttribute("data-font-scale", _savedFont);
+
 const PosScreen       = lazy(() => import("./modules-ui/sales/PosScreen.js").then((m) => ({ default: m.PosScreen })));
 const HistoryScreen   = lazy(() => import("./modules-ui/history/HistoryScreen.js").then((m) => ({ default: m.HistoryScreen })));
 const StatsScreen     = lazy(() => import("./modules-ui/stats/StatsScreen.js").then((m) => ({ default: m.StatsScreen })));

@@ -3,7 +3,12 @@ import type { FastifyInstance } from "fastify";
 import type { InventoryService } from "../service/inventory.service.js";
 import { InventoryValidationError } from "../service/inventory.service.js";
 
-export function registerInventoryRoutes(fastify: FastifyInstance, service: InventoryService): void {
+export function registerInventoryRoutes(
+  fastify: FastifyInstance,
+  service: InventoryService,
+  moduleGuard?: (req: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) => Promise<void>,
+): void {
+  if (moduleGuard) fastify.addHook("preHandler", moduleGuard);
   // GET /inventory/items
   fastify.route({
     method: "GET",

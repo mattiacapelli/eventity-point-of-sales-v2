@@ -34,8 +34,14 @@ export async function buildServer(config: AppConfig) {
     logger: false, // pino logger is managed by CoreContext
   });
 
-  // Infrastructure
-  await fastify.register(cors, { origin: true });
+  // Infrastructure — CORS: allow configured origins or all in development
+  const corsOrigin: string | boolean | string[] =
+    config.corsOrigins !== ""
+      ? config.corsOrigins.split(",").map((o) => o.trim())
+      : config.env === "development"
+        ? true
+        : false;
+  await fastify.register(cors, { origin: corsOrigin, credentials: true });
   await fastify.register(websocket);
   await fastify.register(swaggerPlugin);
 

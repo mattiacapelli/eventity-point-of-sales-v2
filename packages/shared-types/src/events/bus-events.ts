@@ -44,6 +44,14 @@ export interface PlatformEventMap {
     readonly reason: string;
     readonly timestamp: Date;
   };
+  PAYMENT_REFUNDED: {
+    readonly traceId: string;
+    readonly paymentId: string;
+    readonly orderId: string;
+    readonly amount: number;
+    readonly reason?: string;
+    readonly timestamp: Date;
+  };
 
   // Auth
   USER_LOGGED_IN: {

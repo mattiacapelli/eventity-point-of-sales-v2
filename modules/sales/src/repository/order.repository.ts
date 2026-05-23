@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { eq, desc, inArray, orders, orderItems, products, options } from "@pos/db";
+import { eq, desc, and, gte, lte, inArray, orders, orderItems, products, options, sql } from "@pos/db";
 import type { DbClient } from "@pos/db";
-import type { Order, OrderItem, CreateOrderInput, OrderStatus } from "@pos/shared-types";
+import type { Order, OrderItem, CreateOrderInput, OrderStatus, UpdateOrderInput } from "@pos/shared-types";
 
 type DbOrderRow = {
   id: string;
   tableId: string | null;
   eventId: string | null;
+  shiftId: string | null;
   status: string;
   totalAmount: number;
   createdAt: Date;
@@ -24,60 +25,103 @@ type DbItemRow = {
   notes: string | null;
 };
 
+type JoinRow = {
+  orderId: string;
+  tableId: string | null;
+  eventId: string | null;
+  shiftId: string | null;
+  status: string;
+  totalAmount: number;
+  createdAt: Date;
+  updatedAt: Date;
+  syncedAt: Date | null;
+  // nullable when order has no items (left join)
+  itemId: string | null;
+  productId: string | null;
+  itemName: string | null;
+  quantity: number | null;
+  unitPrice: number | null;
+  notes: string | null;
+};
+
 export class OrderRepository {
   constructor(private readonly db: DbClient) {}
 
   async findById(id: string): Promise<Order | null> {
-    const [order] = await this.db
-      .select()
+    const rows = await this.db
+      .select({
+        // order columns
+        orderId:      orders.id,
+        tableId:      orders.tableId,
+        eventId:      orders.eventId,
+        shiftId:      orders.shiftId,
+        status:       orders.status,
+        totalAmount:  orders.totalAmount,
+        createdAt:    orders.createdAt,
+        updatedAt:    orders.updatedAt,
+        syncedAt:     orders.syncedAt,
+        // item columns (null when no items)
+        itemId:       orderItems.id,
+        productId:    orderItems.productId,
+        itemName:     orderItems.name,
+        quantity:     orderItems.quantity,
+        unitPrice:    orderItems.unitPrice,
+        notes:        orderItems.notes,
+      })
       .from(orders)
-      .where(eq(orders.id, id))
-      .limit(1);
+      .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
+      .where(eq(orders.id, id));
 
-    if (order === undefined) return null;
-
-    const items = await this.db
-      .select()
-      .from(orderItems)
-      .where(eq(orderItems.orderId, id));
-
-    return this.toOrder(order as unknown as DbOrderRow, items as unknown as DbItemRow[]);
+    if (rows.length === 0) return null;
+    return this._collapseRows(rows as unknown as JoinRow[])[0] ?? null;
   }
 
-  async findAll(limit = 100): Promise<Order[]> {
-    const rows = await this.db
-      .select()
+  async findAll(filters?: { status?: OrderStatus; shiftId?: string; from?: number; to?: number; limit?: number; offset?: number }): Promise<Order[]> {
+    const conditions = [];
+    if (filters?.status !== undefined) conditions.push(eq(orders.status, filters.status));
+    if (filters?.shiftId !== undefined) conditions.push(eq(orders.shiftId, filters.shiftId));
+    if (filters?.from !== undefined) conditions.push(gte(orders.createdAt, new Date(filters.from)));
+    if (filters?.to !== undefined) conditions.push(lte(orders.createdAt, new Date(filters.to)));
+
+    // Subquery: get matching order IDs with pagination, then JOIN items
+    const idQuery = this.db
+      .select({ id: orders.id })
       .from(orders)
       .orderBy(desc(orders.createdAt))
-      .limit(limit);
+      .limit(filters?.limit ?? 200)
+      .offset(filters?.offset ?? 0);
 
-    const result: Order[] = [];
-    for (const row of rows) {
-      const items = await this.db
-        .select()
-        .from(orderItems)
-        .where(eq(orderItems.orderId, row.id));
-      result.push(this.toOrder(row as unknown as DbOrderRow, items as unknown as DbItemRow[]));
-    }
-    return result;
-  }
+    const filteredIdQuery = conditions.length > 0
+      ? idQuery.where(and(...conditions))
+      : idQuery;
 
-  async findByStatus(status: OrderStatus): Promise<Order[]> {
+    const matchingIds = (await filteredIdQuery).map((r) => r.id);
+    if (matchingIds.length === 0) return [];
+
     const rows = await this.db
-      .select()
+      .select({
+        orderId:      orders.id,
+        tableId:      orders.tableId,
+        eventId:      orders.eventId,
+        shiftId:      orders.shiftId,
+        status:       orders.status,
+        totalAmount:  orders.totalAmount,
+        createdAt:    orders.createdAt,
+        updatedAt:    orders.updatedAt,
+        syncedAt:     orders.syncedAt,
+        itemId:       orderItems.id,
+        productId:    orderItems.productId,
+        itemName:     orderItems.name,
+        quantity:     orderItems.quantity,
+        unitPrice:    orderItems.unitPrice,
+        notes:        orderItems.notes,
+      })
       .from(orders)
-      .where(eq(orders.status, status))
+      .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
+      .where(inArray(orders.id, matchingIds))
       .orderBy(desc(orders.createdAt));
 
-    const result: Order[] = [];
-    for (const row of rows) {
-      const items = await this.db
-        .select()
-        .from(orderItems)
-        .where(eq(orderItems.orderId, row.id));
-      result.push(this.toOrder(row as unknown as DbOrderRow, items as unknown as DbItemRow[]));
-    }
-    return result;
+    return this._collapseRows(rows as unknown as JoinRow[]);
   }
 
   async create(input: CreateOrderInput): Promise<Order> {
@@ -128,6 +172,7 @@ export class OrderRepository {
       id,
       tableId: input.tableId ?? null,
       eventId: input.eventId ?? null,
+      shiftId: input.shiftId ?? null,
       status: "pending",
       totalAmount,
       createdAt: now,
@@ -153,6 +198,7 @@ export class OrderRepository {
         id,
         tableId: input.tableId ?? null,
         eventId: input.eventId ?? null,
+        shiftId: input.shiftId ?? null,
         status: "pending",
         totalAmount,
         createdAt: now,
@@ -177,6 +223,42 @@ export class OrderRepository {
     await this.db.delete(orders).where(eq(orders.id, id));
   }
 
+  private _collapseRows(rows: JoinRow[]): Order[] {
+    const orderMap = new Map<string, { row: JoinRow; items: DbItemRow[] }>();
+    for (const r of rows) {
+      if (!orderMap.has(r.orderId)) {
+        orderMap.set(r.orderId, { row: r, items: [] });
+      }
+      if (r.itemId !== null && r.productId !== null && r.itemName !== null && r.quantity !== null && r.unitPrice !== null) {
+        orderMap.get(r.orderId)!.items.push({
+          id: r.itemId,
+          orderId: r.orderId,
+          productId: r.productId,
+          name: r.itemName,
+          quantity: r.quantity,
+          unitPrice: r.unitPrice,
+          notes: r.notes,
+        });
+      }
+    }
+    return [...orderMap.values()].map(({ row, items }) =>
+      this.toOrder(
+        {
+          id: row.orderId,
+          tableId: row.tableId,
+          eventId: row.eventId,
+          shiftId: row.shiftId,
+          status: row.status,
+          totalAmount: row.totalAmount,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+          syncedAt: row.syncedAt,
+        },
+        items,
+      )
+    );
+  }
+
   private toOrder(row: DbOrderRow, items: DbItemRow[]): Order {
     const base: Order = {
       id: row.id,
@@ -197,6 +279,7 @@ export class OrderRepository {
       }),
       ...(row.tableId !== null ? { tableId: row.tableId } : {}),
       ...(row.eventId !== null ? { eventId: row.eventId } : {}),
+      ...(row.shiftId !== null ? { shiftId: row.shiftId } : {}),
       ...(row.syncedAt !== null ? { syncedAt: row.syncedAt } : {}),
     };
     return base;

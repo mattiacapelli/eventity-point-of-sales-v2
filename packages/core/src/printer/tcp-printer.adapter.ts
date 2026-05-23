@@ -41,57 +41,78 @@ function buildEscPosBuffer(text: string): Buffer {
   return Buffer.concat(parts);
 }
 
+const CONNECT_TIMEOUT_MS = 5000;
+
 export class TcpPrinterAdapter implements PrinterAdapter {
   private socket: net.Socket | null = null;
   private connected = false;
   private reconnectDelay = 5000;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private destroyed = false;
+  private connectingPromise: Promise<void> | null = null;
 
   constructor(
     private readonly host: string,
     private readonly port: number,
     private readonly logger: Logger,
   ) {
-    this.connect();
+    this.connectingPromise = this.connect();
   }
 
-  private connect(): void {
-    if (this.destroyed) return;
+  private connect(): Promise<void> {
+    if (this.destroyed) return Promise.resolve();
 
-    this.socket = new net.Socket();
+    return new Promise<void>((resolve) => {
+      this.socket = new net.Socket();
 
-    this.socket.connect(this.port, this.host, () => {
-      this.connected = true;
-      this.reconnectDelay = 5000;
-      this.logger.info({ host: this.host, port: this.port }, "[printer] TCP connected");
-    });
+      const timeout = setTimeout(() => {
+        resolve(); // resolve even on timeout — caller checks this.connected
+      }, CONNECT_TIMEOUT_MS);
 
-    this.socket.on("error", (err) => {
-      this.logger.warn({ host: this.host, port: this.port, err: err.message }, "[printer] TCP error");
-      this.connected = false;
-    });
+      this.socket.connect(this.port, this.host, () => {
+        clearTimeout(timeout);
+        this.connected = true;
+        this.reconnectDelay = 5000;
+        this.logger.info({ host: this.host, port: this.port }, "[printer] TCP connected");
+        resolve();
+      });
 
-    this.socket.on("close", () => {
-      this.connected = false;
-      if (!this.destroyed) {
-        this.logger.debug({ delay: this.reconnectDelay }, "[printer] TCP disconnected — will reconnect");
-        this.scheduleReconnect();
-      }
+      this.socket.on("error", (err) => {
+        clearTimeout(timeout);
+        this.logger.warn({ host: this.host, port: this.port, err: err.message }, "[printer] TCP error");
+        this.connected = false;
+        resolve();
+      });
+
+      this.socket.on("close", () => {
+        this.connected = false;
+        if (!this.destroyed) {
+          this.logger.debug({ delay: this.reconnectDelay }, "[printer] TCP disconnected — will reconnect");
+          this.connectingPromise = this.scheduleReconnect();
+        }
+      });
     });
   }
 
-  private scheduleReconnect(): void {
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30_000);
-      this.socket?.destroy();
-      this.socket = null;
-      this.connect();
-    }, this.reconnectDelay);
+  private scheduleReconnect(): Promise<void> {
+    return new Promise<void>((resolve) => {
+      if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30_000);
+        this.socket?.destroy();
+        this.socket = null;
+        this.connect().then(resolve);
+      }, this.reconnectDelay);
+    });
   }
 
   async print(job: PrintJob): Promise<PrintResult> {
+    // Wait for initial connection attempt to complete (max CONNECT_TIMEOUT_MS)
+    if (this.connectingPromise) {
+      await this.connectingPromise;
+      this.connectingPromise = null;
+    }
+
     if (!this.connected || !this.socket) {
       return { success: false, message: `Printer ${this.host}:${this.port} not connected` };
     }

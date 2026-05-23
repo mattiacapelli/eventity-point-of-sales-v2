@@ -127,6 +127,23 @@ export class AuthService {
     await this.db.delete(sessions).where(lt(sessions.expiresAt, new Date()));
   }
 
+  async changePin(userId: string, currentPin: string, newPin: string): Promise<void> {
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (user === undefined || !user.active) throw new AuthError("User not found");
+    if (user.pin === null || user.pin === undefined) throw new AuthError("No PIN configured");
+
+    const valid = await argon2.verify(user.pin, currentPin);
+    if (!valid) throw new AuthError("PIN attuale non corretto");
+
+    const hashedPin = await argon2.hash(newPin);
+    await this.db.update(users).set({ pin: hashedPin }).where(eq(users.id, userId));
+  }
+
   async createUser(input: {
     name: string;
     username: string;

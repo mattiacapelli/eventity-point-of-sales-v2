@@ -4,6 +4,7 @@ export const orders = sqliteTable("orders", {
   id: text("id").primaryKey(),
   tableId: text("table_id"),
   eventId: text("event_id"),
+  shiftId: text("shift_id"),
   status: text("status", {
     enum: ["pending", "confirmed", "preparing", "ready", "completed", "cancelled"],
   }).notNull().default("pending"),

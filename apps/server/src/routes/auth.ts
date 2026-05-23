@@ -1,10 +1,26 @@
 import type { FastifyPluginAsync } from "fastify";
+import rateLimit from "@fastify/rate-limit";
 import { AuthError } from "@pos/core";
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
+  // Rate limit login: max 10 attempts per IP per minute, 1-hour lockout after 5 failures in 5 min
+  await fastify.register(rateLimit, {
+    global: false,
+  });
+
   fastify.post(
     "/auth/login",
     {
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: "1 minute",
+          ban: 5, // after 5 rejected by rate-limit → 403 for 1 hour
+          errorResponseBuilder: () => ({
+            error: "Too many login attempts. Please wait before trying again.",
+          }),
+        },
+      },
       schema: {
         tags: ["auth"],
         summary: "Login with PIN",
@@ -115,6 +131,42 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         username: session.username,
         sessionId: session.sessionId,
       });
+    }
+  );
+
+  fastify.patch(
+    "/auth/change-pin",
+    {
+      schema: {
+        tags: ["auth"],
+        summary: "Change own PIN",
+        security: [{ bearerAuth: [] }],
+        body: {
+          type: "object",
+          required: ["currentPin", "newPin"],
+          properties: {
+            currentPin: { type: "string", minLength: 4, maxLength: 12 },
+            newPin:     { type: "string", minLength: 4, maxLength: 12 },
+          },
+        },
+        response: {
+          200: { type: "object", properties: { ok: { type: "boolean" } } },
+          400: { type: "object", properties: { error: { type: "string" } } },
+          401: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+      preHandler: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      if (request.session === null) return reply.status(401).send({ error: "Unauthorized" });
+      const { currentPin, newPin } = request.body as { currentPin: string; newPin: string };
+      try {
+        await fastify.authService.changePin(request.session.userId, currentPin, newPin);
+        return reply.send({ ok: true });
+      } catch (err) {
+        if (err instanceof AuthError) return reply.status(400).send({ error: err.message });
+        throw err;
+      }
     }
   );
 

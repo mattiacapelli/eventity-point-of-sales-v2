@@ -13,7 +13,13 @@ function serializeOrder(order: Order) {
   };
 }
 
-export function registerKitchenRoutes(fastify: FastifyInstance, service: KitchenService): void {
+export function registerKitchenRoutes(
+  fastify: FastifyInstance,
+  service: KitchenService,
+  moduleGuard?: (req: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) => Promise<void>,
+): void {
+  if (moduleGuard) fastify.addHook("preHandler", moduleGuard);
+
   // GET /kitchen/queue — active orders for kitchen display
   fastify.route({
     method: "GET",

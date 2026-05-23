@@ -1,26 +1,345 @@
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { PosLayout } from "../../layout/PosLayout.js";
-import { ClipboardDocumentListIcon } from "../../components/ui/icons.js";
+import { Button } from "../../components/ui/Button.js";
+import { Modal } from "../../components/ui/Modal.js";
+import { useStore } from "../../state/global-store.js";
+import { apiClient } from "../../core/api-client.js";
+import { adminApi } from "../../core/admin-api.js";
+import type { Order, OrderStatus } from "@pos/shared-types";
+import type { Shift } from "@pos/shared-types";
+
+// ─── Status badge ─────────────────────────────────────────────────────────────
+
+const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  pending:    { bg: "#f3f4f6", text: "#374151", label: "In attesa" },
+  confirmed:  { bg: "#dbeafe", text: "#1d4ed8", label: "Confermato" },
+  preparing:  { bg: "#fef3c7", text: "#92400e", label: "In preparazione" },
+  ready:      { bg: "#d1fae5", text: "#065f46", label: "Pronto" },
+  completed:  { bg: "#d1fae5", text: "#065f46", label: "Completato" },
+  cancelled:  { bg: "#fee2e2", text: "#991b1b", label: "Annullato" },
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const s = STATUS_COLORS[status] ?? { bg: "#f3f4f6", text: "#374151", label: status };
+  return (
+    <span style={{
+      padding: "3px 10px",
+      borderRadius: "999px",
+      background: s.bg,
+      color: s.text,
+      fontWeight: 600,
+      fontSize: "12px",
+    }}>
+      {s.label}
+    </span>
+  );
+}
+
+// ─── Cancel confirm modal ─────────────────────────────────────────────────────
+
+function CancelModal({
+  order,
+  onConfirm,
+  onClose,
+}: {
+  order: Order | null;
+  onConfirm: (id: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [reason, setReason] = useState("");
+
+  async function handleConfirm() {
+    if (!order) return;
+    setLoading(true);
+    await onConfirm(order.id);
+    setLoading(false);
+    onClose();
+  }
+
+  return (
+    <Modal open={order !== null} onClose={onClose} title="Annulla ordine">
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-md)" }}>
+        <p style={{ margin: 0, color: "var(--color-gray-700)", fontSize: "var(--text-sm)" }}>
+          Confermi l'annullamento dell'ordine <strong>#{order?.id.slice(-6).toUpperCase()}</strong>?
+        </p>
+        <input
+          placeholder="Motivazione (opzionale)"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          style={{
+            height: "44px",
+            padding: "0 14px",
+            borderRadius: "var(--radius-lg)",
+            border: "2px solid var(--color-gray-200)",
+            fontFamily: "var(--font)",
+            fontSize: "var(--text-sm)",
+          }}
+        />
+        <div style={{ display: "flex", gap: "var(--sp-sm)" }}>
+          <Button variant="ghost" size="sm" onClick={onClose} style={{ flex: 1 }}>Annulla</Button>
+          <Button variant="danger" size="sm" onClick={handleConfirm} loading={loading} style={{ flex: 1 }}>
+            Conferma annullamento
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Order row ────────────────────────────────────────────────────────────────
+
+function OrderRow({
+  order,
+  isAdmin,
+  onReprint,
+  onCancel,
+}: {
+  order: Order;
+  isAdmin: boolean;
+  onReprint: (id: string) => void;
+  onCancel: (order: Order) => void;
+}) {
+  const canCancel = isAdmin && order.status !== "completed" && order.status !== "cancelled";
+  const itemSummary = order.items.length > 0
+    ? order.items.map((i) => `${i.quantity}× ${i.name}`).join(", ")
+    : "—";
+
+  return (
+    <div style={{
+      background: "var(--color-white)",
+      borderRadius: "var(--radius-lg)",
+      border: "1px solid var(--color-gray-100)",
+      padding: "var(--sp-md)",
+      display: "flex",
+      flexDirection: "column",
+      gap: "8px",
+    }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--sp-sm)" }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-900)" }}>
+            #{order.id.slice(-6).toUpperCase()}
+          </div>
+          <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginTop: "2px" }}>
+            {new Date(order.createdAt).toLocaleString("it-IT")}
+          </div>
+        </div>
+        <StatusBadge status={order.status} />
+      </div>
+
+      <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-600)" }}>
+        {itemSummary}
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: "var(--text-lg)", fontWeight: 700, color: "var(--color-brand)" }}>
+          €{order.totalAmount.toFixed(2)}
+        </span>
+        <div style={{ display: "flex", gap: "var(--sp-sm)" }}>
+          <Button size="sm" variant="ghost" onClick={() => onReprint(order.id)}>
+            Ristampa
+          </Button>
+          {canCancel && (
+            <Button size="sm" variant="danger" onClick={() => onCancel(order)}>
+              Annulla
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
+
+const ORDER_STATUSES: { value: string; label: string }[] = [
+  { value: "", label: "Tutti" },
+  { value: "pending", label: "In attesa" },
+  { value: "confirmed", label: "Confermato" },
+  { value: "preparing", label: "In preparazione" },
+  { value: "ready", label: "Pronto" },
+  { value: "completed", label: "Completato" },
+  { value: "cancelled", label: "Annullato" },
+];
 
 export function HistoryScreen() {
+  const session = useStore((s) => s.session);
+  const isAdmin = session?.role === "admin";
+
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
+  // Filters
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterFrom, setFilterFrom] = useState("");
+  const [filterTo, setFilterTo] = useState("");
+  const [filterShiftId, setFilterShiftId] = useState("");
+  const [shifts, setShifts] = useState<Shift[]>([]);
+
+  // Cancel modal
+  const [cancelOrder, setCancelOrder] = useState<Order | null>(null);
+
+  function showToast(msg: string, type: "success" | "error") {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  }
+
+  useEffect(() => {
+    adminApi.shifts.history().then(setShifts).catch(() => {});
+  }, []);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    const filters: { status?: string; shiftId?: string; from?: number; to?: number } = {};
+    if (filterStatus) filters.status = filterStatus;
+    if (filterShiftId) filters.shiftId = filterShiftId;
+    if (filterFrom) filters.from = new Date(filterFrom).getTime();
+    if (filterTo) filters.to = new Date(filterTo + "T23:59:59").getTime();
+    apiClient.orders.list(filters)
+      .then(setOrders)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [filterStatus, filterShiftId, filterFrom, filterTo]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleReprint(id: string) {
+    try {
+      await apiClient.orders.reprint(id);
+      showToast("Ristampa inviata alla stampante", "success");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Errore ristampa", "error");
+    }
+  }
+
+  async function handleCancel(id: string) {
+    try {
+      await apiClient.orders.cancel(id);
+      showToast("Ordine annullato", "success");
+      load();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Errore annullamento", "error");
+    }
+  }
+
+  const selectStyle: React.CSSProperties = {
+    height: "40px",
+    padding: "0 10px",
+    borderRadius: "var(--radius-md)",
+    border: "2px solid var(--color-gray-200)",
+    fontFamily: "var(--font)",
+    fontSize: "var(--text-sm)",
+    background: "var(--color-white)",
+    color: "var(--color-gray-700)",
+  };
+
+  const dateInputStyle: React.CSSProperties = {
+    height: "40px",
+    padding: "0 10px",
+    borderRadius: "var(--radius-md)",
+    border: "2px solid var(--color-gray-200)",
+    fontFamily: "var(--font)",
+    fontSize: "var(--text-sm)",
+  };
+
   return (
     <PosLayout>
-      <div
-        style={{
-          height: "100%",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "var(--sp-md)",
-        }}
-      >
-        <ClipboardDocumentListIcon style={{ width: "56px", height: "56px", color: "var(--color-gray-300)" }} />
-        <span style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-gray-600)" }}>
-          Storico ordini
-        </span>
-        <span style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)" }}>Prossimamente</span>
+      <div style={{ maxWidth: "720px", margin: "0 auto", padding: "var(--sp-lg)", display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h1 style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-gray-900)", margin: 0 }}>
+            Storico ordini
+          </h1>
+          <Button size="sm" variant="ghost" onClick={load}>Aggiorna</Button>
+        </div>
+
+        {/* Filters */}
+        <div style={{ display: "flex", gap: "var(--sp-sm)", flexWrap: "wrap", alignItems: "center" }}>
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={selectStyle}>
+            {ORDER_STATUSES.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+
+          {shifts.length > 0 && (
+            <select value={filterShiftId} onChange={(e) => setFilterShiftId(e.target.value)} style={selectStyle}>
+              <option value="">Tutti i turni</option>
+              {shifts.map((s) => (
+                <option key={s.id} value={s.id}>
+                  Turno {new Date(s.openedAt).toLocaleDateString("it-IT")}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <input type="date" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)} style={dateInputStyle} placeholder="Da" />
+          <input type="date" value={filterTo} onChange={(e) => setFilterTo(e.target.value)} style={dateInputStyle} placeholder="A" />
+
+          {(filterStatus || filterShiftId || filterFrom || filterTo) && (
+            <Button size="sm" variant="ghost" onClick={() => {
+              setFilterStatus(""); setFilterShiftId(""); setFilterFrom(""); setFilterTo("");
+            }}>
+              Cancella filtri
+            </Button>
+          )}
+        </div>
+
+        {/* Content */}
+        {loading && (
+          <div style={{ display: "flex", justifyContent: "center", padding: "var(--sp-xl)" }}>
+            <span style={{ width: "32px", height: "32px", border: "3px solid var(--color-gray-200)", borderTopColor: "var(--color-brand)", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />
+          </div>
+        )}
+
+        {error && (
+          <div style={{ padding: "var(--sp-md)", background: "#fef2f2", borderRadius: "var(--radius-lg)", color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>
+            {error}
+          </div>
+        )}
+
+        {!loading && !error && orders.length === 0 && (
+          <div style={{ textAlign: "center", padding: "var(--sp-xl)", color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>
+            Nessun ordine trovato
+          </div>
+        )}
+
+        {!loading && orders.map((order) => (
+          <OrderRow
+            key={order.id}
+            order={order}
+            isAdmin={isAdmin}
+            onReprint={handleReprint}
+            onCancel={setCancelOrder}
+          />
+        ))}
       </div>
+
+      <CancelModal
+        order={cancelOrder}
+        onConfirm={handleCancel}
+        onClose={() => setCancelOrder(null)}
+      />
+
+      {toast && (
+        <div style={{
+          position: "fixed",
+          bottom: "var(--sp-lg)",
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: toast.type === "success" ? "#065f46" : "var(--color-danger)",
+          color: "white",
+          padding: "12px 24px",
+          borderRadius: "var(--radius-lg)",
+          fontWeight: 600,
+          fontSize: "var(--text-sm)",
+          boxShadow: "var(--shadow-lg)",
+          zIndex: 9999,
+        }}>
+          {toast.msg}
+        </div>
+      )}
     </PosLayout>
   );
 }

@@ -8,6 +8,10 @@ const ConfigSchema = z.object({
   jwtSecret: z.string().min(32).default("change-me-in-production-minimum-32-chars!"),
   logLevel: z.enum(["debug", "info", "warn", "error"]).default("info"),
   env: z.enum(["development", "production", "test"]).default("development"),
+  // Comma-separated list of allowed CORS origins. Empty = allow all (development only).
+  corsOrigins: z.string().default(""),
+  // Timezone for receipt timestamps (IANA format e.g. "Europe/Rome")
+  timezone: z.string().default("Europe/Rome"),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
@@ -21,6 +25,8 @@ export function loadConfig(overrides: Partial<Record<string, string>> = {}): App
     jwtSecret: overrides["JWT_SECRET"] ?? process.env["JWT_SECRET"],
     logLevel: overrides["LOG_LEVEL"] ?? process.env["LOG_LEVEL"],
     env: overrides["NODE_ENV"] ?? process.env["NODE_ENV"],
+    corsOrigins: overrides["CORS_ORIGINS"] ?? process.env["CORS_ORIGINS"],
+    timezone: overrides["TZ"] ?? process.env["TZ"],
   };
 
   const result = ConfigSchema.safeParse(raw);

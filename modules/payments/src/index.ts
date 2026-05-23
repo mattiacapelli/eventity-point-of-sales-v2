@@ -28,15 +28,16 @@ export const paymentsModule: PosModule = {
 
   async init(ctx: CoreContext) {
     const repo = new PaymentRepository(ctx.db);
-    _service = new PaymentService(repo, ctx.eventBus);
+    _service = new PaymentService(repo, ctx.eventBus, ctx.db);
     ctx.logger.info("Payments module initialized");
   },
 
   async register(ctx: CoreContext) {
     if (_service === null) throw new Error("Payments module not initialized");
-    const fastify = ctx.fastify as FastifyInstance;
+    const fastify = ctx.fastify as FastifyInstance & { moduleGuard?: (n: string) => (req: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) => Promise<void> };
     const svc = _service;
-    await fastify.register(async (f) => { registerPaymentRoutes(f, svc); }, { prefix: "/api" });
+    const guard = fastify.moduleGuard?.("payments");
+    await fastify.register(async (f) => { registerPaymentRoutes(f, svc, guard); }, { prefix: "/api" });
   },
 
   async start() {},

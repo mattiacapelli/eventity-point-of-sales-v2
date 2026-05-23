@@ -107,7 +107,7 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   fastify.post("/printers/:id/test-print", {
-    schema: { tags: ["printers"], summary: "Test print on a printer" },
+    schema: { tags: ["printers"], summary: "Test print on a printer", body: {} },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const [printer] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, id));

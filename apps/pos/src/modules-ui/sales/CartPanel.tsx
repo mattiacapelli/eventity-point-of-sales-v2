@@ -19,6 +19,7 @@ export function CartPanel() {
     setError(null);
     try {
       const order = await apiClient.orders.create({
+        ...(currentShift ? { shiftId: currentShift.id } : {}),
         items: cart.map((c) => ({
           productId: c.productId,
           name: c.name,

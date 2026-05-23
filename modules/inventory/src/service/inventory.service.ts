@@ -132,6 +132,10 @@ export class InventoryService {
     const now = Math.floor(Date.now() / 1000);
     const traceId = randomUUID();
 
+    // Phase 1: resolve all deltas with async reads (outside transaction)
+    type Delta = { itemId: string; itemName: string; delta: number; currentStock: number; minStock: number };
+    const deltas: Delta[] = [];
+
     for (const orderItem of items) {
       const ingredients = await this.repo.findIngredientsByProduct(orderItem.productId);
 
@@ -139,80 +143,71 @@ export class InventoryService {
         for (const ingredient of ingredients) {
           const invItem = await this.repo.findItemById(ingredient.inventoryItemId);
           if (!invItem) continue;
-
-          const delta = -(orderItem.quantity * ingredient.quantity);
-          const newStock = invItem.currentStock + delta;
-          await this.repo.updateItem(ingredient.inventoryItemId, { currentStock: newStock, updatedAt: now });
-          await this.repo.createMovement({
-            id: randomUUID(),
-            itemId: ingredient.inventoryItemId,
-            type: "sale",
-            quantity: delta,
-            reason: null,
-            orderId,
-            createdAt: now,
+          deltas.push({
+            itemId: invItem.id,
+            itemName: invItem.name,
+            delta: -(orderItem.quantity * ingredient.quantity),
+            currentStock: invItem.currentStock,
+            minStock: invItem.minStock,
           });
-
-          this.eventBus.emit("INVENTORY_UPDATED", {
-            traceId,
-            itemId: ingredient.inventoryItemId,
-            movementType: "sale",
-            quantity: delta,
-            timestamp: new Date(),
-          });
-
-          const fresh = (await this.repo.findItemById(ingredient.inventoryItemId))!;
-          if (fresh.currentStock <= fresh.minStock && fresh.minStock > 0) {
-            this.eventBus.emit("LOW_STOCK_ALERT", {
-              traceId,
-              itemId: ingredient.inventoryItemId,
-              itemName: fresh.name,
-              currentStock: fresh.currentStock,
-              minStock: fresh.minStock,
-              timestamp: new Date(),
-            });
-          }
         }
       } else {
-        // Fallback: try to find inventory item by product name
         const product = await this.repo.findProductById(orderItem.productId);
         if (!product) continue;
-
         const invItem = await this.repo.findItemByName(product.name);
-        if (!invItem) continue; // no matching item configured → ignore
-
-        const delta = -orderItem.quantity;
-        const newStock = invItem.currentStock + delta;
-        await this.repo.updateItem(invItem.id, { currentStock: newStock, updatedAt: now });
-        await this.repo.createMovement({
-          id: randomUUID(),
+        if (!invItem) continue;
+        deltas.push({
           itemId: invItem.id,
+          itemName: invItem.name,
+          delta: -orderItem.quantity,
+          currentStock: invItem.currentStock,
+          minStock: invItem.minStock,
+        });
+      }
+    }
+
+    if (deltas.length === 0) return;
+
+    // Phase 2: apply all writes atomically (better-sqlite3 transaction is sync)
+    const newStocks = this.repo.transaction((txRepo) => {
+      const result: Map<string, number> = new Map();
+      for (const d of deltas) {
+        const newStock = d.currentStock + d.delta;
+        result.set(d.itemId, newStock);
+        // These drizzle calls are sync inside a better-sqlite3 transaction
+        void txRepo.updateItem(d.itemId, { currentStock: newStock, updatedAt: now });
+        void txRepo.createMovement({
+          id: randomUUID(),
+          itemId: d.itemId,
           type: "sale",
-          quantity: delta,
+          quantity: d.delta,
           reason: null,
           orderId,
           createdAt: now,
         });
+      }
+      return result;
+    });
 
-        this.eventBus.emit("INVENTORY_UPDATED", {
+    // Phase 3: emit events after successful commit
+    for (const d of deltas) {
+      this.eventBus.emit("INVENTORY_UPDATED", {
+        traceId,
+        itemId: d.itemId,
+        movementType: "sale",
+        quantity: d.delta,
+        timestamp: new Date(),
+      });
+      const newStock = newStocks.get(d.itemId) ?? 0;
+      if (newStock <= d.minStock && d.minStock > 0) {
+        this.eventBus.emit("LOW_STOCK_ALERT", {
           traceId,
-          itemId: invItem.id,
-          movementType: "sale",
-          quantity: delta,
+          itemId: d.itemId,
+          itemName: d.itemName,
+          currentStock: newStock,
+          minStock: d.minStock,
           timestamp: new Date(),
         });
-
-        const fresh = (await this.repo.findItemById(invItem.id))!;
-        if (fresh.currentStock <= fresh.minStock && fresh.minStock > 0) {
-          this.eventBus.emit("LOW_STOCK_ALERT", {
-            traceId,
-            itemId: invItem.id,
-            itemName: fresh.name,
-            currentStock: fresh.currentStock,
-            minStock: fresh.minStock,
-            timestamp: new Date(),
-          });
-        }
       }
     }
   }

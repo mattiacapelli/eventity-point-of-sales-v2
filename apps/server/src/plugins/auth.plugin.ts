@@ -1,6 +1,5 @@
 import fp from "fastify-plugin";
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
-import jwt from "@fastify/jwt";
 import { AuthService } from "@pos/core";
 import type { SessionContext } from "@pos/shared-types";
 
@@ -22,8 +21,6 @@ function makeHttpError(message: string, statusCode: number): Error & { statusCod
 
 const authPlugin: FastifyPluginAsync = async (fastify) => {
   const { ctx } = fastify;
-
-  await fastify.register(jwt, { secret: ctx.config.jwtSecret });
 
   const authService = new AuthService(ctx.db, ctx.config.sessionTtlSeconds);
   fastify.decorate("authService", authService);

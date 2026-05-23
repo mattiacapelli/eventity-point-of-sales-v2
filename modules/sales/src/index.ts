@@ -40,7 +40,7 @@ export const salesModule: PosModule = {
     if (_service === null) throw new Error("Sales module not initialized");
     const fastify = ctx.fastify as FastifyInstance;
     const svc = _service;
-    await fastify.register(async (f) => { registerOrderRoutes(f, svc); }, { prefix: "/api" });
+    await fastify.register(async (f) => { registerOrderRoutes(f, svc, ctx); }, { prefix: "/api" });
   },
 
   async start() {},

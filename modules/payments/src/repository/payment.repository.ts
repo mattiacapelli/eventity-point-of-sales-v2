@@ -51,6 +51,11 @@ export class PaymentRepository {
     return row ? this.toPayment(row as unknown as DbPaymentRow) : undefined;
   }
 
+  async updateStatus(id: string, status: DbPaymentRow["status"]): Promise<Payment | undefined> {
+    await this.db.update(payments).set({ status }).where(eq(payments.id, id));
+    return this.findById(id);
+  }
+
   private toPayment(row: DbPaymentRow): Payment {
     return {
       id: row.id,

@@ -11,7 +11,12 @@ function serializePayment(p: Payment) {
   };
 }
 
-export function registerPaymentRoutes(fastify: FastifyInstance, service: PaymentService): void {
+export function registerPaymentRoutes(
+  fastify: FastifyInstance,
+  service: PaymentService,
+  moduleGuard?: (req: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) => Promise<void>,
+): void {
+  if (moduleGuard) fastify.addHook("preHandler", moduleGuard);
   // POST /payments — process a payment for an order
   fastify.route({
     method: "POST",
@@ -48,6 +53,39 @@ export function registerPaymentRoutes(fastify: FastifyInstance, service: Payment
           ...(body.reference !== undefined ? { reference: body.reference } : {}),
         });
         reply.status(201).send(serializePayment(payment));
+      } catch (err) {
+        if (err instanceof PaymentError) {
+          reply.status(422).send({ error: err.message });
+        } else {
+          throw err;
+        }
+      }
+    },
+  });
+
+  // POST /payments/:id/refund — refund a completed payment
+  fastify.route({
+    method: "POST",
+    url: "/payments/:id/refund",
+    schema: {
+      tags: ["payments"],
+      summary: "Refund a completed payment",
+      params: {
+        type: "object",
+        required: ["id"],
+        properties: { id: { type: "string" } },
+      },
+      body: {
+        type: "object",
+        properties: { reason: { type: "string" } },
+      },
+    },
+    handler: async (req, reply) => {
+      const { id } = req.params as { id: string };
+      const { reason } = (req.body ?? {}) as { reason?: string };
+      try {
+        const payment = await service.refund(id, reason);
+        reply.send(serializePayment(payment));
       } catch (err) {
         if (err instanceof PaymentError) {
           reply.status(422).send({ error: err.message });

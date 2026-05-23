@@ -139,4 +139,9 @@ export class InventoryRepository {
       .limit(1);
     return row;
   }
+
+  transaction<T>(fn: (repo: InventoryRepository) => T): T {
+    // better-sqlite3 drizzle is synchronous — .transaction() runs the callback atomically
+    return this.db.transaction((tx) => fn(new InventoryRepository(tx as unknown as DbClient)));
+  }
 }

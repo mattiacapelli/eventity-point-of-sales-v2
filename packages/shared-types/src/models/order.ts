@@ -19,6 +19,7 @@ export interface Order {
   readonly id: string;
   readonly tableId?: string;
   readonly eventId?: string;
+  readonly shiftId?: string;
   readonly status: OrderStatus;
   readonly items: ReadonlyArray<OrderItem>;
   readonly totalAmount: number;
@@ -29,9 +30,9 @@ export interface Order {
 
 /** Single source of truth for legal status transitions. */
 export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, ReadonlyArray<OrderStatus>> = {
-  pending:   ["confirmed", "cancelled"],
-  confirmed: ["preparing", "cancelled"],
-  preparing: ["ready", "cancelled"],
+  pending:   ["confirmed", "completed", "cancelled"],
+  confirmed: ["preparing", "completed", "cancelled"],
+  preparing: ["ready",     "completed", "cancelled"],
   ready:     ["completed", "cancelled"],
   completed: [],
   cancelled: [],
@@ -48,6 +49,7 @@ export interface CreateOrderItemInput {
 export interface CreateOrderInput {
   readonly tableId?: string;
   readonly eventId?: string;
+  readonly shiftId?: string;
   readonly items: ReadonlyArray<CreateOrderItemInput>;
 }
 

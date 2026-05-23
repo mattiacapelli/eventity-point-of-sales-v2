@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { claimEvent } from "@pos/db";
+import { claimEvent, eq, appSettings } from "@pos/db";
 import type { DbClient } from "@pos/db";
 import type { IEventBus } from "@pos/event-bus";
 import { ORDER_STATUS_TRANSITIONS } from "@pos/shared-types";
@@ -40,14 +40,21 @@ export class OrderService {
     });
   }
 
-  /** When payment completes, transition the order to "completed". */
+  private async _isExpressMode(): Promise<boolean> {
+    const rows = await this.db.select().from(appSettings).where(eq(appSettings.key, "express_mode"));
+    return rows[0]?.value === "true";
+  }
+
+  /** When payment completes, transition the order based on express_mode setting. */
   private _subscribePaymentCompleted(): void {
     this.eventBus.on("PAYMENT_COMPLETED", async (payload) => {
       const claimed = await claimEvent(this.db, "order-service:payment-completed", payload.traceId);
       if (!claimed) return;
 
       try {
-        await this.updateStatus(payload.payment.orderId, "completed");
+        const express = await this._isExpressMode();
+        const targetStatus = express ? "completed" : "confirmed";
+        await this.updateStatus(payload.payment.orderId, targetStatus);
       } catch (err) {
         this.eventBus.emit("MODULE_ERROR", {
           moduleName: "sales",
@@ -64,9 +71,8 @@ export class OrderService {
     return order;
   }
 
-  async list(status?: OrderStatus): Promise<Order[]> {
-    if (status !== undefined) return this.repo.findByStatus(status);
-    return this.repo.findAll();
+  async list(filters?: { status?: OrderStatus; shiftId?: string; from?: number; to?: number; limit?: number; offset?: number }): Promise<Order[]> {
+    return this.repo.findAll(filters);
   }
 
   async create(input: CreateOrderInput): Promise<Order> {

@@ -35,9 +35,10 @@ export const kitchenModule: PosModule = {
 
   async register(ctx: CoreContext) {
     if (_service === null) throw new Error("Kitchen module not initialized");
-    const fastify = ctx.fastify as FastifyInstance;
+    const fastify = ctx.fastify as FastifyInstance & { moduleGuard?: (n: string) => (req: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) => Promise<void> };
     const svc = _service;
-    await fastify.register(async (f) => { registerKitchenRoutes(f, svc); }, { prefix: "/api" });
+    const guard = fastify.moduleGuard?.("kitchen");
+    await fastify.register(async (f) => { registerKitchenRoutes(f, svc, guard); }, { prefix: "/api" });
   },
 
   async start() {},

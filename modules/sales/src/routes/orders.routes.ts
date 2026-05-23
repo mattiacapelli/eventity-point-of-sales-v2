@@ -2,6 +2,9 @@ import type { FastifyInstance } from "fastify";
 import type { OrderService } from "../service/order.service.js";
 import { OrderNotFoundError, OrderValidationError } from "../service/order.service.js";
 import type { Order, OrderStatus } from "@pos/shared-types";
+import type { CoreContext } from "@pos/core";
+import { formatReceipt, type ReceiptLine } from "@pos/core";
+import { eq, printers, receiptTemplates, orderItems, payments } from "@pos/db";
 
 const orderItemSchema = {
   type: "object",
@@ -31,7 +34,8 @@ const orderSchema = {
 
 export function registerOrderRoutes(
   fastify: FastifyInstance,
-  service: OrderService
+  service: OrderService,
+  ctx?: CoreContext
 ): void {
   // GET /orders
   fastify.get("/orders", {
@@ -41,14 +45,26 @@ export function registerOrderRoutes(
       querystring: {
         type: "object",
         properties: {
-          status: { type: "string", enum: ["pending","confirmed","preparing","ready","completed","cancelled"] },
+          status:  { type: "string", enum: ["pending","confirmed","preparing","ready","completed","cancelled"] },
+          shiftId: { type: "string" },
+          from:    { type: "number" },
+          to:      { type: "number" },
+          limit:   { type: "integer", minimum: 1, maximum: 500, default: 100 },
+          offset:  { type: "integer", minimum: 0, default: 0 },
         },
       },
       response: { 200: { type: "array", items: orderSchema } },
     },
   }, async (request, reply) => {
-    const { status } = request.query as { status?: OrderStatus };
-    const list = await service.list(status);
+    const q = request.query as { status?: string; shiftId?: string; from?: number; to?: number; limit?: number; offset?: number };
+    const filters: { status?: OrderStatus; shiftId?: string; from?: number; to?: number; limit?: number; offset?: number } = {};
+    if (q.status !== undefined) filters.status = q.status as OrderStatus;
+    if (q.shiftId !== undefined) filters.shiftId = q.shiftId;
+    if (q.from !== undefined) filters.from = q.from;
+    if (q.to !== undefined) filters.to = q.to;
+    if (q.limit !== undefined) filters.limit = q.limit;
+    if (q.offset !== undefined) filters.offset = q.offset;
+    const list = await service.list(filters);
     return reply.send(list.map(serializeOrder));
   });
 
@@ -85,6 +101,7 @@ export function registerOrderRoutes(
         properties: {
           tableId: { type: "string" },
           eventId: { type: "string" },
+          shiftId: { type: "string" },
           items: { type: "array", items: orderItemSchema, minItems: 1 },
         },
       },
@@ -162,6 +179,74 @@ export function registerOrderRoutes(
       if (err instanceof OrderValidationError) return reply.status(400).send({ error: err.message });
       throw err;
     }
+  });
+
+  // POST /orders/:id/reprint
+  fastify.post("/orders/:id/reprint", {
+    schema: {
+      tags: ["orders"],
+      summary: "Reprint receipt for an order",
+      params: { type: "object", properties: { id: { type: "string" } } },
+      body: {},
+      response: {
+        200: { type: "object", properties: { ok: { type: "boolean" } } },
+        404: { type: "object", properties: { error: { type: "string" } } },
+        503: { type: "object", properties: { error: { type: "string" } } },
+      },
+    },
+  }, async (request, reply) => {
+    if (!ctx) return reply.status(503).send({ error: "Printer service unavailable" });
+    const { id } = request.params as { id: string };
+
+    try {
+      await service.getById(id);
+    } catch (err) {
+      if (err instanceof OrderNotFoundError) return reply.status(404).send({ error: err.message });
+      throw err;
+    }
+
+    const { db, printerService } = ctx;
+
+    const activePrinters = await db.select().from(printers).where(eq(printers.active, true));
+    const receiptPrinter = activePrinters.find((p) => p.receiptEnabled);
+    if (!receiptPrinter) return reply.status(503).send({ error: "No active receipt printer" });
+
+    const templates = await db.select().from(receiptTemplates).where(eq(receiptTemplates.active, true));
+    const template = templates[0];
+
+    const items = await db.select().from(orderItems).where(eq(orderItems.orderId, id));
+    const pmts = await db.select().from(payments).where(eq(payments.orderId, id));
+    const payment = pmts[0];
+
+    const lines: ReceiptLine[] = [];
+    lines.push({ type: "header", content: template?.headerText ?? "Ristampa scontrino" });
+    lines.push({ type: "divider" });
+    lines.push({ type: "item", left: "Ordine", right: `#${id.slice(-6).toUpperCase()}` });
+    lines.push({ type: "divider" });
+    for (const item of items) {
+      lines.push({ type: "item", left: `${item.quantity}x ${item.name}`, right: `€${(item.unitPrice * item.quantity).toFixed(2)}` });
+    }
+    lines.push({ type: "divider" });
+    const total = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+    lines.push({ type: "total", left: "TOTALE", right: `€${total.toFixed(2)}` });
+    if (payment) lines.push({ type: "item", left: "Pagamento", right: payment.method });
+    lines.push({ type: "divider" });
+    if (template?.footerText) {
+      lines.push({ type: "text", content: "" });
+      lines.push({ type: "text", content: template.footerText });
+    }
+
+    const content = formatReceipt(lines);
+    await printerService.printDirect({
+      printerId: receiptPrinter.id,
+      content,
+      type: "receipt",
+      ...(receiptPrinter.host && receiptPrinter.port
+        ? { printerConfig: { host: receiptPrinter.host, port: receiptPrinter.port } }
+        : {}),
+    });
+
+    return reply.send({ ok: true });
   });
 }
 
