@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { wsClient } from "./ws-client.js";
 import { useStore } from "../state/global-store.js";
+import { useShiftStore } from "../state/shift-store.js";
+import { adminApi } from "./admin-api.js";
 
 export function useWsEvents() {
   const upsertOrder       = useStore((s) => s.upsertOrder);
@@ -8,6 +10,7 @@ export function useWsEvents() {
   const checkoutOrder     = useStore((s) => s.checkoutOrder);
   const setCheckoutOrder  = useStore((s) => s.setCheckoutOrder);
   const clearCart         = useStore((s) => s.clearCart);
+  const setCurrentShift   = useShiftStore((s) => s.setCurrentShift);
 
   useEffect(() => {
     const unsub1 = wsClient.on("ORDER_CREATED",   (p) => upsertOrder(p.order));
@@ -19,8 +22,10 @@ export function useWsEvents() {
         setCheckoutOrder(null);
         clearCart();
       }
+      // Refresh shift totals from server — they are updated server-side on ORDER_UPDATED completed
+      adminApi.shifts.current().then(setCurrentShift).catch(() => {});
     });
 
     return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
-  }, [upsertOrder, removeOrder, checkoutOrder, setCheckoutOrder, clearCart]);
+  }, [upsertOrder, removeOrder, checkoutOrder, setCheckoutOrder, clearCart, setCurrentShift]);
 }

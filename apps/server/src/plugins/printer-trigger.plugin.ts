@@ -1,7 +1,7 @@
 import fp from "fastify-plugin";
 import { randomUUID } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
-import { claimEvent, eq, printers, receiptTemplates, orders, orderItems, products, productionCenters, productionCenterCategories, appSettings } from "@pos/db";
+import { claimEvent, eq, sql, shifts, printers, receiptTemplates, orders, orderItems, products, productionCenters, productionCenterCategories, appSettings } from "@pos/db";
 import { formatReceipt, formatKitchenTicket, type ReceiptLine } from "@pos/core";
 import type { DbClient } from "@pos/db";
 import type { PrinterService, Logger } from "@pos/core";
@@ -115,6 +115,27 @@ async function _printKitchenTickets(
 
 const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
   const { eventBus, logger, db, printerService } = fastify.ctx;
+
+  // Update shift totals when an order is completed
+  eventBus.on("ORDER_UPDATED", async (payload) => {
+    if (payload.order.status !== "completed") return;
+    const claimed = await claimEvent(db, "shift-totals:order-completed", payload.traceId);
+    if (!claimed) return;
+
+    const [orderRow] = await db.select({ shiftId: orders.shiftId, totalAmount: orders.totalAmount })
+      .from(orders)
+      .where(eq(orders.id, payload.order.id))
+      .limit(1);
+
+    if (!orderRow?.shiftId) return;
+
+    await db.update(shifts)
+      .set({
+        totalSales:  sql`total_sales + ${orderRow.totalAmount}`,
+        totalOrders: sql`total_orders + 1`,
+      })
+      .where(eq(shifts.id, orderRow.shiftId));
+  });
 
   // Kitchen ticket on ORDER_CREATED (Express OFF)
   eventBus.on("ORDER_CREATED", async (payload) => {
