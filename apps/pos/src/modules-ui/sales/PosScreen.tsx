@@ -278,8 +278,7 @@ function CloseShiftModal({ onDone }: { onDone: () => void }) {
 
 export function PosScreen() {
   const { setCategories, setProducts, categories, products } = useAdminStore();
-  const { currentShift, setCurrentShift, shiftModalOpen, setShiftModalOpen } = useShiftStore();
-  const [shiftChecked, setShiftChecked] = useState(false);
+  const { currentShift, shiftModalOpen, setShiftModalOpen } = useShiftStore();
 
   // Load catalogue from API on mount (only if not already loaded by AdminScreen)
   useEffect(() => {
@@ -291,15 +290,6 @@ export function PosScreen() {
       setCategories(cats);
       setProducts(prods);
     });
-  }, []);
-
-  // Check for current open shift on mount — silently, no popup
-  useEffect(() => {
-    if (shiftChecked) return;
-    adminApi.shifts.current()
-      .then((shift) => { setCurrentShift(shift); })
-      .catch(() => { /* no shift open, user can open one manually */ })
-      .finally(() => { setShiftChecked(true); });
   }, []);
 
   return (

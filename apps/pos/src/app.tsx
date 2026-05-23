@@ -1,10 +1,12 @@
-import React, { useEffect, useState, lazy, Suspense } from "react";
+import React, { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { bootstrap } from "./core/bootstrap.js";
 import { bootstrapApi } from "./core/bootstrap-api.js";
 import { useWsEvents } from "./core/useWsEvents.js";
 import { useStore } from "./state/global-store.js";
+import { useShiftStore } from "./state/shift-store.js";
+import { adminApi } from "./core/admin-api.js";
 import { LoginScreen } from "./modules-ui/auth/LoginScreen.js";
 import { SetupScreen } from "./modules-ui/setup/SetupScreen.js";
 import "./styles/globals.css";
@@ -47,6 +49,8 @@ function AppInner() {
   const [booted, setBooted] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
   const session = useStore((s) => s.session);
+  const { setCurrentShift } = useShiftStore();
+  const prevSessionRef = useRef<string | null>(null);
 
   useWsEvents();
 
@@ -57,6 +61,23 @@ function AppInner() {
       .catch(() => { /* server unreachable — let normal flow handle it */ })
       .finally(() => setBooted(true));
   }, []);
+
+  // Sync shift on login/logout
+  useEffect(() => {
+    const currentUserId = session?.userId ?? null;
+    const prevUserId = prevSessionRef.current;
+    prevSessionRef.current = currentUserId;
+
+    if (currentUserId && currentUserId !== prevUserId) {
+      // Just logged in — fetch current shift from server (overrides localStorage cache)
+      adminApi.shifts.current()
+        .then((shift) => setCurrentShift(shift))
+        .catch(() => setCurrentShift(null));
+    } else if (!currentUserId && prevUserId) {
+      // Just logged out — clear shift
+      setCurrentShift(null);
+    }
+  }, [session?.userId]);
 
   if (!booted) return <LoadingScreen />;
 

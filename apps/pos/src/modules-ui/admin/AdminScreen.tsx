@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useShiftStore } from "../../state/shift-store.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { Button } from "../../components/ui/Button.js";
 import { adminApi } from "../../core/admin-api.js";
 import { useAdminStore } from "../../state/admin-store.js";
+import { useStore } from "../../state/global-store.js";
 import type { Category, Product, ProductionCenter, OptionGroupWithOptions, Option, PaymentMethodRecord, Printer, ReceiptTemplate } from "@pos/shared-types";
 import {
   CubeIcon,
@@ -2044,7 +2046,7 @@ function ShiftsTab() {
     id: string; userId: string; openedAt: number; closedAt: number | null;
     openingCash: number; closingCash: number | null; totalSales: number; totalOrders: number; notes: string | null;
   }>>([]);
-  const [currentShift, setCurrentShift] = useState<typeof history[0] | null>(null);
+  const { currentShift, setCurrentShift } = useShiftStore();
   const [loading_, setLoading_] = useState(true);
   const [openModal, setOpenModal] = useState(false);
   const [closeModal, setCloseModal] = useState(false);
@@ -2052,7 +2054,7 @@ function ShiftsTab() {
   const [closingCash, setClosingCash] = useState("0");
   const [saving, setSaving] = useState(false);
   const [zReportShiftId, setZReportShiftId] = useState<string | null>(null);
-  const store = useAdminStore();
+  const { session } = useStore();
 
   async function loadShifts() {
     setLoading_(true);
@@ -2072,7 +2074,7 @@ function ShiftsTab() {
   async function handleOpen() {
     setSaving(true);
     try {
-      const userId = "admin"; // placeholder — in real use, get from session store
+      const userId = session?.userId ?? "admin";
       const shift = await adminApi.shifts.open({ userId, openingCash: parseFloat(openingCash) || 0 });
       setCurrentShift(shift);
       setOpenModal(false);
