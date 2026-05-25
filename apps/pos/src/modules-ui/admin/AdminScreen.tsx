@@ -23,7 +23,6 @@ import {
   ClockIcon,
   ArrowDownTrayIcon,
   CircleStackIcon,
-  Squares2X2Icon,
   ListBulletIcon,
   ArrowPathIcon,
 } from "../../components/ui/icons.js";
@@ -34,7 +33,7 @@ import { BackupTab } from "./BackupTab.js";
 
 // ─── Tab types ───────────────────────────────────────────────────────────────
 
-type Tab = "restaurant" | "products" | "categories" | "production-centers" | "payment-methods" | "printers" | "receipt-template" | "kitchen-template" | "shifts" | "backup" | "mode" | "modules" | "inventory" | "movements" | "terminals";
+type Tab = "restaurant" | "products" | "categories" | "production-centers" | "payment-methods" | "printers" | "receipt-template" | "kitchen-template" | "shifts" | "backup" | "advanced" | "inventory" | "movements" | "terminals";
 
 const TABS: { key: Tab; label: string; Icon: React.ComponentType<React.SVGProps<SVGSVGElement>> }[] = [
   { key: "restaurant", label: "Ristorante", Icon: BuildingStorefrontIcon },
@@ -47,8 +46,7 @@ const TABS: { key: Tab; label: string; Icon: React.ComponentType<React.SVGProps<
   { key: "kitchen-template", label: "Comanda", Icon: PrinterIcon },
   { key: "shifts", label: "Turni", Icon: ClockIcon },
   { key: "backup", label: "Backup", Icon: ArrowDownTrayIcon },
-  { key: "mode", label: "Modalità", Icon: WrenchScrewdriverIcon },
-  { key: "modules", label: "Moduli", Icon: Squares2X2Icon },
+  { key: "advanced", label: "Avanzate", Icon: WrenchScrewdriverIcon },
   { key: "inventory", label: "Inventario", Icon: CircleStackIcon },
   { key: "movements", label: "Movimenti", Icon: ListBulletIcon },
   { key: "terminals", label: "Terminali", Icon: WrenchScrewdriverIcon },
@@ -1117,6 +1115,8 @@ function ProductsTab() {
       </Modal>
 
       <IngredientsModal product={ingredientsProduct} onClose={() => setIngredientsProduct(null)} />
+
+      <GridDefaultsSection />
     </div>
   );
 }
@@ -2714,6 +2714,8 @@ function ReceiptTemplateTab() {
           )}
         </div>
       </Modal>
+
+      <ReceiptNumberingSection />
     </div>
   );
 }
@@ -3013,86 +3015,41 @@ function KitchenTemplateTab() {
 
 // ─── Mode Tab ────────────────────────────────────────────────────────────────
 
-function ModeTab() {
+function AdvancedTab({ onModuleToggle }: { onModuleToggle?: () => void }) {
   const [expressMode, setExpressMode] = useState<boolean | null>(null);
-  const [receiptMode, setReceiptMode] = useState<"default" | "global" | "shift">("default");
-  const [receiptPrefix, setReceiptPrefix] = useState("");
-  const [receiptPadding, setReceiptPadding] = useState(0);
-  const [saving, setSaving] = useState(false);
-  const [savingReceipt, setSavingReceipt] = useState(false);
-  const [resetConfirm, setResetConfirm] = useState(false);
-  const [resetDone, setResetDone] = useState(false);
-
-  // Grid settings
-  const [gridViewMode, setGridViewMode] = useState<"category" | "all" | "grouped_category" | "grouped_center" | "grouped_color">("category");
-  const [gridShowPrice, setGridShowPrice] = useState(true);
-  const [gridShowDescription, setGridShowDescription] = useState(true);
-  const [gridSortBy, setGridSortBy] = useState<"custom" | "name" | "price" | "color" | "category">("custom");
-  const [gridBaseCols, setGridBaseCols] = useState(5);
-  const [savingGrid, setSavingGrid] = useState(false);
-  const [gridSaved, setGridSaved] = useState(false);
-
-  // Multi-terminal
+  const [savingExpress, setSavingExpress] = useState(false);
   const [multiTerminalEnabled, setMultiTerminalEnabled] = useState(false);
   const [savingMultiTerminal, setSavingMultiTerminal] = useState(false);
+  const [modules, setModules] = useState<ModuleInfo[]>([]);
+  const [loadingModules, setLoadingModules] = useState(true);
+  const [toggling, setToggling] = useState<string | null>(null);
+  const [moduleError, setModuleError] = useState<string | null>(null);
 
   useEffect(() => {
     adminApi.settings.get().then((s) => {
       setExpressMode(s.expressMode);
-      setReceiptMode(s.receiptNumberMode);
-      setReceiptPrefix(s.receiptNumberPrefix);
-      setReceiptPadding(s.receiptNumberPadding);
-      setGridViewMode(s.gridViewMode);
-      setGridShowPrice(s.gridShowPrice);
-      setGridShowDescription(s.gridShowDescription);
-      setGridSortBy(s.gridSortBy);
-      setGridBaseCols(s.gridBaseCols);
       setMultiTerminalEnabled(s.multiTerminalEnabled);
     }).catch(() => {});
+
+    adminApi.modules.list()
+      .then((m) => setModules(m))
+      .catch((e) => setModuleError(e instanceof Error ? e.message : "Errore"))
+      .finally(() => setLoadingModules(false));
   }, []);
 
-  async function handleExpressToggle() {
-    if (expressMode === null) return;
-    const next = !expressMode;
-    setSaving(true);
+  async function handleModuleToggle(name: string) {
+    setToggling(name);
+    setModuleError(null);
     try {
-      await adminApi.settings.update({ expressMode: next });
-      setExpressMode(next);
-    } catch { /* ignore */ } finally {
-      setSaving(false);
+      const updated = await adminApi.modules.toggle(name);
+      setModules((prev) => prev.map((m) => m.name === name ? { ...m, enabled: updated.enabled } : m));
+      onModuleToggle?.();
+    } catch (e) {
+      setModuleError(e instanceof Error ? e.message : "Errore");
+    } finally {
+      setToggling(null);
     }
   }
-
-  async function handleReceiptSave() {
-    setSavingReceipt(true);
-    try {
-      await adminApi.settings.update({ receiptNumberMode: receiptMode, receiptNumberPrefix: receiptPrefix, receiptNumberPadding: receiptPadding });
-    } catch { /* ignore */ } finally {
-      setSavingReceipt(false);
-    }
-  }
-
-  async function handleReset() {
-    await adminApi.settings.resetReceiptCounter("global");
-    setResetConfirm(false);
-    setResetDone(true);
-    setTimeout(() => setResetDone(false), 3000);
-  }
-
-  async function handleGridSave() {
-    setSavingGrid(true);
-    try {
-      await adminApi.settings.update({ gridViewMode, gridShowPrice, gridShowDescription, gridSortBy, gridBaseCols });
-      setGridSaved(true);
-      setTimeout(() => setGridSaved(false), 2500);
-    } catch { /* ignore */ } finally {
-      setSavingGrid(false);
-    }
-  }
-
-  const previewNum = receiptMode === "default"
-    ? "A3F9C1"
-    : (receiptPadding > 0 ? `${receiptPrefix}${"42".padStart(receiptPadding, "0")}` : `${receiptPrefix}42`);
 
   const cardStyle: React.CSSProperties = {
     background: "var(--color-white)",
@@ -3102,261 +3059,53 @@ function ModeTab() {
     padding: "24px",
   };
 
+  const toggleStyle = (on: boolean, disabled: boolean): React.CSSProperties => ({
+    width: "52px", height: "28px", borderRadius: "14px",
+    background: on ? "var(--color-brand)" : "var(--color-gray-200)",
+    border: "none", cursor: disabled ? "not-allowed" : "pointer",
+    position: "relative", transition: "background 0.2s", flexShrink: 0,
+    opacity: disabled ? 0.6 : 1,
+  });
+
+  const thumbStyle = (on: boolean): React.CSSProperties => ({
+    position: "absolute", top: "3px",
+    left: on ? "27px" : "3px",
+    width: "22px", height: "22px", borderRadius: "50%",
+    background: "var(--color-white)",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+    transition: "left 0.2s",
+  });
+
   if (expressMode === null) {
-    return (
-      <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)", padding: "var(--sp-lg)" }}>
-        Caricamento...
-      </div>
-    );
+    return <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)", padding: "var(--sp-lg)" }}>Caricamento...</div>;
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-lg)", maxWidth: "560px" }}>
-      {/* Express mode toggle */}
+
+      {/* Express mode */}
       <div style={cardStyle}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--sp-md)" }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-900)", marginBottom: "6px" }}>
-              Modalità Express
-            </div>
+            <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-900)", marginBottom: "6px" }}>Modalità Express</div>
             <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", lineHeight: 1.5 }}>
               Salta il workflow cucina — l'ordine viene completato direttamente al pagamento senza passare per i stati confermato / in preparazione / pronto.
             </div>
-            <div style={{ marginTop: "12px", fontSize: "var(--text-xs)", fontWeight: 600,
-              color: expressMode ? "var(--color-success, #059669)" : "var(--color-gray-400)",
-            }}>
+            <div style={{ marginTop: "12px", fontSize: "var(--text-xs)", fontWeight: 600, color: expressMode ? "var(--color-success, #059669)" : "var(--color-gray-400)" }}>
               {expressMode ? "Attiva — gli ordini vengono completati al pagamento" : "Disattiva — gli ordini seguono il flusso cucina"}
             </div>
           </div>
-          <button
-            role="switch"
-            aria-checked={expressMode}
-            disabled={saving}
-            onClick={handleExpressToggle}
-            style={{
-              width: "52px",
-              height: "28px",
-              borderRadius: "14px",
-              background: expressMode ? "var(--color-brand)" : "var(--color-gray-200)",
-              border: "none",
-              cursor: saving ? "not-allowed" : "pointer",
-              position: "relative",
-              transition: "background 0.2s",
-              flexShrink: 0,
-              opacity: saving ? 0.6 : 1,
+          <button role="switch" aria-checked={expressMode} disabled={savingExpress}
+            onClick={async () => {
+              const next = !expressMode;
+              setSavingExpress(true);
+              try { await adminApi.settings.update({ expressMode: next }); setExpressMode(next); }
+              catch { /* ignore */ } finally { setSavingExpress(false); }
             }}
+            style={toggleStyle(expressMode, savingExpress)}
           >
-            <span style={{
-              position: "absolute",
-              top: "3px",
-              left: expressMode ? "27px" : "3px",
-              width: "22px",
-              height: "22px",
-              borderRadius: "50%",
-              background: "var(--color-white)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-              transition: "left 0.2s",
-            }} />
+            <span style={thumbStyle(expressMode)} />
           </button>
-        </div>
-      </div>
-
-      {/* Receipt numbering */}
-      <div style={cardStyle}>
-        <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-900)", marginBottom: "4px" }}>
-          Numerazione scontrini
-        </div>
-        <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", marginBottom: "18px" }}>
-          Scegli come vengono numerati gli scontrini.
-        </div>
-
-        {/* Mode radios */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "18px" }}>
-          {([
-            ["default", "Default (UUID)", "Ultimi 6 caratteri dell'ID ordine — es. #A3F9C1"],
-            ["global", "Incrementale globale", "1, 2, 3… — contatore che non si azzera mai"],
-            ["shift", "Incrementale per turno", "Si azzera ad ogni nuovo turno di cassa"],
-          ] as const).map(([val, label, desc]) => (
-            <label key={val} style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
-              <input type="radio" name="receiptMode" value={val} checked={receiptMode === val}
-                onChange={() => setReceiptMode(val)}
-                style={{ marginTop: "3px", accentColor: "var(--color-brand)" }} />
-              <div>
-                <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)" }}>{label}</div>
-                <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>{desc}</div>
-              </div>
-            </label>
-          ))}
-        </div>
-
-        {/* Prefix + padding (only for non-default) */}
-        {receiptMode !== "default" && (
-          <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "14px" }}>
-            <div>
-              <label style={labelStyle}>Prefisso</label>
-              <input type="text" value={receiptPrefix} onChange={(e) => setReceiptPrefix(e.target.value)}
-                placeholder="es. ORD-" style={{ ...inputStyle, width: "120px" }} />
-            </div>
-            <div>
-              <label style={labelStyle}>Cifre (zero-padding)</label>
-              <input type="number" min={0} max={8} value={receiptPadding}
-                onChange={(e) => setReceiptPadding(Math.max(0, Math.min(8, Number(e.target.value))))}
-                style={{ ...inputStyle, width: "80px" }} />
-            </div>
-          </div>
-        )}
-
-        {/* Live preview */}
-        <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", marginBottom: "16px" }}>
-          Anteprima: <strong style={{ color: "var(--color-gray-800)" }}>#{previewNum}</strong>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-          <Button loading={savingReceipt} onClick={handleReceiptSave}>Salva numerazione</Button>
-
-          {receiptMode !== "default" && (
-            resetConfirm ? (
-              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)" }}>Confermi il reset a 0?</span>
-                <button onClick={handleReset} style={{ padding: "6px 12px", borderRadius: "var(--radius-md)", background: "#DC2626", color: "#fff", border: "none", cursor: "pointer", fontSize: "var(--text-xs)", fontWeight: 600 }}>Sì, resetta</button>
-                <button onClick={() => setResetConfirm(false)} style={{ padding: "6px 12px", borderRadius: "var(--radius-md)", background: "var(--color-gray-100)", color: "var(--color-gray-600)", border: "none", cursor: "pointer", fontSize: "var(--text-xs)", fontWeight: 600 }}>Annulla</button>
-              </div>
-            ) : (
-              <button onClick={() => setResetConfirm(true)}
-                style={{ padding: "8px 14px", borderRadius: "var(--radius-lg)", border: "1.5px solid #FECACA", background: "#FEF2F2", color: "#DC2626", cursor: "pointer", fontSize: "var(--text-sm)", fontWeight: 600 }}>
-                Reset contatore
-              </button>
-            )
-          )}
-          {resetDone && <span style={{ fontSize: "var(--text-xs)", color: "var(--color-success, #059669)", fontWeight: 600 }}>Contatore azzerato</span>}
-        </div>
-      </div>
-
-      {/* Grid POS defaults */}
-      <div style={cardStyle}>
-        <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-900)", marginBottom: "4px" }}>
-          Griglia POS — impostazioni default
-        </div>
-        <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", marginBottom: "18px", lineHeight: 1.5 }}>
-          Definisci la visualizzazione predefinita del grid prodotti. Il cassiere può sovrascrivere queste impostazioni temporaneamente dal POS.
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-
-          {/* Vista default */}
-          <div>
-            <label style={{ ...labelStyle, display: "block", marginBottom: "8px" }}>Vista predefinita</label>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {([
-                ["category",         "Per categoria",              "Sidebar con categorie, mostra i prodotti della categoria selezionata"],
-                ["all",              "Tutti i prodotti",           "Griglia piatta con tutti i prodotti attivi"],
-                ["grouped_category", "Raggruppati per categoria",  "Sezioni separate per ogni categoria"],
-                ["grouped_center",   "Raggruppati per centro",     "Sezioni separate per centro di produzione"],
-                ["grouped_color",    "Raggruppati per colore",     "Sezioni separate per colore prodotto"],
-              ] as const).map(([val, label, desc]) => (
-                <label key={val} style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
-                  <input type="radio" name="gridViewMode" value={val} checked={gridViewMode === val}
-                    onChange={() => setGridViewMode(val)}
-                    style={{ marginTop: "3px", accentColor: "var(--color-brand)" }} />
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)" }}>{label}</div>
-                    <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>{desc}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Colonne base */}
-          <div style={{ borderTop: "1px solid var(--color-gray-100)", paddingTop: "16px" }}>
-            <label style={{ ...labelStyle, display: "block", marginBottom: "8px" }}>Colonne ({gridBaseCols})</label>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <input
-                type="range" min={2} max={10} value={gridBaseCols}
-                onChange={(e) => setGridBaseCols(Number(e.target.value))}
-                style={{ flex: 1, accentColor: "var(--color-brand)" }}
-              />
-              <div style={{ display: "flex", gap: "6px" }}>
-                {[3, 4, 5, 6, 8].map((n) => (
-                  <button key={n} onClick={() => setGridBaseCols(n)} style={{
-                    padding: "4px 10px", borderRadius: "var(--radius-md)", border: "1px solid",
-                    borderColor: gridBaseCols === n ? "var(--color-brand)" : "var(--color-gray-200)",
-                    background: gridBaseCols === n ? "var(--color-brand)" : "var(--color-white)",
-                    color: gridBaseCols === n ? "var(--color-white)" : "var(--color-gray-600)",
-                    fontSize: "var(--text-xs)", fontWeight: 600, cursor: "pointer",
-                  }}>{n}</button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Campi visibili */}
-          <div style={{ borderTop: "1px solid var(--color-gray-100)", paddingTop: "16px" }}>
-            <div style={{ ...labelStyle, marginBottom: "10px" }}>Campi visibili sulle card</div>
-            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-              {([
-                ["Prezzo", gridShowPrice, () => setGridShowPrice(!gridShowPrice)] as [string, boolean, () => void],
-                ["Descrizione", gridShowDescription, () => setGridShowDescription(!gridShowDescription)] as [string, boolean, () => void],
-              ]).map(([label, active, toggle]) => (
-                <button key={label as string} onClick={toggle as () => void} style={{
-                  display: "flex", alignItems: "center", gap: "8px",
-                  padding: "8px 14px", borderRadius: "var(--radius-md)", border: "1px solid",
-                  borderColor: active ? "var(--color-brand)" : "var(--color-gray-200)",
-                  background: active ? "rgba(48,107,52,0.07)" : "var(--color-white)",
-                  color: active ? "var(--color-brand)" : "var(--color-gray-500)",
-                  cursor: "pointer", fontSize: "var(--text-sm)", fontWeight: 600,
-                }}>
-                  <span style={{
-                    width: 16, height: 16, borderRadius: "50%", border: "1.5px solid",
-                    borderColor: active ? "var(--color-brand)" : "var(--color-gray-300)",
-                    background: active ? "var(--color-brand)" : "transparent",
-                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                  }}>
-                    {active && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-white)" }} />}
-                  </span>
-                  {label as string}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Ordinamento default */}
-          <div style={{ borderTop: "1px solid var(--color-gray-100)", paddingTop: "16px" }}>
-            <label style={{ ...labelStyle, display: "block", marginBottom: "8px" }}>Ordinamento predefinito</label>
-            <select
-              value={gridSortBy}
-              onChange={(e) => setGridSortBy(e.target.value as typeof gridSortBy)}
-              style={{ ...inputStyle, maxWidth: "240px", cursor: "pointer" }}
-            >
-              <option value="custom">Personalizzato (drag & drop)</option>
-              <option value="name">Nome</option>
-              <option value="price">Prezzo</option>
-              <option value="color">Colore</option>
-              <option value="category">Categoria</option>
-            </select>
-          </div>
-
-        </div>
-
-        <div style={{ marginTop: "20px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-          <Button loading={savingGrid} onClick={handleGridSave}>Salva impostazioni griglia</Button>
-          {gridSaved && <span style={{ fontSize: "var(--text-xs)", color: "var(--color-success, #059669)", fontWeight: 600 }}>Salvato</span>}
-          <a
-            href="/pos?editLayout=1"
-            style={{
-              display: "inline-flex", alignItems: "center", gap: "6px",
-              padding: "10px 18px", borderRadius: "var(--radius-md)",
-              border: "1.5px solid var(--color-brand)",
-              background: "transparent", color: "var(--color-brand)",
-              fontSize: "var(--text-sm)", fontWeight: 700, fontFamily: "var(--font)",
-              textDecoration: "none", cursor: "pointer",
-            }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 15, height: 15 }}>
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" />
-            </svg>
-            Modifica layout POS
-          </a>
         </div>
       </div>
 
@@ -3364,48 +3113,316 @@ function ModeTab() {
       <div style={cardStyle}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--sp-md)" }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-900)", marginBottom: "6px" }}>
-              Multi-terminale
-            </div>
+            <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-900)", marginBottom: "6px" }}>Multi-terminale</div>
             <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", maxWidth: "380px", lineHeight: 1.5 }}>
               Abilita la gestione di più casse fisiche. Ogni terminale può avere stampanti dedicate.
               Una volta attivato, configura i terminali nel tab <strong>Terminali</strong>.
             </div>
           </div>
-          <button
+          <button disabled={savingMultiTerminal}
             onClick={async () => {
-              setSavingMultiTerminal(true);
               const next = !multiTerminalEnabled;
-              try {
-                await adminApi.settings.update({ multiTerminalEnabled: next });
-                setMultiTerminalEnabled(next);
-              } catch { /* ignore */ } finally {
-                setSavingMultiTerminal(false);
-              }
+              setSavingMultiTerminal(true);
+              try { await adminApi.settings.update({ multiTerminalEnabled: next }); setMultiTerminalEnabled(next); }
+              catch { /* ignore */ } finally { setSavingMultiTerminal(false); }
             }}
-            disabled={savingMultiTerminal}
-            style={{
-              flexShrink: 0,
-              width: "52px", height: "28px",
-              borderRadius: "999px",
-              border: "none",
-              background: multiTerminalEnabled ? "var(--color-brand)" : "var(--color-gray-300)",
-              position: "relative",
-              cursor: "pointer",
-              transition: "background 0.2s",
-            }}
+            style={toggleStyle(multiTerminalEnabled, savingMultiTerminal)}
           >
-            <span style={{
-              position: "absolute",
-              top: "3px",
-              left: multiTerminalEnabled ? "26px" : "3px",
-              width: "22px", height: "22px",
-              borderRadius: "50%",
-              background: "white",
-              transition: "left 0.2s",
-            }} />
+            <span style={thumbStyle(multiTerminalEnabled)} />
           </button>
         </div>
+      </div>
+
+      {/* Modules */}
+      <div style={cardStyle}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+          <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-900)" }}>Moduli</div>
+          <button onClick={() => {
+            setLoadingModules(true);
+            adminApi.modules.list().then((m) => setModules(m)).catch(() => {}).finally(() => setLoadingModules(false));
+          }} style={{ padding: "6px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", display: "flex", color: "var(--color-gray-500)" }}>
+            <ArrowPathIcon style={{ width: "15px", height: "15px" }} />
+          </button>
+        </div>
+        {moduleError && (
+          <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "var(--radius-md)", padding: "10px 14px", marginBottom: "12px", fontSize: "var(--text-sm)", color: "#DC2626" }}>
+            {moduleError}
+          </div>
+        )}
+        {loadingModules ? (
+          <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>Caricamento...</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {modules.map((mod) => (
+              <div key={mod.name} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", paddingBottom: "10px", borderBottom: "1px solid var(--color-gray-100)" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "2px" }}>
+                    <span style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)" }}>{mod.name}</span>
+                    <span style={{
+                      fontSize: "var(--text-xs)", fontWeight: 600, padding: "1px 7px", borderRadius: "999px",
+                      background: mod.enabled ? "rgba(34,197,94,0.12)" : "var(--color-gray-100)",
+                      color: mod.enabled ? "#15803D" : "var(--color-gray-400)",
+                    }}>{mod.enabled ? "attivo" : "disabilitato"}</span>
+                    <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>v{mod.version}</span>
+                  </div>
+                  {mod.dependencyErrors.length > 0 && (
+                    <div style={{ fontSize: "var(--text-xs)", color: "#DC2626", fontWeight: 600 }}>{mod.dependencyErrors[0]}</div>
+                  )}
+                </div>
+                <button role="switch" aria-checked={mod.enabled} disabled={toggling === mod.name}
+                  onClick={() => void handleModuleToggle(mod.name)}
+                  style={toggleStyle(mod.enabled, toggling === mod.name)}
+                >
+                  <span style={thumbStyle(mod.enabled)} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Receipt Numbering Section (shared, used inside ReceiptTemplateTab) ──────
+
+function ReceiptNumberingSection() {
+  const [receiptMode, setReceiptMode] = useState<"default" | "global" | "shift">("default");
+  const [receiptPrefix, setReceiptPrefix] = useState("");
+  const [receiptPadding, setReceiptPadding] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const [resetDone, setResetDone] = useState(false);
+
+  useEffect(() => {
+    adminApi.settings.get().then((s) => {
+      setReceiptMode(s.receiptNumberMode);
+      setReceiptPrefix(s.receiptNumberPrefix);
+      setReceiptPadding(s.receiptNumberPadding);
+    }).catch(() => {});
+  }, []);
+
+  const previewNum = receiptMode === "default"
+    ? "A3F9C1"
+    : (receiptPadding > 0 ? `${receiptPrefix}${"42".padStart(receiptPadding, "0")}` : `${receiptPrefix}42`);
+
+  return (
+    <div style={{ marginTop: "32px", paddingTop: "32px", borderTop: "1px solid var(--color-gray-200)" }}>
+      <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-900)", marginBottom: "4px" }}>
+        Numerazione scontrini
+      </div>
+      <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", marginBottom: "18px" }}>
+        Scegli come vengono numerati gli scontrini.
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "18px" }}>
+        {([
+          ["default", "Default (UUID)", "Ultimi 6 caratteri dell'ID ordine — es. #A3F9C1"],
+          ["global",  "Incrementale globale", "1, 2, 3… — contatore che non si azzera mai"],
+          ["shift",   "Incrementale per turno", "Si azzera ad ogni nuovo turno di cassa"],
+        ] as const).map(([val, label, desc]) => (
+          <label key={val} style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
+            <input type="radio" name="receiptModeSection" value={val} checked={receiptMode === val}
+              onChange={() => setReceiptMode(val)}
+              style={{ marginTop: "3px", accentColor: "var(--color-brand)" }} />
+            <div>
+              <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)" }}>{label}</div>
+              <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>{desc}</div>
+            </div>
+          </label>
+        ))}
+      </div>
+
+      {receiptMode !== "default" && (
+        <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "14px" }}>
+          <div>
+            <label style={labelStyle}>Prefisso</label>
+            <input type="text" value={receiptPrefix} onChange={(e) => setReceiptPrefix(e.target.value)}
+              placeholder="es. ORD-" style={{ ...inputStyle, width: "120px" }} />
+          </div>
+          <div>
+            <label style={labelStyle}>Cifre (zero-padding)</label>
+            <input type="number" min={0} max={8} value={receiptPadding}
+              onChange={(e) => setReceiptPadding(Math.max(0, Math.min(8, Number(e.target.value))))}
+              style={{ ...inputStyle, width: "80px" }} />
+          </div>
+        </div>
+      )}
+
+      <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", marginBottom: "16px" }}>
+        Anteprima: <strong style={{ color: "var(--color-gray-800)" }}>#{previewNum}</strong>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+        <Button loading={saving} onClick={async () => {
+          setSaving(true);
+          try { await adminApi.settings.update({ receiptNumberMode: receiptMode, receiptNumberPrefix: receiptPrefix, receiptNumberPadding: receiptPadding }); }
+          catch { /* ignore */ } finally { setSaving(false); }
+        }}>Salva numerazione</Button>
+
+        {receiptMode !== "default" && (
+          resetConfirm ? (
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)" }}>Confermi il reset a 0?</span>
+              <button onClick={async () => {
+                await adminApi.settings.resetReceiptCounter("global");
+                setResetConfirm(false);
+                setResetDone(true);
+                setTimeout(() => setResetDone(false), 3000);
+              }} style={{ padding: "6px 12px", borderRadius: "var(--radius-md)", background: "#DC2626", color: "#fff", border: "none", cursor: "pointer", fontSize: "var(--text-xs)", fontWeight: 600 }}>Sì, resetta</button>
+              <button onClick={() => setResetConfirm(false)} style={{ padding: "6px 12px", borderRadius: "var(--radius-md)", background: "var(--color-gray-100)", color: "var(--color-gray-600)", border: "none", cursor: "pointer", fontSize: "var(--text-xs)", fontWeight: 600 }}>Annulla</button>
+            </div>
+          ) : (
+            <button onClick={() => setResetConfirm(true)}
+              style={{ padding: "8px 14px", borderRadius: "var(--radius-lg)", border: "1.5px solid #FECACA", background: "#FEF2F2", color: "#DC2626", cursor: "pointer", fontSize: "var(--text-sm)", fontWeight: 600 }}>
+              Reset contatore
+            </button>
+          )
+        )}
+        {resetDone && <span style={{ fontSize: "var(--text-xs)", color: "var(--color-success, #059669)", fontWeight: 600 }}>Contatore azzerato</span>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Grid Defaults Section (shared, used inside ProductsTab) ──────────────────
+
+function GridDefaultsSection() {
+  const [gridViewMode, setGridViewMode] = useState<"category" | "all" | "grouped_category" | "grouped_center" | "grouped_color">("category");
+  const [gridShowPrice, setGridShowPrice] = useState(true);
+  const [gridShowDescription, setGridShowDescription] = useState(true);
+  const [gridSortBy, setGridSortBy] = useState<"custom" | "name" | "price" | "color" | "category">("custom");
+  const [gridBaseCols, setGridBaseCols] = useState(5);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    adminApi.settings.get().then((s) => {
+      setGridViewMode(s.gridViewMode);
+      setGridShowPrice(s.gridShowPrice);
+      setGridShowDescription(s.gridShowDescription);
+      setGridSortBy(s.gridSortBy);
+      setGridBaseCols(s.gridBaseCols);
+    }).catch(() => {});
+  }, []);
+
+  return (
+    <div style={{ marginTop: "32px", paddingTop: "32px", borderTop: "1px solid var(--color-gray-200)" }}>
+      <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-900)", marginBottom: "4px" }}>
+        Griglia POS — impostazioni default
+      </div>
+      <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", marginBottom: "18px", lineHeight: 1.5 }}>
+        Definisci la visualizzazione predefinita del grid prodotti. Il cassiere può sovrascrivere temporaneamente dal POS.
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div>
+          <label style={{ ...labelStyle, display: "block", marginBottom: "8px" }}>Vista predefinita</label>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {([
+              ["category",         "Per categoria",             "Sidebar con categorie, mostra i prodotti della categoria selezionata"],
+              ["all",              "Tutti i prodotti",          "Griglia piatta con tutti i prodotti attivi"],
+              ["grouped_category", "Raggruppati per categoria", "Sezioni separate per ogni categoria"],
+              ["grouped_center",   "Raggruppati per centro",    "Sezioni separate per centro di produzione"],
+              ["grouped_color",    "Raggruppati per colore",    "Sezioni separate per colore prodotto"],
+            ] as const).map(([val, label, desc]) => (
+              <label key={val} style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
+                <input type="radio" name="gridViewModeSection" value={val} checked={gridViewMode === val}
+                  onChange={() => setGridViewMode(val)}
+                  style={{ marginTop: "3px", accentColor: "var(--color-brand)" }} />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)" }}>{label}</div>
+                  <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>{desc}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ borderTop: "1px solid var(--color-gray-100)", paddingTop: "16px" }}>
+          <label style={{ ...labelStyle, display: "block", marginBottom: "8px" }}>Colonne ({gridBaseCols})</label>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <input type="range" min={2} max={10} value={gridBaseCols}
+              onChange={(e) => setGridBaseCols(Number(e.target.value))}
+              style={{ flex: 1, accentColor: "var(--color-brand)" }} />
+            <div style={{ display: "flex", gap: "6px" }}>
+              {[3, 4, 5, 6, 8].map((n) => (
+                <button key={n} onClick={() => setGridBaseCols(n)} style={{
+                  padding: "4px 10px", borderRadius: "var(--radius-md)", border: "1px solid",
+                  borderColor: gridBaseCols === n ? "var(--color-brand)" : "var(--color-gray-200)",
+                  background: gridBaseCols === n ? "var(--color-brand)" : "var(--color-white)",
+                  color: gridBaseCols === n ? "var(--color-white)" : "var(--color-gray-600)",
+                  fontSize: "var(--text-xs)", fontWeight: 600, cursor: "pointer",
+                }}>{n}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ borderTop: "1px solid var(--color-gray-100)", paddingTop: "16px" }}>
+          <div style={{ ...labelStyle, marginBottom: "10px" }}>Campi visibili sulle card</div>
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            {([
+              ["Prezzo", gridShowPrice, () => setGridShowPrice((v) => !v)] as [string, boolean, () => void],
+              ["Descrizione", gridShowDescription, () => setGridShowDescription((v) => !v)] as [string, boolean, () => void],
+            ]).map(([label, active, toggle]) => (
+              <button key={label as string} onClick={toggle as () => void} style={{
+                display: "flex", alignItems: "center", gap: "8px",
+                padding: "8px 14px", borderRadius: "var(--radius-md)", border: "1px solid",
+                borderColor: active ? "var(--color-brand)" : "var(--color-gray-200)",
+                background: active ? "rgba(48,107,52,0.07)" : "var(--color-white)",
+                color: active ? "var(--color-brand)" : "var(--color-gray-500)",
+                cursor: "pointer", fontSize: "var(--text-sm)", fontWeight: 600,
+              }}>
+                <span style={{
+                  width: 16, height: 16, borderRadius: "50%", border: "1.5px solid",
+                  borderColor: active ? "var(--color-brand)" : "var(--color-gray-300)",
+                  background: active ? "var(--color-brand)" : "transparent",
+                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                }}>
+                  {active && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-white)" }} />}
+                </span>
+                {label as string}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ borderTop: "1px solid var(--color-gray-100)", paddingTop: "16px" }}>
+          <label style={{ ...labelStyle, display: "block", marginBottom: "8px" }}>Ordinamento predefinito</label>
+          <select value={gridSortBy} onChange={(e) => setGridSortBy(e.target.value as typeof gridSortBy)}
+            style={{ ...inputStyle, maxWidth: "240px", cursor: "pointer" }}>
+            <option value="custom">Personalizzato (drag & drop)</option>
+            <option value="name">Nome</option>
+            <option value="price">Prezzo</option>
+            <option value="color">Colore</option>
+            <option value="category">Categoria</option>
+          </select>
+        </div>
+      </div>
+
+      <div style={{ marginTop: "20px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+        <Button loading={saving} onClick={async () => {
+          setSaving(true);
+          try {
+            await adminApi.settings.update({ gridViewMode, gridShowPrice, gridShowDescription, gridSortBy, gridBaseCols });
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2500);
+          } catch { /* ignore */ } finally { setSaving(false); }
+        }}>Salva impostazioni griglia</Button>
+        {saved && <span style={{ fontSize: "var(--text-xs)", color: "var(--color-success, #059669)", fontWeight: 600 }}>Salvato</span>}
+        <a href="/pos?editLayout=1" style={{
+          display: "inline-flex", alignItems: "center", gap: "6px",
+          padding: "10px 18px", borderRadius: "var(--radius-md)",
+          border: "1.5px solid var(--color-brand)", background: "transparent", color: "var(--color-brand)",
+          fontSize: "var(--text-sm)", fontWeight: 700, fontFamily: "var(--font)",
+          textDecoration: "none", cursor: "pointer",
+        }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 15, height: 15 }}>
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" />
+          </svg>
+          Modifica layout POS
+        </a>
       </div>
     </div>
   );
@@ -3721,114 +3738,6 @@ function ShiftsTab() {
 }
 
 // ─── Modules Tab ─────────────────────────────────────────────────────────────
-
-function ModulesTab({ onToggle }: { onToggle?: () => void }) {
-  const [modules, setModules] = useState<ModuleInfo[]>([]);
-  const [loading_, setLoading_] = useState(true);
-  const [toggling, setToggling] = useState<string | null>(null);
-  const [error_, setError_] = useState<string | null>(null);
-
-  async function loadModules() {
-    setLoading_(true);
-    try {
-      const data = await adminApi.modules.list();
-      setModules(data);
-    } catch (e) {
-      setError_(e instanceof Error ? e.message : "Errore");
-    } finally {
-      setLoading_(false);
-    }
-  }
-
-  useEffect(() => { void loadModules(); }, []);
-
-  async function handleToggle(name: string) {
-    setToggling(name);
-    setError_(null);
-    try {
-      const updated = await adminApi.modules.toggle(name);
-      setModules((prev) => prev.map((m) => m.name === name ? { ...m, enabled: updated.enabled } : m));
-      onToggle?.();
-    } catch (e) {
-      setError_(e instanceof Error ? e.message : "Errore");
-    } finally {
-      setToggling(null);
-    }
-  }
-
-  if (loading_) {
-    return <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)", padding: "var(--sp-lg)" }}>Caricamento...</div>;
-  }
-
-  return (
-    <div style={{ padding: "var(--sp-lg)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--sp-lg)" }}>
-        <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-gray-800)", margin: 0 }}>Moduli</h2>
-        <button onClick={() => void loadModules()} style={{ padding: "6px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", display: "flex", color: "var(--color-gray-500)" }}>
-          <ArrowPathIcon style={{ width: "16px", height: "16px" }} />
-        </button>
-      </div>
-      {error_ && (
-        <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "var(--radius-md)", padding: "12px 16px", marginBottom: "16px", fontSize: "var(--text-sm)", color: "#DC2626" }}>
-          {error_}
-        </div>
-      )}
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        {modules.map((mod) => (
-          <div key={mod.name} style={{ background: "var(--color-white)", borderRadius: "var(--radius-xl)", padding: "20px 24px", boxShadow: "var(--shadow-sm)" }}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px" }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
-                  <span style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-800)" }}>{mod.name}</span>
-                  <span style={{
-                    fontSize: "var(--text-xs)", fontWeight: 600, padding: "2px 8px", borderRadius: "999px",
-                    background: mod.enabled ? "rgba(34,197,94,0.12)" : "var(--color-gray-100)",
-                    color: mod.enabled ? "#15803D" : "var(--color-gray-400)",
-                  }}>
-                    {mod.enabled ? "attivo" : "disabilitato"}
-                  </span>
-                  <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>v{mod.version}</span>
-                </div>
-                {mod.dependencies.length > 0 && (
-                  <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
-                    Dipende da: {mod.dependencies.join(", ")}
-                  </div>
-                )}
-                {mod.dependencyErrors.length > 0 && (
-                  <div style={{ marginTop: "6px", fontSize: "var(--text-xs)", color: "#DC2626", fontWeight: 600 }}>
-                    {mod.dependencyErrors[0]}
-                  </div>
-                )}
-              </div>
-              <button
-                role="switch"
-                aria-checked={mod.enabled}
-                disabled={toggling === mod.name}
-                onClick={() => void handleToggle(mod.name)}
-                style={{
-                  width: "48px", height: "26px", borderRadius: "13px",
-                  background: mod.enabled ? "var(--color-brand)" : "var(--color-gray-200)",
-                  border: "none", cursor: toggling === mod.name ? "not-allowed" : "pointer",
-                  position: "relative", transition: "background 0.2s", flexShrink: 0,
-                  opacity: toggling === mod.name ? 0.6 : 1,
-                }}
-              >
-                <span style={{
-                  position: "absolute", top: "3px",
-                  left: mod.enabled ? "25px" : "3px",
-                  width: "20px", height: "20px", borderRadius: "50%",
-                  background: "var(--color-white)",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                  transition: "left 0.2s",
-                }} />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // ─── Inventory Tab ────────────────────────────────────────────────────────────
 
@@ -4308,6 +4217,8 @@ const MODULE_TAB_MAP: Record<string, Tab[]> = {
   inventory: ["inventory", "movements"],
 };
 
+
+
 export function AdminScreen() {
   const [activeTab, setActiveTab] = useState<Tab>("restaurant");
   const { setCategories, setProducts, setProductionCenters, setLoading, loading } = useAdminStore();
@@ -4339,7 +4250,6 @@ export function AdminScreen() {
     adminApi.settings.get().then((s) => setMultiTerminalEnabled(s.multiTerminalEnabled)).catch(() => {});
   }, []);
 
-  // Re-fetch enabled modules when a module is toggled (ModulesTab calls this via callback)
   function refreshEnabledModules() {
     adminApi.modules.list()
       .then((mods) => setEnabledModules(new Set(mods.filter((m) => m.enabled).map((m) => m.name))))
@@ -4474,8 +4384,7 @@ export function AdminScreen() {
             {resolvedActiveTab === "kitchen-template" && <KitchenTemplateTab />}
             {resolvedActiveTab === "shifts" && <ShiftsTab />}
             {resolvedActiveTab === "backup" && <BackupTab />}
-            {resolvedActiveTab === "mode" && <ModeTab />}
-            {resolvedActiveTab === "modules" && <ModulesTab onToggle={refreshEnabledModules} />}
+            {resolvedActiveTab === "advanced" && <AdvancedTab onModuleToggle={refreshEnabledModules} />}
             {resolvedActiveTab === "inventory" && <InventoryTab />}
             {resolvedActiveTab === "movements" && <MovementsTab />}
             {resolvedActiveTab === "terminals" && <TerminalsTab onMultiTerminalChange={setMultiTerminalEnabled} />}
