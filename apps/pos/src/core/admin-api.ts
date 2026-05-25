@@ -1,4 +1,4 @@
-import type { Category, Product, ProductionCenter, OptionGroupWithOptions, Option, PaymentMethodRecord, Printer, ReceiptTemplate, Shift, ReceiptBlock, KitchenTemplate, KitchenBlock, ProductGridSlot } from "@pos/shared-types";
+import type { Category, Product, ProductionCenter, OptionGroupWithOptions, Option, PaymentMethodRecord, Printer, ReceiptTemplate, Shift, ReceiptBlock, KitchenTemplate, KitchenBlock, ProductGridSlot, Terminal } from "@pos/shared-types";
 
 export interface AuditEntry {
   id: string;
@@ -213,6 +213,7 @@ export const adminApi = {
       gridShowDescription: boolean;
       gridSortBy: "custom" | "name" | "price" | "color" | "category";
       gridBaseCols: number;
+      multiTerminalEnabled: boolean;
     }>("GET", "/admin/settings"),
     update: (data: Partial<{
       expressMode: boolean;
@@ -224,6 +225,7 @@ export const adminApi = {
       gridShowDescription: boolean;
       gridSortBy: "custom" | "name" | "price" | "color" | "category";
       gridBaseCols: number;
+      multiTerminalEnabled: boolean;
     }>) => req<{
       expressMode: boolean;
       receiptNumberMode: "default" | "global" | "shift";
@@ -234,6 +236,7 @@ export const adminApi = {
       gridShowDescription: boolean;
       gridSortBy: "custom" | "name" | "price" | "color" | "category";
       gridBaseCols: number;
+      multiTerminalEnabled: boolean;
     }>("PATCH", "/admin/settings", data),
     resetReceiptCounter: (scope?: string, startFrom?: number) =>
       req<{ scope: string; lastValue: number }>("POST", "/admin/settings/reset-receipt-counter", { scope: scope ?? "global", startFrom: startFrom ?? 0 }),
@@ -318,5 +321,15 @@ export const adminApi = {
       ).toString() : "";
       return req<{ entries: AuditEntry[]; total: number; offset: number; limit: number }>("GET", `/admin/audit-log${q ? `?${q}` : ""}`);
     },
+  },
+  terminals: {
+    list: () => req<Terminal[]>("GET", "/admin/terminals"),
+    create: (data: { name: string }) => req<Terminal>("POST", "/admin/terminals", data),
+    update: (id: string, data: { name?: string; active?: boolean }) => req<Terminal>("PATCH", `/admin/terminals/${id}`, data),
+    delete: (id: string) => req<void>("DELETE", `/admin/terminals/${id}`),
+    getPrinters: (id: string) => req<Printer[]>("GET", `/admin/terminals/${id}/printers`),
+    assignPrinter: (id: string, printerId: string) => req<void>("POST", `/admin/terminals/${id}/printers/${printerId}`),
+    removePrinter: (id: string, printerId: string) => req<void>("DELETE", `/admin/terminals/${id}/printers/${printerId}`),
+    heartbeat: (id: string) => req<Terminal>("POST", `/admin/terminals/${id}/heartbeat`),
   },
 };

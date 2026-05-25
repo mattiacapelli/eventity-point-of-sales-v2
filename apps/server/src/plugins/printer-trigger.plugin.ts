@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import type { FastifyPluginAsync } from "fastify";
-import { claimEvent, eq, sql, inArray, shifts, printers, receiptTemplates, orders, orderItems, orderItemOptions, products, categories, productionCenters, productionCenterCategories, productionCenterPrinters, kitchenTemplates, appSettings } from "@pos/db";
+import { claimEvent, eq, sql, inArray, and, shifts, printers, receiptTemplates, orders, orderItems, orderItemOptions, products, categories, productionCenters, productionCenterCategories, productionCenterPrinters, kitchenTemplates, appSettings, terminals, terminalPrinters } from "@pos/db";
 import { formatReceipt, formatKitchenTicket, renderReceiptImage, renderKitchenImage, pngToEscposRaster, type ReceiptLine } from "@pos/core";
 import { formatReceiptNumber } from "@pos/module-sales";
 import type { ReceiptBlock, KitchenBlock } from "@pos/shared-types";
@@ -274,6 +274,7 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
         method: payload.payment.method,
         ...(payload.payment.reference !== undefined ? { reference: payload.payment.reference } : {}),
         paidAt: payload.payment.createdAt,
+        ...(payload.terminalId !== undefined ? { terminalId: payload.terminalId } : {}),
       },
       timestamp: new Date(),
     });
@@ -282,8 +283,29 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
   eventBus.on("PRINT_JOB_QUEUED", async (payload) => {
     if (payload.type !== "receipt") return;
 
-    const activePrinters = await db.select().from(printers).where(eq(printers.active, true));
-    const receiptPrinterFound = activePrinters.find((p) => p.receiptEnabled);
+    // Check if multi-terminal mode is enabled
+    const [multiTerminalRow] = await db.select().from(appSettings).where(eq(appSettings.key, "multi_terminal_enabled")).limit(1);
+    const multiTerminalEnabled = multiTerminalRow?.value === "true";
+
+    const terminalId = (payload.payload as { terminalId?: string }).terminalId ?? null;
+
+    let receiptPrinterFound: PrinterRow | undefined;
+
+    if (multiTerminalEnabled && terminalId) {
+      const tpRows = await db.select().from(terminalPrinters).where(eq(terminalPrinters.terminalId, terminalId));
+      if (tpRows.length > 0) {
+        const tpIds = tpRows.map((r) => r.printerId);
+        const tPrinters = await db.select().from(printers).where(and(eq(printers.active, true), inArray(printers.id, tpIds))) as unknown as PrinterRow[];
+        receiptPrinterFound = tPrinters.find((p) => p.receiptEnabled);
+      }
+    }
+
+    // Global fallback
+    if (!receiptPrinterFound) {
+      const activePrinters = await db.select().from(printers).where(eq(printers.active, true)) as unknown as PrinterRow[];
+      receiptPrinterFound = activePrinters.find((p) => p.receiptEnabled);
+    }
+
     if (!receiptPrinterFound) {
       logger.debug({ jobId: payload.jobId }, "No active receipt printer — skipping print");
       return;

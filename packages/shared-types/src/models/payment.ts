@@ -19,4 +19,5 @@ export interface CreatePaymentInput {
   readonly amount: number;
   readonly currency?: string;
   readonly reference?: string;
+  readonly terminalId?: string;
 }

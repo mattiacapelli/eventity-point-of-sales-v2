@@ -44,6 +44,7 @@ export function registerPaymentRoutes(
         currency?: string;
         reference?: string;
       };
+      const terminalId = (req.headers["x-terminal-id"] as string | undefined) ?? undefined;
       try {
         const payment = await service.pay({
           orderId: body.orderId,
@@ -51,6 +52,7 @@ export function registerPaymentRoutes(
           amount: body.amount,
           ...(body.currency !== undefined ? { currency: body.currency } : {}),
           ...(body.reference !== undefined ? { reference: body.reference } : {}),
+          ...(terminalId !== undefined ? { terminalId } : {}),
         });
         reply.status(201).send(serializePayment(payment));
       } catch (err) {

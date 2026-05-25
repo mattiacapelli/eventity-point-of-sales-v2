@@ -5,6 +5,7 @@ import { requireRole, AuthError } from "@pos/core";
 
 const RECEIPT_NUM_KEYS = ["receipt_number_mode", "receipt_number_prefix", "receipt_number_padding"] as const;
 const GRID_KEYS = ["grid_view_mode", "grid_show_price", "grid_show_description", "grid_sort_by", "grid_base_cols"] as const;
+const TERMINAL_KEYS = ["multi_terminal_enabled"] as const;
 
 const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("onRequest", async (request, reply) => {
@@ -24,7 +25,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["admin"], summary: "Get app settings" },
   }, async (_request, reply) => {
     const db = fastify.ctx.db;
-    const keys = ["express_mode", ...RECEIPT_NUM_KEYS, ...GRID_KEYS];
+    const keys = ["express_mode", ...RECEIPT_NUM_KEYS, ...GRID_KEYS, ...TERMINAL_KEYS];
     const rows = await db.select().from(appSettings).where(inArray(appSettings.key, keys));
     const m = Object.fromEntries(rows.map((r) => [r.key, r.value]));
 
@@ -38,6 +39,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       gridShowDescription: m["grid_show_description"] !== "false",
       gridSortBy: (m["grid_sort_by"] ?? "custom") as "custom" | "name" | "price" | "color" | "category",
       gridBaseCols: parseInt(m["grid_base_cols"] ?? "5", 10),
+      multiTerminalEnabled: m["multi_terminal_enabled"] === "true",
     });
   });
 
@@ -55,6 +57,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       gridShowDescription: boolean;
       gridSortBy: "custom" | "name" | "price" | "color" | "category";
       gridBaseCols: number;
+      multiTerminalEnabled: boolean;
     }>;
     const db = fastify.ctx.db;
 
@@ -68,13 +71,14 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.gridShowDescription !== undefined) upserts.push({ key: "grid_show_description", value: String(body.gridShowDescription) });
     if (body.gridSortBy !== undefined) upserts.push({ key: "grid_sort_by", value: body.gridSortBy });
     if (body.gridBaseCols !== undefined) upserts.push({ key: "grid_base_cols", value: String(body.gridBaseCols) });
+    if (body.multiTerminalEnabled !== undefined) upserts.push({ key: "multi_terminal_enabled", value: String(body.multiTerminalEnabled) });
 
     for (const { key, value } of upserts) {
-      await db.update(appSettings).set({ value }).where(eq(appSettings.key, key));
+      await db.insert(appSettings).values({ key, value }).onConflictDoUpdate({ target: appSettings.key, set: { value } });
     }
 
     // Re-read and return current state
-    const keys = ["express_mode", ...RECEIPT_NUM_KEYS, ...GRID_KEYS];
+    const keys = ["express_mode", ...RECEIPT_NUM_KEYS, ...GRID_KEYS, ...TERMINAL_KEYS];
     const rows = await db.select().from(appSettings).where(inArray(appSettings.key, keys));
     const m = Object.fromEntries(rows.map((r) => [r.key, r.value]));
 
@@ -88,6 +92,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       gridShowDescription: m["grid_show_description"] !== "false",
       gridSortBy: (m["grid_sort_by"] ?? "custom") as "custom" | "name" | "price" | "color" | "category",
       gridBaseCols: parseInt(m["grid_base_cols"] ?? "5", 10),
+      multiTerminalEnabled: m["multi_terminal_enabled"] === "true",
     });
   });
 

@@ -6,7 +6,7 @@ import { Button } from "../../components/ui/Button.js";
 import { adminApi } from "../../core/admin-api.js";
 import { useAdminStore } from "../../state/admin-store.js";
 import { useStore } from "../../state/global-store.js";
-import type { Category, Product, ProductionCenter, OptionGroupWithOptions, Option, PaymentMethodRecord, Printer, ReceiptTemplate, ReceiptBlock, BlockType, KitchenTemplate, KitchenBlock, KitchenBlockType } from "@pos/shared-types";
+import type { Category, Product, ProductionCenter, OptionGroupWithOptions, Option, PaymentMethodRecord, Printer, ReceiptTemplate, ReceiptBlock, BlockType, KitchenTemplate, KitchenBlock, KitchenBlockType, Terminal } from "@pos/shared-types";
 import {
   CubeIcon,
   TagIcon,
@@ -34,7 +34,7 @@ import { BackupTab } from "./BackupTab.js";
 
 // ─── Tab types ───────────────────────────────────────────────────────────────
 
-type Tab = "restaurant" | "products" | "categories" | "production-centers" | "payment-methods" | "printers" | "receipt-template" | "kitchen-template" | "shifts" | "backup" | "mode" | "modules" | "inventory" | "movements";
+type Tab = "restaurant" | "products" | "categories" | "production-centers" | "payment-methods" | "printers" | "receipt-template" | "kitchen-template" | "shifts" | "backup" | "mode" | "modules" | "inventory" | "movements" | "terminals";
 
 const TABS: { key: Tab; label: string; Icon: React.ComponentType<React.SVGProps<SVGSVGElement>> }[] = [
   { key: "restaurant", label: "Ristorante", Icon: BuildingStorefrontIcon },
@@ -51,6 +51,7 @@ const TABS: { key: Tab; label: string; Icon: React.ComponentType<React.SVGProps<
   { key: "modules", label: "Moduli", Icon: Squares2X2Icon },
   { key: "inventory", label: "Inventario", Icon: CircleStackIcon },
   { key: "movements", label: "Movimenti", Icon: ListBulletIcon },
+  { key: "terminals", label: "Terminali", Icon: WrenchScrewdriverIcon },
 ];
 
 // ─── Styles helpers ───────────────────────────────────────────────────────────
@@ -3031,6 +3032,10 @@ function ModeTab() {
   const [savingGrid, setSavingGrid] = useState(false);
   const [gridSaved, setGridSaved] = useState(false);
 
+  // Multi-terminal
+  const [multiTerminalEnabled, setMultiTerminalEnabled] = useState(false);
+  const [savingMultiTerminal, setSavingMultiTerminal] = useState(false);
+
   useEffect(() => {
     adminApi.settings.get().then((s) => {
       setExpressMode(s.expressMode);
@@ -3042,6 +3047,7 @@ function ModeTab() {
       setGridShowDescription(s.gridShowDescription);
       setGridSortBy(s.gridSortBy);
       setGridBaseCols(s.gridBaseCols);
+      setMultiTerminalEnabled(s.multiTerminalEnabled);
     }).catch(() => {});
   }, []);
 
@@ -3351,6 +3357,54 @@ function ModeTab() {
             </svg>
             Modifica layout POS
           </a>
+        </div>
+      </div>
+
+      {/* Multi-terminal */}
+      <div style={cardStyle}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--sp-md)" }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-900)", marginBottom: "6px" }}>
+              Multi-terminale
+            </div>
+            <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", maxWidth: "380px", lineHeight: 1.5 }}>
+              Abilita la gestione di più casse fisiche. Ogni terminale può avere stampanti dedicate.
+              Una volta attivato, configura i terminali nel tab <strong>Terminali</strong>.
+            </div>
+          </div>
+          <button
+            onClick={async () => {
+              setSavingMultiTerminal(true);
+              const next = !multiTerminalEnabled;
+              try {
+                await adminApi.settings.update({ multiTerminalEnabled: next });
+                setMultiTerminalEnabled(next);
+              } catch { /* ignore */ } finally {
+                setSavingMultiTerminal(false);
+              }
+            }}
+            disabled={savingMultiTerminal}
+            style={{
+              flexShrink: 0,
+              width: "52px", height: "28px",
+              borderRadius: "999px",
+              border: "none",
+              background: multiTerminalEnabled ? "var(--color-brand)" : "var(--color-gray-300)",
+              position: "relative",
+              cursor: "pointer",
+              transition: "background 0.2s",
+            }}
+          >
+            <span style={{
+              position: "absolute",
+              top: "3px",
+              left: multiTerminalEnabled ? "26px" : "3px",
+              width: "22px", height: "22px",
+              borderRadius: "50%",
+              background: "white",
+              transition: "left 0.2s",
+            }} />
+          </button>
         </div>
       </div>
     </div>
@@ -4046,6 +4100,207 @@ function MovementsTab() {
   );
 }
 
+// ─── Terminals Tab ────────────────────────────────────────────────────────────
+
+function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => void }) {
+  const [terminals, setTerminals] = useState<Terminal[]>([]);
+  const [printers, setPrinters] = useState<Printer[]>([]);
+  const [loading_, setLoading_] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [savingNew, setSavingNew] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [terminalPrinters, setTerminalPrinters] = useState<Record<string, string[]>>({});
+
+  const now = Date.now();
+  const isOnline = (t: Terminal) => t.lastSeenAt !== null && now - t.lastSeenAt < 5 * 60 * 1000;
+
+  useEffect(() => {
+    Promise.all([
+      adminApi.terminals.list(),
+      adminApi.printers.list(),
+    ]).then(([tList, pList]) => {
+      setTerminals(tList);
+      setPrinters(pList);
+    }).catch(() => {}).finally(() => setLoading_(false));
+  }, []);
+
+  async function loadTerminalPrinters(terminalId: string) {
+    try {
+      const list = await adminApi.terminals.getPrinters(terminalId);
+      setTerminalPrinters((prev) => ({ ...prev, [terminalId]: list.map((p) => p.id) }));
+    } catch { /* ignore */ }
+  }
+
+  async function handleCreate() {
+    if (!newName.trim()) return;
+    setSavingNew(true);
+    try {
+      const t = await adminApi.terminals.create({ name: newName.trim() });
+      setTerminals((prev) => [...prev, t]);
+      setNewName("");
+      setCreating(false);
+    } catch { /* ignore */ } finally {
+      setSavingNew(false);
+    }
+  }
+
+  async function handleToggleActive(t: Terminal) {
+    try {
+      const updated = await adminApi.terminals.update(t.id, { active: !t.active });
+      setTerminals((prev) => prev.map((x) => x.id === updated.id ? updated : x));
+    } catch { /* ignore */ }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await adminApi.terminals.delete(id);
+      setTerminals((prev) => prev.filter((t) => t.id !== id));
+    } catch { /* ignore */ }
+  }
+
+  async function handleTogglePrinter(terminalId: string, printerId: string) {
+    const current = terminalPrinters[terminalId] ?? [];
+    const has = current.includes(printerId);
+    try {
+      if (has) {
+        await adminApi.terminals.removePrinter(terminalId, printerId);
+        setTerminalPrinters((prev) => ({ ...prev, [terminalId]: current.filter((id) => id !== printerId) }));
+      } else {
+        await adminApi.terminals.assignPrinter(terminalId, printerId);
+        setTerminalPrinters((prev) => ({ ...prev, [terminalId]: [...current, printerId] }));
+      }
+    } catch { /* ignore */ }
+  }
+
+  const cardStyle: React.CSSProperties = {
+    background: "var(--color-white)",
+    border: "1px solid var(--color-gray-200)",
+    borderRadius: "var(--radius-lg)",
+    padding: "16px 20px",
+    marginBottom: "10px",
+  };
+
+  if (loading_) return <div style={{ color: "var(--color-gray-400)", padding: "24px" }}>Caricamento...</div>;
+
+  return (
+    <div style={{ maxWidth: "640px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: "var(--text-lg)", color: "var(--color-gray-900)" }}>Terminali</div>
+          <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)" }}>Gestisci le casse fisiche e le loro stampanti dedicate.</div>
+        </div>
+        <Button onClick={() => setCreating(true)}>
+          <PlusIcon style={{ width: "15px", height: "15px" }} />
+          Nuovo terminale
+        </Button>
+      </div>
+
+      {creating && (
+        <div style={{ ...cardStyle, border: "2px solid var(--color-brand)", marginBottom: "16px" }}>
+          <div style={{ fontWeight: 600, marginBottom: "10px", color: "var(--color-gray-800)" }}>Nuovo terminale</div>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Es: Cassa 1, Cassa Bar..."
+              onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setCreating(false); }}
+              autoFocus
+              style={{ ...inputStyle, flex: 1 }}
+            />
+            <Button loading={savingNew} onClick={handleCreate}>Crea</Button>
+            <Button onClick={() => setCreating(false)}>Annulla</Button>
+          </div>
+        </div>
+      )}
+
+      {terminals.length === 0 ? (
+        <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)", padding: "24px", textAlign: "center" }}>
+          Nessun terminale. Crea il primo con il pulsante in alto.
+        </div>
+      ) : (
+        terminals.map((t) => {
+          const expanded = expandedId === t.id;
+          return (
+            <div key={t.id} style={cardStyle}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: "var(--text-md)", color: "var(--color-gray-800)" }}>
+                    {t.name}
+                  </div>
+                  <div style={{ fontSize: "var(--text-xs)", color: isOnline(t) ? "#22c55e" : "var(--color-gray-400)", fontWeight: 500, marginTop: "2px" }}>
+                    {isOnline(t) ? "● online" : "○ offline"}
+                    {t.lastSeenAt ? ` — visto ${new Date(t.lastSeenAt).toLocaleString("it-IT")}` : " — mai connesso"}
+                  </div>
+                </div>
+                <span style={{
+                  fontSize: "var(--text-xs)", fontWeight: 700, padding: "2px 8px", borderRadius: "999px",
+                  background: t.active ? "#dcfce7" : "var(--color-gray-100)",
+                  color: t.active ? "#15803d" : "var(--color-gray-400)",
+                }}>
+                  {t.active ? "Attivo" : "Disattivo"}
+                </span>
+                <button
+                  title="Stampanti"
+                  onClick={() => {
+                    if (!expanded) loadTerminalPrinters(t.id);
+                    setExpandedId(expanded ? null : t.id);
+                  }}
+                  style={{ background: "none", border: "1px solid var(--color-gray-200)", borderRadius: "var(--radius-md)", padding: "5px 10px", cursor: "pointer", fontSize: "var(--text-xs)", color: "var(--color-gray-600)" }}
+                >
+                  Stampanti
+                </button>
+                <button
+                  onClick={() => handleToggleActive(t)}
+                  style={{ background: "none", border: "1px solid var(--color-gray-200)", borderRadius: "var(--radius-md)", padding: "5px 10px", cursor: "pointer", fontSize: "var(--text-xs)", color: "var(--color-gray-600)" }}
+                >
+                  {t.active ? "Disattiva" : "Attiva"}
+                </button>
+                <button
+                  onClick={() => handleDelete(t.id)}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-gray-400)", padding: "4px" }}
+                  title="Elimina"
+                >
+                  <TrashIcon style={{ width: "16px", height: "16px" }} />
+                </button>
+              </div>
+              {expanded && (
+                <div style={{ marginTop: "14px", borderTop: "1px solid var(--color-gray-100)", paddingTop: "14px" }}>
+                  <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "10px" }}>
+                    Stampanti assegnate
+                  </div>
+                  {printers.length === 0 ? (
+                    <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>Nessuna stampante configurata.</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {printers.map((p) => {
+                        const assigned = (terminalPrinters[t.id] ?? []).includes(p.id);
+                        return (
+                          <label key={p.id} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "var(--text-sm)" }}>
+                            <input
+                              type="checkbox"
+                              checked={assigned}
+                              onChange={() => handleTogglePrinter(t.id, p.id)}
+                            />
+                            <span style={{ fontWeight: 500, color: "var(--color-gray-800)" }}>{p.name}</span>
+                            <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
+                              {p.receiptEnabled ? "scontrino" : ""}{p.receiptEnabled && p.kitchenEnabled ? " + " : ""}{p.kitchenEnabled ? "comanda" : ""}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
 // ─── AdminScreen ──────────────────────────────────────────────────────────────
 
 // Which tabs require a module to be enabled (module name → tab keys)
@@ -4059,6 +4314,7 @@ export function AdminScreen() {
   const navigate = useNavigate();
   const [lowStockCount, setLowStockCount] = useState(0);
   const [enabledModules, setEnabledModules] = useState<Set<string>>(new Set());
+  const [multiTerminalEnabled, setMultiTerminalEnabled] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -4080,6 +4336,7 @@ export function AdminScreen() {
       .catch(() => setEnabledModules(new Set()));
 
     adminApi.inventory.getAlerts().then((alerts) => setLowStockCount(alerts.length)).catch(() => {});
+    adminApi.settings.get().then((s) => setMultiTerminalEnabled(s.multiTerminalEnabled)).catch(() => {});
   }, []);
 
   // Re-fetch enabled modules when a module is toggled (ModulesTab calls this via callback)
@@ -4090,6 +4347,7 @@ export function AdminScreen() {
   }
 
   function isTabVisible(key: Tab): boolean {
+    if (key === "terminals" && !multiTerminalEnabled) return false;
     for (const [moduleName, tabs] of Object.entries(MODULE_TAB_MAP)) {
       if (tabs.includes(key) && !enabledModules.has(moduleName)) return false;
     }
@@ -4220,6 +4478,7 @@ export function AdminScreen() {
             {resolvedActiveTab === "modules" && <ModulesTab onToggle={refreshEnabledModules} />}
             {resolvedActiveTab === "inventory" && <InventoryTab />}
             {resolvedActiveTab === "movements" && <MovementsTab />}
+            {resolvedActiveTab === "terminals" && <TerminalsTab onMultiTerminalChange={setMultiTerminalEnabled} />}
           </div>
         )}
       </div>

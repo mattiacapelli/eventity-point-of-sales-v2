@@ -6,9 +6,11 @@ import { bootstrapApi } from "./core/bootstrap-api.js";
 import { useWsEvents } from "./core/useWsEvents.js";
 import { useStore } from "./state/global-store.js";
 import { useShiftStore } from "./state/shift-store.js";
+import { useTerminalStore } from "./state/terminal-store.js";
 import { adminApi } from "./core/admin-api.js";
 import { LoginScreen } from "./modules-ui/auth/LoginScreen.js";
 import { SetupScreen } from "./modules-ui/setup/SetupScreen.js";
+import { TerminalSelectModal } from "./components/TerminalSelectModal.js";
 import "./styles/globals.css";
 
 // Apply persisted theme + font scale at boot
@@ -49,8 +51,10 @@ function LoadingScreen() {
 function AppInner() {
   const [booted, setBooted] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [multiTerminalEnabled, setMultiTerminalEnabled] = useState(false);
   const session = useStore((s) => s.session);
   const { setCurrentShift } = useShiftStore();
+  const { terminalId } = useTerminalStore();
   const prevSessionRef = useRef<string | null>(null);
 
   useWsEvents();
@@ -62,6 +66,15 @@ function AppInner() {
       .catch(() => { /* server unreachable — let normal flow handle it */ })
       .finally(() => setBooted(true));
   }, []);
+
+  // Load settings to check multiTerminalEnabled
+  useEffect(() => {
+    if (session) {
+      adminApi.settings.get()
+        .then((s) => setMultiTerminalEnabled(s.multiTerminalEnabled))
+        .catch(() => {});
+    }
+  }, [session?.userId]);
 
   // Sync shift on login/logout
   useEffect(() => {
@@ -94,7 +107,13 @@ function AppInner() {
     );
   }
 
+  const needsTerminalSelect = multiTerminalEnabled && !terminalId;
+
   return (
+    <>
+      {needsTerminalSelect && (
+        <TerminalSelectModal onSelected={() => {}} />
+      )}
     <Suspense fallback={<LoadingScreen />}>
       <Routes>
         <Route path="/pos"       element={<PosScreen />} />
@@ -106,6 +125,7 @@ function AppInner() {
         <Route path="*"          element={<Navigate to="/pos" replace />} />
       </Routes>
     </Suspense>
+    </>
   );
 }
 

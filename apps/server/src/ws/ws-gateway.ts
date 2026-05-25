@@ -18,11 +18,13 @@ const wsGateway: FastifyPluginAsync = async (fastify) => {
   fastify.get(
     "/ws",
     { websocket: true },
-    (socket: WebSocket) => {
+    (socket: WebSocket, request) => {
       const clientId = randomUUID();
+      const terminalId = new URL(request.url, "http://x").searchParams.get("terminalId") ?? null;
 
       broadcaster.addClient({
         id: clientId,
+        terminalId,
         send: (data: string) => socket.send(data),
         isAlive: () => socket.readyState === socket.OPEN,
       });

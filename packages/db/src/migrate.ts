@@ -245,6 +245,20 @@ CREATE TABLE IF NOT EXISTS product_grid_layouts (
   span_h     INTEGER NOT NULL DEFAULT 1,
   UNIQUE(scope, product_id)
 );
+
+CREATE TABLE IF NOT EXISTS terminals (
+  id           TEXT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  active       INTEGER NOT NULL DEFAULT 1,
+  created_at   INTEGER NOT NULL,
+  last_seen_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS terminal_printers (
+  terminal_id TEXT NOT NULL REFERENCES terminals(id) ON DELETE CASCADE,
+  printer_id  TEXT NOT NULL REFERENCES printers(id) ON DELETE CASCADE,
+  PRIMARY KEY (terminal_id, printer_id)
+);
 `;
 
 const EXTRA_COLUMNS = `
@@ -289,6 +303,8 @@ INSERT OR IGNORE INTO app_settings(key,value) VALUES('grid_sort_by','custom');
 INSERT OR IGNORE INTO app_settings(key,value) VALUES('grid_base_cols','5');
 ALTER TABLE receipt_templates ADD COLUMN print_method TEXT NOT NULL DEFAULT 'single';
 ALTER TABLE receipt_templates ADD COLUMN role TEXT NOT NULL DEFAULT 'master';
+ALTER TABLE payments ADD COLUMN terminal_id TEXT REFERENCES terminals(id);
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('multi_terminal_enabled','false');
 `;
 
 export function runMigrations(dbPath: string): void {

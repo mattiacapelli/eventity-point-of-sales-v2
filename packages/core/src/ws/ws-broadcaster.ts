@@ -3,6 +3,7 @@ import type { PlatformEventName, PlatformEventMap } from "@pos/shared-types";
 
 export interface WsClient {
   readonly id: string;
+  readonly terminalId: string | null;
   send(data: string): void;
   isAlive(): boolean;
 }

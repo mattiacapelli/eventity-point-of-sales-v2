@@ -1,5 +1,6 @@
 import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { orders } from "./orders.js";
+import { terminals } from "./catalog.js";
 
 export const payments = sqliteTable("payments", {
   id: text("id").primaryKey(),
@@ -13,6 +14,7 @@ export const payments = sqliteTable("payments", {
   amount: real("amount").notNull(),
   currency: text("currency").notNull().default("EUR"),
   reference: text("reference"),
+  terminalId: text("terminal_id").references(() => terminals.id),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   syncedAt: integer("synced_at", { mode: "timestamp" }),
 });

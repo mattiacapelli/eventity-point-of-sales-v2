@@ -30,6 +30,7 @@ export class PaymentRepository {
       amount: input.amount,
       currency: input.currency ?? "EUR",
       reference: input.reference ?? null,
+      terminalId: input.terminalId ?? null,
       createdAt: now,
     });
 

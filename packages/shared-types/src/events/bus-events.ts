@@ -36,6 +36,7 @@ export interface PlatformEventMap {
     readonly traceId: string;
     readonly payment: Payment;
     readonly input: CreatePaymentInput;
+    readonly terminalId?: string;
     readonly timestamp: Date;
   };
   PAYMENT_FAILED: {

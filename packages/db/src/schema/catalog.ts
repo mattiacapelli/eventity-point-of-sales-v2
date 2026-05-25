@@ -121,6 +121,19 @@ export const kitchenTemplates = sqliteTable("kitchen_templates", {
   logoPath:           text("logo_path"),
 });
 
+export const terminals = sqliteTable("terminals", {
+  id:         text("id").primaryKey(),
+  name:       text("name").notNull(),
+  active:     integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt:  integer("created_at").notNull(),
+  lastSeenAt: integer("last_seen_at"),
+});
+
+export const terminalPrinters = sqliteTable("terminal_printers", {
+  terminalId: text("terminal_id").notNull().references(() => terminals.id, { onDelete: "cascade" }),
+  printerId:  text("printer_id").notNull().references(() => printers.id, { onDelete: "cascade" }),
+});
+
 export const productGridLayouts = sqliteTable("product_grid_layouts", {
   id:        text("id").primaryKey(),
   scope:     text("scope").notNull(),

@@ -35,6 +35,7 @@ import statsRoutes from "./routes/stats.js";
 import kitchenTemplatesRoutes from "./routes/admin/kitchen-templates.js";
 import gridLayoutsRoutes from "./routes/admin/grid-layouts.js";
 import auditLogRoutes from "./routes/admin/audit-log.js";
+import terminalsRoutes from "./routes/admin/terminals.js";
 
 export async function buildServer(config: AppConfig) {
   const fastify = Fastify({
@@ -88,6 +89,7 @@ export async function buildServer(config: AppConfig) {
   await fastify.register(kitchenTemplatesRoutes, { prefix: "/api" });
   await fastify.register(gridLayoutsRoutes, { prefix: "/api" });
   await fastify.register(auditLogRoutes, { prefix: "/api" });
+  await fastify.register(terminalsRoutes, { prefix: "/api" });
 
   return fastify;
 }

@@ -1,5 +1,6 @@
 import type { Order, CreateOrderInput, Payment, CreatePaymentInput } from "@pos/shared-types";
 import { useStore } from "../state/global-store.js";
+import { useTerminalStore } from "../state/terminal-store.js";
 
 const BASE = "/api";
 
@@ -7,6 +8,7 @@ async function request<T>(
   method: string,
   path: string,
   body?: unknown,
+  extraHeaders?: Record<string, string>,
 ): Promise<T> {
   const token = useStore.getState().session?.token;
   const hasBody = body !== undefined;
@@ -15,6 +17,7 @@ async function request<T>(
     headers: {
       ...(hasBody ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...extraHeaders,
     },
     ...(hasBody ? { body: JSON.stringify(body) } : {}),
   });
@@ -98,8 +101,11 @@ export const apiClient = {
       request<Order>("PATCH", `/kitchen/orders/${id}/status`, { status }),
   },
   payments: {
-    pay: (input: CreatePaymentInput) =>
-      request<Payment>("POST", "/payments", input),
+    pay: (input: CreatePaymentInput) => {
+      const terminalId = useTerminalStore.getState().terminalId;
+      const extraHeaders = terminalId ? { "X-Terminal-Id": terminalId } : undefined;
+      return request<Payment>("POST", "/payments", input, extraHeaders);
+    },
     listByOrder: (orderId: string) =>
       request<{ payments: Payment[] }>("GET", `/payments/order/${orderId}`),
     refund: (paymentId: string, reason?: string) =>

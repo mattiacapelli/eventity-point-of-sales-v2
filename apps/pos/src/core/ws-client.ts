@@ -1,5 +1,6 @@
 import type { PlatformEventMap, PlatformEventName } from "@pos/shared-types";
 import { useStore } from "../state/global-store.js";
+import { useTerminalStore } from "../state/terminal-store.js";
 
 type WsMessage<K extends PlatformEventName = PlatformEventName> = {
   event: K;
@@ -19,11 +20,16 @@ class WsClient {
   private url: string | null = null;
   private token: string | null = null;
 
-  connect(url: string, token: string): void {
+  connect(url: string, token: string, terminalId?: string): void {
     this.url = url;
     this.token = token;
+    if (terminalId !== undefined) {
+      this._terminalId = terminalId;
+    }
     this.open();
   }
+
+  private _terminalId: string | null = null;
 
   disconnect(): void {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
@@ -50,9 +56,11 @@ class WsClient {
     if (!this.url) return;
     useStore.getState().setWsStatus("connecting");
 
-    const wsUrl = this.token
-      ? `${this.url}?token=${encodeURIComponent(this.token)}`
-      : this.url;
+    const terminalId = this._terminalId ?? useTerminalStore.getState().terminalId;
+    const qs = new URLSearchParams();
+    if (this.token) qs.set("token", this.token);
+    if (terminalId) qs.set("terminalId", terminalId);
+    const wsUrl = qs.toString() ? `${this.url}?${qs}` : this.url;
 
     this.ws = new WebSocket(wsUrl);
 

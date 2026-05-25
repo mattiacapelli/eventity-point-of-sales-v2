@@ -53,6 +53,7 @@ export class PaymentService {
       traceId: randomUUID(),
       payment,
       input,
+      ...(input.terminalId !== undefined ? { terminalId: input.terminalId } : {}),
       timestamp: new Date(),
     });
 
