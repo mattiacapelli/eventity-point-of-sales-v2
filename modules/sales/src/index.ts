@@ -5,7 +5,7 @@ import { OrderRepository } from "./repository/order.repository.js";
 import { OrderService } from "./service/order.service.js";
 import { registerOrderRoutes } from "./routes/orders.routes.js";
 
-export { OrderRepository } from "./repository/order.repository.js";
+export { OrderRepository, formatReceiptNumber } from "./repository/order.repository.js";
 export { OrderService, OrderNotFoundError, OrderValidationError } from "./service/order.service.js";
 
 let _service: OrderService | null = null;

@@ -1,4 +1,15 @@
-import type { Category, Product, ProductionCenter, OptionGroupWithOptions, Option, PaymentMethodRecord, Printer, ReceiptTemplate, Shift } from "@pos/shared-types";
+import type { Category, Product, ProductionCenter, OptionGroupWithOptions, Option, PaymentMethodRecord, Printer, ReceiptTemplate, Shift, ReceiptBlock, KitchenTemplate, KitchenBlock, ProductGridSlot } from "@pos/shared-types";
+
+export interface AuditEntry {
+  id: string;
+  type: "order_created" | "order_completed" | "order_cancelled" | "payment_completed" | "payment_refunded" | "shift_opened" | "shift_closed";
+  entityId: string;
+  actorId: string | null;
+  actorName: string | null;
+  actorRole: string | null;
+  ts: number;
+  meta: Record<string, unknown>;
+}
 import { useStore } from "../state/global-store.js";
 
 export interface ModuleInfo {
@@ -39,6 +50,16 @@ export interface ProductIngredientRecord {
   quantity: number;
 }
 
+export interface RestaurantInfo {
+  name: string;
+  address: string;
+  city: string;
+  vat: string;
+  phone: string;
+  website: string;
+  logoPath: string | null;
+}
+
 export interface BackupMeta {
   id: string;
   filename: string;
@@ -51,13 +72,14 @@ const BASE = "/api";
 
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
   const token = useStore.getState().session?.token;
+  const hasBody = body !== undefined;
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
-      "Content-Type": "application/json",
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    ...(hasBody ? { body: JSON.stringify(body) } : {}),
   });
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { error?: string };
@@ -76,11 +98,25 @@ export const adminApi = {
   },
   products: {
     list: () => req<Product[]>("GET", "/products"),
-    create: (data: { name: string; price: number; categoryId?: string; active?: boolean; color?: string | null }) =>
+    create: (data: { name: string; price: number; categoryId?: string; productionCenterId?: string; active?: boolean; color?: string | null; description?: string }) =>
       req<Product>("POST", "/products", data),
-    update: (id: string, data: Partial<{ name: string; price: number; categoryId: string | null; active: boolean; color: string | null }>) =>
+    update: (id: string, data: Partial<{ name: string; price: number; categoryId: string | null; productionCenterId: string | null; active: boolean; color: string | null; description: string | null }>) =>
       req<Product>("PATCH", `/products/${id}`, data),
     delete: (id: string) => req<void>("DELETE", `/products/${id}`),
+    imageUrl: (relPath: string) => `/api/static/${relPath}`,
+    uploadImage: async (id: string, file: File): Promise<{ imagePath: string }> => {
+      const token = useStore.getState().session?.token;
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`${BASE}/products/${id}/image`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})) as { error?: string }; throw new Error(e.error ?? `HTTP ${res.status}`); }
+      return res.json() as Promise<{ imagePath: string }>;
+    },
+    deleteImage: (id: string) => req<void>("DELETE", `/products/${id}/image`),
   },
   productionCenters: {
     list: () => req<ProductionCenter[]>("GET", "/production-centers"),
@@ -92,6 +128,9 @@ export const adminApi = {
       req<void>("POST", `/production-centers/${id}/categories`, { categoryId }),
     removeCategory: (id: string, categoryId: string) =>
       req<void>("DELETE", `/production-centers/${id}/categories/${categoryId}`),
+    getPrinters: (id: string) => req<Array<Pick<Printer, "id" | "name" | "host" | "port" | "kitchenEnabled" | "active">>>("GET", `/production-centers/${id}/printers`),
+    assignPrinter: (id: string, printerId: string) => req<void>("POST", `/production-centers/${id}/printers/${printerId}`),
+    removePrinter: (id: string, printerId: string) => req<void>("DELETE", `/production-centers/${id}/printers/${printerId}`),
   },
   optionGroups: {
     list: (productId: string) =>
@@ -117,9 +156,9 @@ export const adminApi = {
   },
   printers: {
     list: () => req<Printer[]>("GET", "/printers"),
-    create: (data: { name: string; type?: string; connectionType?: string; host?: string; port?: number; active?: boolean; receiptEnabled?: boolean; kitchenEnabled?: boolean }) =>
+    create: (data: { name: string; type?: string; connectionType?: string; host?: string; port?: number; active?: boolean; receiptEnabled?: boolean; kitchenEnabled?: boolean; printMode?: "text" | "image" }) =>
       req<Printer>("POST", "/printers", data),
-    update: (id: string, data: Partial<{ name: string; type: string; connectionType: string; host: string | null; port: number | null; active: boolean; receiptEnabled: boolean; kitchenEnabled: boolean }>) =>
+    update: (id: string, data: Partial<{ name: string; type: string; connectionType: string; host: string | null; port: number | null; active: boolean; receiptEnabled: boolean; kitchenEnabled: boolean; printMode: "text" | "image" }>) =>
       req<Printer>("PATCH", `/printers/${id}`, data),
     delete: (id: string) => req<void>("DELETE", `/printers/${id}`),
     testPrint: (id: string) => req<{ success: boolean; message: string }>("POST", `/printers/${id}/test-print`, {}),
@@ -127,10 +166,25 @@ export const adminApi = {
   receiptTemplates: {
     list: () => req<ReceiptTemplate[]>("GET", "/receipt-templates"),
     getActive: () => req<ReceiptTemplate>("GET", "/receipt-templates/active"),
-    create: (data: { name: string; headerText?: string; footerText?: string; showLogo?: boolean; showOrderNumber?: boolean; showTimestamp?: boolean; showPaymentMethod?: boolean; active?: boolean }) =>
+    create: (data: { name: string; headerText?: string; footerText?: string; showLogo?: boolean; showOrderNumber?: boolean; showTimestamp?: boolean; showPaymentMethod?: boolean; active?: boolean; printMode?: "text" | "image"; canvasWidth?: number; blocks?: ReceiptBlock[]; printMethod?: string; role?: string }) =>
       req<ReceiptTemplate>("POST", "/receipt-templates", data),
-    update: (id: string, data: Partial<{ name: string; headerText: string | null; footerText: string | null; showLogo: boolean; showOrderNumber: boolean; showTimestamp: boolean; showPaymentMethod: boolean; active: boolean }>) =>
+    update: (id: string, data: Partial<{ name: string; headerText: string | null; footerText: string | null; showLogo: boolean; showOrderNumber: boolean; showTimestamp: boolean; showPaymentMethod: boolean; active: boolean; printMode: "text" | "image"; canvasWidth: number; blocks: ReceiptBlock[] | null; printMethod: string; role: string }>) =>
       req<ReceiptTemplate>("PATCH", `/receipt-templates/${id}`, data),
+    previewUrl: () => `${BASE}/receipt-templates/preview`,
+    listFonts: () => req<string[]>("GET", "/admin/fonts"),
+    uploadFont: async (file: File): Promise<{ name: string }> => {
+      const token = useStore.getState().session?.token;
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`${BASE}/admin/fonts`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})) as { error?: string }; throw new Error(e.error ?? `HTTP ${res.status}`); }
+      return res.json() as Promise<{ name: string }>;
+    },
+    deleteFont: (name: string) => req<void>("DELETE", `/admin/fonts/${name}`),
   },
   shifts: {
     current: () => req<Shift>("GET", "/shifts/current"),
@@ -149,16 +203,86 @@ export const adminApi = {
     downloadUrl: (id: string) => `/api/admin/backups/download/${id}`,
   },
   settings: {
-    get: () => req<{ expressMode: boolean }>("GET", "/admin/settings"),
-    update: (data: { expressMode: boolean }) =>
-      req<{ expressMode: boolean }>("PATCH", "/admin/settings", data),
+    get: () => req<{
+      expressMode: boolean;
+      receiptNumberMode: "default" | "global" | "shift";
+      receiptNumberPrefix: string;
+      receiptNumberPadding: number;
+      gridViewMode: "category" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
+      gridShowPrice: boolean;
+      gridShowDescription: boolean;
+      gridSortBy: "custom" | "name" | "price" | "color" | "category";
+      gridBaseCols: number;
+    }>("GET", "/admin/settings"),
+    update: (data: Partial<{
+      expressMode: boolean;
+      receiptNumberMode: "default" | "global" | "shift";
+      receiptNumberPrefix: string;
+      receiptNumberPadding: number;
+      gridViewMode: "category" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
+      gridShowPrice: boolean;
+      gridShowDescription: boolean;
+      gridSortBy: "custom" | "name" | "price" | "color" | "category";
+      gridBaseCols: number;
+    }>) => req<{
+      expressMode: boolean;
+      receiptNumberMode: "default" | "global" | "shift";
+      receiptNumberPrefix: string;
+      receiptNumberPadding: number;
+      gridViewMode: "category" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
+      gridShowPrice: boolean;
+      gridShowDescription: boolean;
+      gridSortBy: "custom" | "name" | "price" | "color" | "category";
+      gridBaseCols: number;
+    }>("PATCH", "/admin/settings", data),
+    resetReceiptCounter: (scope?: string, startFrom?: number) =>
+      req<{ scope: string; lastValue: number }>("POST", "/admin/settings/reset-receipt-counter", { scope: scope ?? "global", startFrom: startFrom ?? 0 }),
+  },
+  restaurant: {
+    get: () => req<RestaurantInfo>("GET", "/admin/restaurant"),
+    update: (data: Partial<Omit<RestaurantInfo, "logoPath">>) => req<RestaurantInfo>("PATCH", "/admin/restaurant", data),
+    uploadLogo: async (file: File): Promise<{ logoPath: string }> => {
+      const token = useStore.getState().session?.token;
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`${BASE}/admin/restaurant/logo`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})) as { error?: string }; throw new Error(e.error ?? `HTTP ${res.status}`); }
+      return res.json() as Promise<{ logoPath: string }>;
+    },
+    deleteLogo: () => req<void>("DELETE", "/admin/restaurant/logo"),
   },
   modules: {
     list: () => req<ModuleInfo[]>("GET", "/admin/modules"),
-    toggle: (name: string) => req<{ name: string; enabled: boolean }>("PATCH", `/admin/modules/${name}/toggle`),
+    toggle: (name: string) => req<{ name: string; enabled: boolean }>("PATCH", `/admin/modules/${name}/toggle`, {}),
     updateConfig: (name: string, config: Record<string, unknown>) =>
       req<{ name: string; config: Record<string, unknown> }>("PATCH", `/admin/modules/${name}/config`, { config }),
     reload: (name: string) => req<{ name: string; state: string }>("POST", `/admin/modules/${name}/reload`),
+  },
+  kitchenTemplates: {
+    list: () => req<KitchenTemplate[]>("GET", "/kitchen-templates"),
+    create: (data: { name: string; productionCenterId?: string | null; printMode?: "text" | "image"; canvasWidth?: number; blocks?: KitchenBlock[] }) =>
+      req<KitchenTemplate>("POST", "/kitchen-templates", data),
+    update: (id: string, data: Partial<{ name: string; productionCenterId: string | null; active: boolean; printMode: "text" | "image"; canvasWidth: number; blocks: KitchenBlock[] }>) =>
+      req<KitchenTemplate>("PATCH", `/kitchen-templates/${id}`, data),
+    delete: (id: string) => req<void>("DELETE", `/kitchen-templates/${id}`),
+    previewUrl: (id: string) => `${BASE}/kitchen-templates/${id}/preview`,
+    uploadLogo: async (id: string, file: File): Promise<KitchenTemplate> => {
+      const token = useStore.getState().session?.token;
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`${BASE}/kitchen-templates/${id}/logo`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})) as { error?: string }; throw new Error(e.error ?? `HTTP ${res.status}`); }
+      return res.json() as Promise<KitchenTemplate>;
+    },
+    deleteLogo: (id: string) => req<void>("DELETE", `/kitchen-templates/${id}/logo`),
   },
   inventory: {
     listItems: () => req<InventoryItemRecord[]>("GET", "/inventory/items"),
@@ -181,5 +305,18 @@ export const adminApi = {
     createIngredient: (data: { productId: string; inventoryItemId: string; quantity?: number }) =>
       req<ProductIngredientRecord>("POST", "/inventory/ingredients", data),
     deleteIngredient: (id: string) => req<void>("DELETE", `/inventory/ingredients/${id}`),
+  },
+  gridLayouts: {
+    get: (scope: string) => req<ProductGridSlot[]>("GET", `/admin/grid-layouts/${encodeURIComponent(scope)}`),
+    save: (scope: string, slots: ProductGridSlot[]) =>
+      req<void>("POST", `/admin/grid-layouts/${encodeURIComponent(scope)}`, slots),
+  },
+  auditLog: {
+    list: (params?: { from?: number; to?: number; type?: string; limit?: number; offset?: number }) => {
+      const q = params ? new URLSearchParams(
+        Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      ).toString() : "";
+      return req<{ entries: AuditEntry[]; total: number; offset: number; limit: number }>("GET", `/admin/audit-log${q ? `?${q}` : ""}`);
+    },
   },
 };

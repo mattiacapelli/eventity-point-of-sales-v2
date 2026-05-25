@@ -3,8 +3,10 @@ import type { OrderService } from "../service/order.service.js";
 import { OrderNotFoundError, OrderValidationError } from "../service/order.service.js";
 import type { Order, OrderStatus } from "@pos/shared-types";
 import type { CoreContext } from "@pos/core";
-import { formatReceipt, type ReceiptLine } from "@pos/core";
-import { eq, printers, receiptTemplates, orderItems, payments } from "@pos/db";
+import { formatReceipt, formatKitchenTicket, renderKitchenImage, pngToEscposRaster, type ReceiptLine } from "@pos/core";
+import { eq, inArray, and, printers, receiptTemplates, orderItems, orderItemOptions, payments, orders, products, productionCenters, productionCenterCategories, productionCenterPrinters, kitchenTemplates, appSettings } from "@pos/db";
+import { formatReceiptNumber } from "../repository/order.repository.js";
+import type { KitchenBlock } from "@pos/shared-types";
 
 const orderItemSchema = {
   type: "object",
@@ -245,6 +247,146 @@ export function registerOrderRoutes(
         ? { printerConfig: { host: receiptPrinter.host, port: receiptPrinter.port } }
         : {}),
     });
+
+    return reply.send({ ok: true });
+  });
+
+  // POST /orders/:id/reprint-kitchen
+  fastify.post("/orders/:id/reprint-kitchen", {
+    schema: {
+      tags: ["orders"],
+      summary: "Reprint kitchen ticket for an order",
+      params: { type: "object", properties: { id: { type: "string" } } },
+      body: {},
+      response: {
+        200: { type: "object", properties: { ok: { type: "boolean" } } },
+        404: { type: "object", properties: { error: { type: "string" } } },
+        503: { type: "object", properties: { error: { type: "string" } } },
+      },
+    },
+  }, async (request, reply) => {
+    if (!ctx) return reply.status(503).send({ error: "Printer service unavailable" });
+    const { id } = request.params as { id: string };
+
+    const [orderRow] = await ctx.db.select().from(orders).where(eq(orders.id, id));
+    if (!orderRow) return reply.status(404).send({ error: "Order not found" });
+
+    const { db, printerService, logger } = ctx;
+
+    const allActivePrinters = await db.select().from(printers).where(eq(printers.active, true));
+    const allKitchenPrinters = allActivePrinters.filter((p) => p.kitchenEnabled);
+    if (allKitchenPrinters.length === 0) return reply.status(503).send({ error: "No active kitchen printers" });
+
+    // Load receipt number settings for display
+    const settingKeys = ["receipt_number_prefix", "receipt_number_padding"] as const;
+    const settingRows = await db.select().from(appSettings).where(inArray(appSettings.key, settingKeys as unknown as string[]));
+    const sMap = Object.fromEntries(settingRows.map((r) => [r.key, r.value]));
+    const receiptDisplay = formatReceiptNumber(
+      orderRow.receiptNumber ?? undefined,
+      id,
+      sMap["receipt_number_prefix"] ?? "",
+      parseInt(sMap["receipt_number_padding"] ?? "0", 10),
+    );
+
+    const items = await db.select().from(orderItems).where(eq(orderItems.orderId, id)) as Array<{
+      id: string; productId: string; name: string; quantity: number; unitPrice: number; notes: string | null;
+    }>;
+
+    if (items.length === 0) return reply.send({ ok: true });
+
+    // Load options
+    const itemIds = items.map((i) => i.id);
+    const optionRows = await db.select().from(orderItemOptions).where(inArray(orderItemOptions.orderItemId, itemIds)) as Array<{
+      orderItemId: string; optionId: string; optionName: string; priceDelta: number;
+    }>;
+    const optsByItemId = new Map<string, Array<{ optionName: string; priceDelta: number }>>();
+    for (const opt of optionRows) {
+      const arr = optsByItemId.get(opt.orderItemId) ?? [];
+      arr.push({ optionName: opt.optionName, priceDelta: opt.priceDelta });
+      optsByItemId.set(opt.orderItemId, arr);
+    }
+
+    // Group items by production center (same logic as printer-trigger)
+    const centerItems = new Map<string, { centerName: string; items: typeof items }>();
+    const unroutedItems: typeof items = [];
+
+    for (const item of items) {
+      const [productRow] = await db.select({ categoryId: products.categoryId }).from(products).where(eq(products.id, item.productId)).limit(1);
+      if (!productRow?.categoryId) { unroutedItems.push(item); continue; }
+      const pcRows = await db.select({ productionCenterId: productionCenterCategories.productionCenterId })
+        .from(productionCenterCategories)
+        .where(eq(productionCenterCategories.categoryId, productRow.categoryId));
+      if (pcRows.length === 0) { unroutedItems.push(item); continue; }
+      for (const pcRow of pcRows) {
+        const existing = centerItems.get(pcRow.productionCenterId);
+        if (existing) {
+          existing.items.push(item);
+        } else {
+          const [pcNameRow] = await db.select({ name: productionCenters.name }).from(productionCenters).where(eq(productionCenters.id, pcRow.productionCenterId)).limit(1);
+          centerItems.set(pcRow.productionCenterId, { centerName: pcNameRow?.name ?? "Cucina", items: [item] });
+        }
+      }
+    }
+    if (unroutedItems.length > 0) centerItems.set("__generale__", { centerName: "Generale", items: unroutedItems });
+
+    const now = new Date();
+    const tableId = orderRow.tableId ?? null;
+
+    for (const [centerId, { centerName, items: centerGroupItems }] of centerItems) {
+      let targetPrinters: typeof allKitchenPrinters;
+      if (centerId !== "__generale__") {
+        const dedicatedRows = await db.select({ printerId: productionCenterPrinters.printerId })
+          .from(productionCenterPrinters)
+          .where(eq(productionCenterPrinters.productionCenterId, centerId));
+        if (dedicatedRows.length > 0) {
+          const dedicatedIds = dedicatedRows.map((r) => r.printerId);
+          targetPrinters = allKitchenPrinters.filter((p) => dedicatedIds.includes(p.id));
+        } else {
+          targetPrinters = allKitchenPrinters;
+        }
+      } else {
+        targetPrinters = allKitchenPrinters;
+      }
+
+      const ticketItems = centerGroupItems.map((i) => ({
+        name: i.name,
+        quantity: i.quantity,
+        options: optsByItemId.get(i.id) ?? [],
+        ...(i.notes ? { notes: i.notes } : {}),
+      }));
+
+      for (const printer of targetPrinters) {
+        if (!printer.host || !printer.port) continue;
+        const printerConfig = { host: printer.host, port: printer.port };
+        try {
+          if ((printer as unknown as { printMode: string }).printMode === "image") {
+            const templateRows = await db.select().from(kitchenTemplates).where(eq(kitchenTemplates.active, true));
+            const template = templateRows.find((t) => t.productionCenterId === centerId) ?? templateRows[0];
+            if (template?.blocks) {
+              const blocks = typeof template.blocks === "string" ? JSON.parse(template.blocks) : template.blocks;
+              const pngBuffer = await renderKitchenImage({
+                blocks: blocks as KitchenBlock[],
+                canvasWidth: template.canvasWidth ?? 576,
+                logoPath: template.logoPath ?? null,
+                centerName,
+                orderId: id,
+                receiptDisplay,
+                tableId,
+                timestamp: now,
+                items: ticketItems,
+              });
+              const rasterBuffer = await pngToEscposRaster(pngBuffer, template.canvasWidth ?? 576);
+              await printerService.printDirect({ printerId: printer.id, contentBuffer: rasterBuffer, type: "kitchen", printerConfig });
+              continue;
+            }
+          }
+          const content = formatKitchenTicket({ orderId: id, receiptDisplay, tableId, centerName, timestamp: now, items: ticketItems });
+          await printerService.printDirect({ printerId: printer.id, content, type: "kitchen", printerConfig });
+        } catch (err) {
+          logger.error({ err, printerId: printer.id, orderId: id }, "Reprint kitchen ticket failed");
+        }
+      }
+    }
 
     return reply.send({ ok: true });
   });

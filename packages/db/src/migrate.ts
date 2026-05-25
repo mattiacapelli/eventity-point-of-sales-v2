@@ -204,6 +204,47 @@ CREATE TABLE IF NOT EXISTS product_ingredients (
   inventory_item_id TEXT NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
   quantity          REAL NOT NULL DEFAULT 1
 );
+
+CREATE TABLE IF NOT EXISTS receipt_counters (
+  scope      TEXT PRIMARY KEY,
+  last_value INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS order_item_options (
+  id             TEXT PRIMARY KEY,
+  order_item_id  TEXT NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,
+  option_id      TEXT NOT NULL,
+  option_name    TEXT NOT NULL,
+  price_delta    REAL NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS production_center_printers (
+  production_center_id TEXT NOT NULL REFERENCES production_centers(id) ON DELETE CASCADE,
+  printer_id           TEXT NOT NULL REFERENCES printers(id) ON DELETE CASCADE,
+  PRIMARY KEY (production_center_id, printer_id)
+);
+
+CREATE TABLE IF NOT EXISTS kitchen_templates (
+  id                   TEXT PRIMARY KEY,
+  name                 TEXT NOT NULL,
+  production_center_id TEXT REFERENCES production_centers(id) ON DELETE SET NULL,
+  active               INTEGER NOT NULL DEFAULT 1,
+  print_mode           TEXT NOT NULL DEFAULT 'text',
+  canvas_width         INTEGER NOT NULL DEFAULT 576,
+  blocks               TEXT,
+  logo_path            TEXT
+);
+
+CREATE TABLE IF NOT EXISTS product_grid_layouts (
+  id         TEXT PRIMARY KEY,
+  scope      TEXT NOT NULL,
+  product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  slot_x     INTEGER NOT NULL DEFAULT 0,
+  slot_y     INTEGER NOT NULL DEFAULT 0,
+  span_w     INTEGER NOT NULL DEFAULT 1,
+  span_h     INTEGER NOT NULL DEFAULT 1,
+  UNIQUE(scope, product_id)
+);
 `;
 
 const EXTRA_COLUMNS = `
@@ -218,12 +259,36 @@ ALTER TABLE products ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE products ADD COLUMN created_at INTEGER;
 ALTER TABLE products ADD COLUMN updated_at INTEGER;
 ALTER TABLE orders ADD COLUMN shift_id TEXT REFERENCES shifts(id);
+ALTER TABLE orders ADD COLUMN receipt_number INTEGER;
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('receipt_number_mode','default');
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('receipt_number_prefix','');
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('receipt_number_padding','0');
+INSERT OR IGNORE INTO receipt_counters(scope, last_value) VALUES('global', 0);
 INSERT OR IGNORE INTO app_settings(key, value) VALUES('express_mode', 'false');
+INSERT OR IGNORE INTO app_settings(key, value) VALUES('restaurant_name', '');
+INSERT OR IGNORE INTO app_settings(key, value) VALUES('restaurant_address', '');
+INSERT OR IGNORE INTO app_settings(key, value) VALUES('restaurant_city', '');
+INSERT OR IGNORE INTO app_settings(key, value) VALUES('restaurant_vat', '');
+INSERT OR IGNORE INTO app_settings(key, value) VALUES('restaurant_phone', '');
+INSERT OR IGNORE INTO app_settings(key, value) VALUES('restaurant_website', '');
 INSERT OR IGNORE INTO modules(name, enabled, version, created_at, updated_at) VALUES('pos', 1, '0.2.0', unixepoch(), unixepoch());
 INSERT OR IGNORE INTO modules(name, enabled, version, created_at, updated_at) VALUES('kitchen', 1, '0.2.0', unixepoch(), unixepoch());
 INSERT OR IGNORE INTO modules(name, enabled, version, created_at, updated_at) VALUES('payments', 1, '0.2.0', unixepoch(), unixepoch());
 INSERT OR IGNORE INTO modules(name, enabled, version, created_at, updated_at) VALUES('inventory', 0, '0.2.0', unixepoch(), unixepoch());
 INSERT OR IGNORE INTO modules(name, enabled, version, created_at, updated_at) VALUES('tables', 0, '0.2.0', unixepoch(), unixepoch());
+ALTER TABLE printers ADD COLUMN print_mode TEXT NOT NULL DEFAULT 'text';
+ALTER TABLE receipt_templates ADD COLUMN print_mode TEXT NOT NULL DEFAULT 'text';
+ALTER TABLE receipt_templates ADD COLUMN canvas_width INTEGER NOT NULL DEFAULT 576;
+ALTER TABLE receipt_templates ADD COLUMN logo_path TEXT;
+ALTER TABLE receipt_templates ADD COLUMN blocks TEXT;
+ALTER TABLE products ADD COLUMN production_center_id TEXT REFERENCES production_centers(id);
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('grid_view_mode','category');
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('grid_show_price','true');
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('grid_show_description','true');
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('grid_sort_by','custom');
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('grid_base_cols','5');
+ALTER TABLE receipt_templates ADD COLUMN print_method TEXT NOT NULL DEFAULT 'single';
+ALTER TABLE receipt_templates ADD COLUMN role TEXT NOT NULL DEFAULT 'master';
 `;
 
 export function runMigrations(dbPath: string): void {

@@ -4,20 +4,32 @@ import { eq, asc } from "@pos/db";
 import { products, categories } from "@pos/db";
 import { randomUUID } from "node:crypto";
 import { requireRole, AuthError } from "@pos/core";
+import { mkdirSync, unlinkSync, existsSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
+import { join, extname, resolve } from "node:path";
+
+const productImagesDir = (dataDir: string) => `${dataDir}/images/products`;
+
+function ensureDir(dir: string): void {
+  try { mkdirSync(dir, { recursive: true }); } catch { /* already exists */ }
+}
+
+const IMAGE_EXTS = [".png", ".jpg", ".jpeg", ".webp", ".gif"];
 
 const PRODUCT_SELECT = {
-  id:           products.id,
-  name:         products.name,
-  price:        products.price,
-  categoryId:   products.categoryId,
-  categoryName: categories.name,
-  active:       products.active,
-  color:        products.color,
-  description:  products.description,
-  imageData:    products.imageData,
-  sortOrder:    products.sortOrder,
-  createdAt:    products.createdAt,
-  updatedAt:    products.updatedAt,
+  id:                 products.id,
+  name:               products.name,
+  price:              products.price,
+  categoryId:         products.categoryId,
+  categoryName:       categories.name,
+  productionCenterId: products.productionCenterId,
+  active:             products.active,
+  color:              products.color,
+  description:        products.description,
+  imageData:          products.imageData,
+  sortOrder:          products.sortOrder,
+  createdAt:          products.createdAt,
+  updatedAt:          products.updatedAt,
 } as const;
 
 const productsRoutes: FastifyPluginAsync = async (fastify) => {
@@ -80,6 +92,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       name: string;
       price: number;
       categoryId?: string;
+      productionCenterId?: string;
       active?: boolean;
       color?: string;
       description?: string;
@@ -90,16 +103,17 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     const now = Date.now();
     await fastify.ctx.db.insert(products).values({
       id,
-      name:        body.name,
-      price:       body.price,
-      categoryId:  body.categoryId ?? null,
-      active:      body.active ?? true,
-      color:       body.color ?? null,
-      description: body.description ?? null,
-      imageData:   body.imageData ?? null,
-      sortOrder:   body.sortOrder ?? 0,
-      createdAt:   now,
-      updatedAt:   now,
+      name:               body.name,
+      price:              body.price,
+      categoryId:         body.categoryId ?? null,
+      productionCenterId: body.productionCenterId ?? null,
+      active:             body.active ?? true,
+      color:              body.color ?? null,
+      description:        body.description ?? null,
+      imageData:          body.imageData ?? null,
+      sortOrder:          body.sortOrder ?? 0,
+      createdAt:          now,
+      updatedAt:          now,
     });
     const [row] = await fastify.ctx.db
       .select(PRODUCT_SELECT)
@@ -117,6 +131,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       name: string;
       price: number;
       categoryId: string | null;
+      productionCenterId: string | null;
       active: boolean;
       color: string | null;
       description: string | null;
@@ -131,6 +146,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       name?: string;
       price?: number;
       categoryId?: string | null;
+      productionCenterId?: string | null;
       active?: boolean;
       color?: string | null;
       description?: string | null;
@@ -141,6 +157,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.name !== undefined) update.name = body.name;
     if (body.price !== undefined) update.price = body.price;
     if ("categoryId" in body) update.categoryId = body.categoryId ?? null;
+    if ("productionCenterId" in body) update.productionCenterId = body.productionCenterId ?? null;
     if (body.active !== undefined) update.active = body.active;
     if ("color" in body) update.color = body.color ?? null;
     if ("description" in body) update.description = body.description ?? null;
@@ -167,6 +184,68 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     await fastify.ctx.db.delete(products).where(eq(products.id, id));
     return reply.status(204).send();
   });
+
+  // POST /products/:id/image — upload product image
+  fastify.post("/products/:id/image", {
+    schema: { tags: ["products"], summary: "Upload product image" },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const [existing] = await fastify.ctx.db.select({ id: products.id }).from(products).where(eq(products.id, id));
+    if (!existing) return reply.status(404).send({ error: "Not found" });
+
+    const data = await request.file();
+    if (!data) return reply.status(400).send({ error: "No file uploaded" });
+
+    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"];
+    if (!allowed.includes(data.mimetype)) {
+      return reply.status(400).send({ error: "Only PNG/JPG/WEBP/GIF allowed" });
+    }
+
+    const ext = extname(data.filename).toLowerCase() || ".png";
+    const IMAGES_DIR = resolve(productImagesDir(fastify.ctx.config.dataDir));
+    ensureDir(IMAGES_DIR);
+    const relPath = `images/products/${id}${ext}`;
+    const absPath = join(IMAGES_DIR, `${id}${ext}`);
+
+    // Remove old image files for this product (different extension)
+    for (const oldExt of IMAGE_EXTS) {
+      const old = join(IMAGES_DIR, `${id}${oldExt}`);
+      if (old !== absPath && existsSync(old)) { try { unlinkSync(old); } catch { /* ok */ } }
+    }
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of data.file) chunks.push(chunk as Buffer);
+    await writeFile(absPath, Buffer.concat(chunks));
+
+    await fastify.ctx.db.update(products)
+      .set({ imageData: relPath, updatedAt: Date.now() })
+      .where(eq(products.id, id));
+
+    return reply.send({ imagePath: `/api/static/${relPath}` });
+  });
+
+  // DELETE /products/:id/image — remove product image
+  fastify.delete("/products/:id/image", {
+    schema: { tags: ["products"], summary: "Remove product image" },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const [existing] = await fastify.ctx.db.select({ imageData: products.imageData }).from(products).where(eq(products.id, id));
+    if (!existing) return reply.status(404).send({ error: "Not found" });
+
+    if (existing.imageData) {
+      const absPath = resolve(join(fastify.ctx.config.dataDir, existing.imageData));
+      if (existsSync(absPath)) { try { unlinkSync(absPath); } catch { /* ok */ } }
+    }
+
+    await fastify.ctx.db.update(products)
+      .set({ imageData: null, updatedAt: Date.now() })
+      .where(eq(products.id, id));
+
+    return reply.status(204).send();
+  });
+
 };
 
 export default productsRoutes;

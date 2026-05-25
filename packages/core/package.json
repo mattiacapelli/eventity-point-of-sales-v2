@@ -16,6 +16,7 @@
     "@pos/event-bus": "workspace:*",
     "@pos/shared-types": "workspace:*",
     "argon2": "^0.44.0",
+    "canvas": "^3.2.3",
     "pino": "^9.6.0",
     "zod": "^3.23.0"
   },

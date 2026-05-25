@@ -22,6 +22,7 @@ const HistoryScreen   = lazy(() => import("./modules-ui/history/HistoryScreen.js
 const StatsScreen     = lazy(() => import("./modules-ui/stats/StatsScreen.js").then((m) => ({ default: m.StatsScreen })));
 const SettingsScreen  = lazy(() => import("./modules-ui/settings/SettingsScreen.js").then((m) => ({ default: m.SettingsScreen })));
 const AdminScreen     = lazy(() => import("./modules-ui/admin/AdminScreen.js").then((m) => ({ default: m.AdminScreen })));
+const AuditLogScreen  = lazy(() => import("./modules-ui/audit/AuditLogScreen.js").then((m) => ({ default: m.AuditLogScreen })));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -101,6 +102,7 @@ function AppInner() {
         <Route path="/stats"     element={<StatsScreen />} />
         <Route path="/settings"  element={<SettingsScreen />} />
         <Route path="/admin"     element={<AdminScreen />} />
+        <Route path="/audit"     element={<AuditLogScreen />} />
         <Route path="*"          element={<Navigate to="/pos" replace />} />
       </Routes>
     </Suspense>

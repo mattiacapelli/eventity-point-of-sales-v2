@@ -101,10 +101,8 @@ export function LoginScreen() {
     >
       {/* Logo */}
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: "var(--text-hero)", fontWeight: 700, color: "var(--color-accent)", letterSpacing: "-0.5px" }}>
-          Eventity
-        </div>
-        <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "var(--text-md)", marginTop: "4px" }}>
+        <img src="/logo.svg" alt="Eventity" style={{ height: "64px", marginBottom: "8px" }} />
+        <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "var(--text-md)" }}>
           Point of Sale
         </div>
       </div>

@@ -61,7 +61,7 @@ function CancelModal({
     <Modal open={order !== null} onClose={onClose} title="Annulla ordine">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-md)" }}>
         <p style={{ margin: 0, color: "var(--color-gray-700)", fontSize: "var(--text-sm)" }}>
-          Confermi l'annullamento dell'ordine <strong>#{order?.id.slice(-6).toUpperCase()}</strong>?
+          Confermi l'annullamento dell'ordine <strong>#{order?.id.slice(-6).toUpperCase() ?? ""}</strong>?
         </p>
         <input
           placeholder="Motivazione (opzionale)"
@@ -146,14 +146,20 @@ function OrderRow({
   order,
   isAdmin,
   onReprint,
+  onReprintKitchen,
   onCancel,
   onRefund,
+  receiptPrefix,
+  receiptPadding,
 }: {
   order: Order;
   isAdmin: boolean;
   onReprint: (id: string) => void;
+  onReprintKitchen: (id: string) => void;
   onCancel: (order: Order) => void;
   onRefund: (order: Order) => void;
+  receiptPrefix: string;
+  receiptPadding: number;
 }) {
   const canCancel = isAdmin && order.status !== "completed" && order.status !== "cancelled";
   const canRefund = isAdmin && order.status === "completed";
@@ -174,7 +180,7 @@ function OrderRow({
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--sp-sm)" }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-900)" }}>
-            #{order.id.slice(-6).toUpperCase()}
+            #{displayOrderNum(order, receiptPrefix, receiptPadding)}
           </div>
           <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginTop: "2px" }}>
             {new Date(order.createdAt).toLocaleString("it-IT")}
@@ -193,7 +199,11 @@ function OrderRow({
         </span>
         <div style={{ display: "flex", gap: "var(--sp-sm)" }}>
           <Button size="sm" variant="ghost" onClick={() => onReprint(order.id)}>
-            Ristampa
+            Scontrino
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => onReprintKitchen(order.id)}
+            style={{ color: "var(--color-gray-600)" }}>
+            Comanda
           </Button>
           {canRefund && (
             <Button size="sm" variant="ghost" onClick={() => onRefund(order)}
@@ -226,9 +236,20 @@ const ORDER_STATUSES: { value: string; label: string }[] = [
 
 const PAGE_SIZE = 50;
 
+function displayOrderNum(order: Order, prefix: string, padding: number): string {
+  if (order.receiptNumber !== undefined) {
+    const padded = padding > 0 ? String(order.receiptNumber).padStart(padding, "0") : String(order.receiptNumber);
+    return `${prefix}${padded}`;
+  }
+  return order.id.slice(-6).toUpperCase();
+}
+
 export function HistoryScreen() {
   const session = useStore((s) => s.session);
   const isAdmin = session?.role === "admin";
+
+  const [receiptPrefix, setReceiptPrefix] = useState("");
+  const [receiptPadding, setReceiptPadding] = useState(0);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
@@ -255,6 +276,10 @@ export function HistoryScreen() {
 
   useEffect(() => {
     adminApi.shifts.history().then(setShifts).catch(() => {});
+    adminApi.settings.get().then((s) => {
+      setReceiptPrefix(s.receiptNumberPrefix);
+      setReceiptPadding(s.receiptNumberPadding);
+    }).catch(() => {});
   }, []);
 
   const load = useCallback((currentOffset = 0, append = false) => {
@@ -286,6 +311,15 @@ export function HistoryScreen() {
       showToast("Ristampa inviata alla stampante", "success");
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Errore ristampa", "error");
+    }
+  }
+
+  async function handleReprintKitchen(id: string) {
+    try {
+      await apiClient.orders.reprintKitchen(id);
+      showToast("Comanda inviata alla stampante cucina", "success");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Errore ristampa comanda", "error");
     }
   }
 
@@ -406,8 +440,11 @@ export function HistoryScreen() {
             order={order}
             isAdmin={isAdmin}
             onReprint={handleReprint}
+            onReprintKitchen={handleReprintKitchen}
             onCancel={setCancelOrder}
             onRefund={handleRefundClick}
+            receiptPrefix={receiptPrefix}
+            receiptPadding={receiptPadding}
           />
         ))}
 

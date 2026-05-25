@@ -1,7 +1,7 @@
 import "@fastify/swagger";
 import type { FastifyPluginAsync } from "fastify";
 import { eq, and } from "@pos/db";
-import { productionCenters, productionCenterCategories, categories } from "@pos/db";
+import { productionCenters, productionCenterCategories, productionCenterPrinters, categories, printers } from "@pos/db";
 import { randomUUID } from "node:crypto";
 import { requireRole, AuthError } from "@pos/core";
 
@@ -109,6 +109,44 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
         and(
           eq(productionCenterCategories.productionCenterId, id),
           eq(productionCenterCategories.categoryId, categoryId),
+        ),
+      );
+    return reply.status(204).send();
+  });
+
+  fastify.get("/production-centers/:id/printers", {
+    schema: { tags: ["production-centers"], summary: "List printers assigned to a production center" },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const rows = await fastify.ctx.db
+      .select({ id: printers.id, name: printers.name, host: printers.host, port: printers.port, kitchenEnabled: printers.kitchenEnabled, active: printers.active })
+      .from(productionCenterPrinters)
+      .innerJoin(printers, eq(productionCenterPrinters.printerId, printers.id))
+      .where(eq(productionCenterPrinters.productionCenterId, id));
+    return reply.send(rows);
+  });
+
+  fastify.post("/production-centers/:id/printers/:printerId", {
+    schema: { tags: ["production-centers"], summary: "Assign a printer to a production center" },
+  }, async (request, reply) => {
+    const { id, printerId } = request.params as { id: string; printerId: string };
+    await fastify.ctx.db
+      .insert(productionCenterPrinters)
+      .values({ productionCenterId: id, printerId })
+      .onConflictDoNothing();
+    return reply.status(201).send();
+  });
+
+  fastify.delete("/production-centers/:id/printers/:printerId", {
+    schema: { tags: ["production-centers"], summary: "Remove a printer from a production center" },
+  }, async (request, reply) => {
+    const { id, printerId } = request.params as { id: string; printerId: string };
+    await fastify.ctx.db
+      .delete(productionCenterPrinters)
+      .where(
+        and(
+          eq(productionCenterPrinters.productionCenterId, id),
+          eq(productionCenterPrinters.printerId, printerId),
         ),
       );
     return reply.status(204).send();

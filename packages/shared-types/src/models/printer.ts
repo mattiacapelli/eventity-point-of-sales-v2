@@ -8,4 +8,5 @@ export interface Printer {
   active: boolean;
   receiptEnabled: boolean;
   kitchenEnabled: boolean;
+  printMode: "text" | "image";
 }

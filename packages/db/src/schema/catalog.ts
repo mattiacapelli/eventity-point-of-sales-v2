@@ -9,17 +9,18 @@ export const categories = sqliteTable("categories", {
 });
 
 export const products = sqliteTable("products", {
-  id:          text("id").primaryKey(),
-  name:        text("name").notNull(),
-  price:       real("price").notNull(),
-  categoryId:  text("category_id").references(() => categories.id),
-  active:      integer("active", { mode: "boolean" }).notNull().default(true),
-  color:       text("color"),
-  description: text("description"),
-  imageData:   text("image_data"),
-  sortOrder:   integer("sort_order").notNull().default(0),
-  createdAt:   integer("created_at"),
-  updatedAt:   integer("updated_at"),
+  id:                 text("id").primaryKey(),
+  name:               text("name").notNull(),
+  price:              real("price").notNull(),
+  categoryId:         text("category_id").references(() => categories.id),
+  productionCenterId: text("production_center_id").references(() => productionCenters.id),
+  active:             integer("active", { mode: "boolean" }).notNull().default(true),
+  color:              text("color"),
+  description:        text("description"),
+  imageData:          text("image_data"),
+  sortOrder:          integer("sort_order").notNull().default(0),
+  createdAt:          integer("created_at"),
+  updatedAt:          integer("updated_at"),
 });
 
 export const productionCenters = sqliteTable("production_centers", {
@@ -52,6 +53,7 @@ export const printers = sqliteTable("printers", {
   active:          integer("active", { mode: "boolean" }).notNull().default(true),
   receiptEnabled:  integer("receipt_enabled", { mode: "boolean" }).notNull().default(false),
   kitchenEnabled:  integer("kitchen_enabled", { mode: "boolean" }).notNull().default(false),
+  printMode:       text("print_mode").notNull().default("text"),
 });
 
 export const receiptTemplates = sqliteTable("receipt_templates", {
@@ -64,6 +66,12 @@ export const receiptTemplates = sqliteTable("receipt_templates", {
   showTimestamp:   integer("show_timestamp", { mode: "boolean" }).notNull().default(true),
   showPaymentMethod: integer("show_payment_method", { mode: "boolean" }).notNull().default(true),
   active:          integer("active", { mode: "boolean" }).notNull().default(true),
+  printMode:       text("print_mode").notNull().default("text"),
+  canvasWidth:     integer("canvas_width").notNull().default(576),
+  logoPath:        text("logo_path"),
+  blocks:          text("blocks"),
+  printMethod:     text("print_method").notNull().default("single"),
+  role:            text("role").notNull().default("master"),
 });
 
 export const shifts = sqliteTable("shifts", {
@@ -90,4 +98,35 @@ export const modules = sqliteTable("modules", {
   config:    text("config"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
+});
+
+export const receiptCounters = sqliteTable("receipt_counters", {
+  scope:     text("scope").primaryKey(),
+  lastValue: integer("last_value").notNull().default(0),
+});
+
+export const productionCenterPrinters = sqliteTable("production_center_printers", {
+  productionCenterId: text("production_center_id").notNull().references(() => productionCenters.id, { onDelete: "cascade" }),
+  printerId:          text("printer_id").notNull().references(() => printers.id, { onDelete: "cascade" }),
+});
+
+export const kitchenTemplates = sqliteTable("kitchen_templates", {
+  id:                 text("id").primaryKey(),
+  name:               text("name").notNull(),
+  productionCenterId: text("production_center_id").references(() => productionCenters.id, { onDelete: "set null" }),
+  active:             integer("active", { mode: "boolean" }).notNull().default(true),
+  printMode:          text("print_mode").notNull().default("text"),
+  canvasWidth:        integer("canvas_width").notNull().default(576),
+  blocks:             text("blocks"),
+  logoPath:           text("logo_path"),
+});
+
+export const productGridLayouts = sqliteTable("product_grid_layouts", {
+  id:        text("id").primaryKey(),
+  scope:     text("scope").notNull(),
+  productId: text("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  slotX:     integer("slot_x").notNull().default(0),
+  slotY:     integer("slot_y").notNull().default(0),
+  spanW:     integer("span_w").notNull().default(1),
+  spanH:     integer("span_h").notNull().default(1),
 });

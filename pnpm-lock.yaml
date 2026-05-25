@@ -11,6 +11,9 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.41
+      tsx:
+        specifier: ^4.22.3
+        version: 4.22.3
       turbo:
         specifier: ^2.0.0
         version: 2.9.14
@@ -82,9 +85,6 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.41
-      tsx:
-        specifier: ^4.0.0
-        version: 4.22.1
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -97,9 +97,15 @@ importers:
       '@fastify/jwt':
         specifier: ^8.0.1
         version: 8.0.1
+      '@fastify/multipart':
+        specifier: ^8.3.1
+        version: 8.3.1
       '@fastify/rate-limit':
         specifier: ^8.1.1
         version: 8.1.1
+      '@fastify/static':
+        specifier: ^7.0.4
+        version: 7.0.4
       '@fastify/swagger':
         specifier: ^8.15.0
         version: 8.15.0
@@ -143,9 +149,6 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.41
-      tsx:
-        specifier: ^4.0.0
-        version: 4.22.1
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -287,6 +290,9 @@ importers:
       argon2:
         specifier: ^0.44.0
         version: 0.44.0
+      canvas:
+        specifier: ^3.2.3
+        version: 3.2.3
       pino:
         specifier: ^9.6.0
         version: 9.14.0
@@ -1016,11 +1022,20 @@ packages:
   '@fastify/ajv-compiler@3.6.0':
     resolution: {integrity: sha512-LwdXQJjmMD+GwLOkP7TVC68qa+pSSogeWWmznRJ/coyTcfe9qA05AHFSe1eZFwK6q+xVRpChnvFUkf1iYaSZsQ==}
 
+  '@fastify/busboy@3.2.0':
+    resolution: {integrity: sha512-m9FVDXU3GT2ITSe0UaMA5rU3QkfC/UXtCU8y0gSN/GugTqtVldOBWIB5V6V3sbmenVZUIpU6f+mPEO2+m5iTaA==}
+
   '@fastify/cors@9.0.1':
     resolution: {integrity: sha512-YY9Ho3ovI+QHIL2hW+9X4XqQjXLjJqsU+sMV/xFsxZkE8p3GNnYVFpoOxF7SsP5ZL76gwvbo3V9L+FIekBGU4Q==}
 
+  '@fastify/deepmerge@2.0.2':
+    resolution: {integrity: sha512-3wuLdX5iiiYeZWP6bQrjqhrcvBIf0NHbQH1Ur1WbHvoiuTYUEItgygea3zs8aHpiitn0lOB8gX20u1qO+FDm7Q==}
+
   '@fastify/error@3.4.1':
     resolution: {integrity: sha512-wWSvph+29GR783IhmvdwWnN4bUxTD01Vm5Xad4i7i1VuAOItLvbPAb69sb0IQ2N57yprvhNIwAP5B6xfKTmjmQ==}
+
+  '@fastify/error@4.2.0':
+    resolution: {integrity: sha512-RSo3sVDXfHskiBZKBPRgnQTtIqpi/7zhJOEmAxCiBcM7d0uwdGdxLlsCaLzGs8v8NnxIRlfG0N51p5yFaOentQ==}
 
   '@fastify/fast-json-stringify-compiler@4.3.0':
     resolution: {integrity: sha512-aZAXGYo6m22Fk1zZzEUKBvut/CIIQe/BapEORnxiD5Qr0kPHqqI69NtEMCme74h+at72sPhbkb4ZrLd1W3KRLA==}
@@ -1030,6 +1045,9 @@ packages:
 
   '@fastify/merge-json-schemas@0.1.1':
     resolution: {integrity: sha512-fERDVz7topgNjtXsJTTW1JKLy0rhuLRcquYqNR9rF7OcVpCa2OVW49ZPDIhaRRCaUuvVxI+N416xUoF76HNSXA==}
+
+  '@fastify/multipart@8.3.1':
+    resolution: {integrity: sha512-pncbnG28S6MIskFSVRtzTKE9dK+GrKAJl0NbaQ/CG8ded80okWFsYKzSlP9haaLNQhNRDOoHqmGQNvgbiPVpWQ==}
 
   '@fastify/rate-limit@8.1.1':
     resolution: {integrity: sha512-kTaIBuG7hS26rUPermw1RYsobNHxLcqA9AFUbWR8dEyRR8wknZnpfuD3VaJkrtfxyWLW8xZ5b6/GmQ/gNoEfWA==}
@@ -1397,6 +1415,10 @@ packages:
 
   caniuse-lite@1.0.30001793:
     resolution: {integrity: sha512-iwSsYWaCOoh26cV8NwNRViHlrfUvYsHDfRVcbtmw0Kg6PJIZZXwMkj1442FYLBGkeUf1juAsU3DTfxW579mrPA==}
+
+  canvas@3.2.3:
+    resolution: {integrity: sha512-PzE5nJZPz72YUAfo8oTp0u3fqqY7IzlTubneAihqDYAUcBk7ryeCmBbdJBEdaH0bptSOe2VT2Zwcb3UaFyaSWw==}
+    engines: {node: ^18.12.0 || >= 20.9.0}
 
   chownr@1.1.4:
     resolution: {integrity: sha512-jJ0bqzaylmJtVnNgzTeSOs8DPavpbYgEr/b0YL8/2GO3xJEhInFmhKMUnEJQjZumK7KXGFhUy89PrsJWlakBVg==}
@@ -1898,6 +1920,9 @@ packages:
     resolution: {integrity: sha512-KdHvFWZjEKDf0cakgFjebl371GPsISX2oZHcuyKqM7DtogIsHrqKeLTo8wBHxaXRAQlY2PsPlZmfo+9ZCxEREQ==}
     engines: {node: '>=10'}
 
+  node-addon-api@7.1.1:
+    resolution: {integrity: sha512-5m3bsyrjFWE1xf7nz7YXdN4udnVtXK6/Yfgn5qnahL6bCkf2yKt4k3nuTKAtT4r3IG8JNR2ncsIMdZuAzJjHQQ==}
+
   node-addon-api@8.7.0:
     resolution: {integrity: sha512-9MdFxmkKaOYVTV+XVRG8ArDwwQ77XIgIPyKASB1k3JPq3M8fGQQQE3YpMOrKm6g//Ktx8ivZr8xo1Qmtqub+GA==}
     engines: {node: ^18 || ^20 || >= 21}
@@ -2130,6 +2155,10 @@ packages:
   stream-shift@1.0.3:
     resolution: {integrity: sha512-76ORR0DO1o1hlKwTbi/DM3EXWGf3ZJYO8cXX5RJwnul2DEg2oyoZyjLNoQM8WsvZiFKCRfC1O0J7iCvie3RZmQ==}
 
+  stream-wormhole@1.1.0:
+    resolution: {integrity: sha512-gHFfL3px0Kctd6Po0M8TzEvt3De/xu6cnRrjlfYNhwbhLPLwigI2t1nc6jrzNuaYg5C4YF78PPFuQPzRiqn9ew==}
+    engines: {node: '>=4.0.0'}
+
   string-width@4.2.3:
     resolution: {integrity: sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==}
     engines: {node: '>=8'}
@@ -2183,8 +2212,8 @@ packages:
     resolution: {integrity: sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA==}
     engines: {node: '>=0.6'}
 
-  tsx@4.22.1:
-    resolution: {integrity: sha512-TvncJykhxAzFCk0VQZKBTClall4Pm7qXDSodb6uxi8QFa8X8mT6ABjxxsQ2opDRYxG7AzcRWXaFtruz5HJKuWg==}
+  tsx@4.22.3:
+    resolution: {integrity: sha512-mdoNxBC/cSQObGGVQ5Bpn5i+yv7j68gk3Nfm3wFjcJg3Z0Mix9jzAFfP12prmm5eVGmDKtp0yyArrs0Q+8gZHg==}
     engines: {node: '>=18.0.0'}
     hasBin: true
 
@@ -2731,12 +2760,18 @@ snapshots:
       ajv-formats: 2.1.1(ajv@8.20.0)
       fast-uri: 2.4.0
 
+  '@fastify/busboy@3.2.0': {}
+
   '@fastify/cors@9.0.1':
     dependencies:
       fastify-plugin: 4.5.1
       mnemonist: 0.39.6
 
+  '@fastify/deepmerge@2.0.2': {}
+
   '@fastify/error@3.4.1': {}
+
+  '@fastify/error@4.2.0': {}
 
   '@fastify/fast-json-stringify-compiler@4.3.0':
     dependencies:
@@ -2753,6 +2788,15 @@ snapshots:
   '@fastify/merge-json-schemas@0.1.1':
     dependencies:
       fast-deep-equal: 3.1.3
+
+  '@fastify/multipart@8.3.1':
+    dependencies:
+      '@fastify/busboy': 3.2.0
+      '@fastify/deepmerge': 2.0.2
+      '@fastify/error': 4.2.0
+      fastify-plugin: 4.5.1
+      secure-json-parse: 2.7.0
+      stream-wormhole: 1.1.0
 
   '@fastify/rate-limit@8.1.1':
     dependencies:
@@ -3107,6 +3151,11 @@ snapshots:
       ieee754: 1.2.1
 
   caniuse-lite@1.0.30001793: {}
+
+  canvas@3.2.3:
+    dependencies:
+      node-addon-api: 7.1.1
+      prebuild-install: 7.1.3
 
   chownr@1.1.4: {}
 
@@ -3646,6 +3695,8 @@ snapshots:
     dependencies:
       semver: 7.8.0
 
+  node-addon-api@7.1.1: {}
+
   node-addon-api@8.7.0: {}
 
   node-gyp-build@4.8.4: {}
@@ -3903,6 +3954,8 @@ snapshots:
 
   stream-shift@1.0.3: {}
 
+  stream-wormhole@1.1.0: {}
+
   string-width@4.2.3:
     dependencies:
       emoji-regex: 8.0.0
@@ -3961,7 +4014,7 @@ snapshots:
 
   toidentifier@1.0.1: {}
 
-  tsx@4.22.1:
+  tsx@4.22.3:
     dependencies:
       esbuild: 0.28.0
     optionalDependencies:

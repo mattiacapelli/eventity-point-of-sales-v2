@@ -1,6 +1,9 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
+import multipart from "@fastify/multipart";
+import fastifyStatic from "@fastify/static";
+import { resolve } from "node:path";
 import swaggerPlugin from "./plugins/swagger.plugin.js";
 import coreContextPlugin from "./plugins/core-context.plugin.js";
 import authPlugin from "./plugins/auth.plugin.js";
@@ -27,7 +30,11 @@ import bootstrapRoutes from "./routes/bootstrap.js";
 import backupsRoutes from "./routes/admin/backups.js";
 import appSettingsRoutes from "./routes/admin/app-settings.js";
 import modulesRoutes from "./routes/admin/modules.js";
+import restaurantRoutes from "./routes/admin/restaurant.js";
 import statsRoutes from "./routes/stats.js";
+import kitchenTemplatesRoutes from "./routes/admin/kitchen-templates.js";
+import gridLayoutsRoutes from "./routes/admin/grid-layouts.js";
+import auditLogRoutes from "./routes/admin/audit-log.js";
 
 export async function buildServer(config: AppConfig) {
   const fastify = Fastify({
@@ -43,6 +50,12 @@ export async function buildServer(config: AppConfig) {
         : false;
   await fastify.register(cors, { origin: corsOrigin, credentials: true });
   await fastify.register(websocket);
+  await fastify.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB max
+  await fastify.register(fastifyStatic, {
+    root: resolve(config.dataDir),
+    prefix: "/api/static/",
+    decorateReply: false,
+  });
   await fastify.register(swaggerPlugin);
 
   // Core — must be first so ctx is available to everything below
@@ -70,7 +83,11 @@ export async function buildServer(config: AppConfig) {
   await fastify.register(backupsRoutes, { prefix: "/api" });
   await fastify.register(appSettingsRoutes, { prefix: "/api" });
   await fastify.register(modulesRoutes, { prefix: "/api" });
+  await fastify.register(restaurantRoutes, { prefix: "/api" });
   await fastify.register(statsRoutes, { prefix: "/api" });
+  await fastify.register(kitchenTemplatesRoutes, { prefix: "/api" });
+  await fastify.register(gridLayoutsRoutes, { prefix: "/api" });
+  await fastify.register(auditLogRoutes, { prefix: "/api" });
 
   return fastify;
 }

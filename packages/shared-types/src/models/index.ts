@@ -7,3 +7,4 @@ export * from "./payment-method.js";
 export * from "./printer.js";
 export * from "./receipt-template.js";
 export * from "./shift.js";
+export * from "./kitchen-template.js";

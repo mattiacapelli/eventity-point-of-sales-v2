@@ -9,6 +9,7 @@ export const orders = sqliteTable("orders", {
     enum: ["pending", "confirmed", "preparing", "ready", "completed", "cancelled"],
   }).notNull().default("pending"),
   totalAmount: real("total_amount").notNull().default(0),
+  receiptNumber: integer("receipt_number"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
   syncedAt: integer("synced_at", { mode: "timestamp" }),
@@ -24,7 +25,16 @@ export const orderItems = sqliteTable("order_items", {
   notes: text("notes"),
 });
 
+export const orderItemOptions = sqliteTable("order_item_options", {
+  id:          text("id").primaryKey(),
+  orderItemId: text("order_item_id").notNull().references(() => orderItems.id, { onDelete: "cascade" }),
+  optionId:    text("option_id").notNull(),
+  optionName:  text("option_name").notNull(),
+  priceDelta:  real("price_delta").notNull().default(0),
+});
+
 export type DbOrder = typeof orders.$inferSelect;
 export type DbOrderInsert = typeof orders.$inferInsert;
 export type DbOrderItem = typeof orderItems.$inferSelect;
 export type DbOrderItemInsert = typeof orderItems.$inferInsert;
+export type DbOrderItemOption = typeof orderItemOptions.$inferSelect;

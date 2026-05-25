@@ -12,6 +12,7 @@ export interface Product {
   price: number;
   categoryId: string | null;
   categoryName: string | null;
+  productionCenterId: string | null;
   active: boolean;
   color: string | null;
   description: string | null;
@@ -19,6 +20,14 @@ export interface Product {
   sortOrder: number;
   createdAt: number | null;
   updatedAt: number | null;
+}
+
+export interface ProductGridSlot {
+  productId: string;
+  slotX: number;
+  slotY: number;
+  spanW: number;
+  spanH: number;
 }
 
 export interface ProductionCenter {

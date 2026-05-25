@@ -9,13 +9,14 @@ async function request<T>(
   body?: unknown,
 ): Promise<T> {
   const token = useStore.getState().session?.token;
+  const hasBody = body !== undefined;
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
-      "Content-Type": "application/json",
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    ...(hasBody ? { body: JSON.stringify(body) } : {}),
   });
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { error?: string };
@@ -87,6 +88,8 @@ export const apiClient = {
       request<Order>("DELETE", `/orders/${id}`, { reason }),
     reprint: (id: string) =>
       request<{ ok: boolean }>("POST", `/orders/${id}/reprint`, {}),
+    reprintKitchen: (id: string) =>
+      request<{ ok: boolean }>("POST", `/orders/${id}/reprint-kitchen`, {}),
   },
   kitchen: {
     queue: () =>

@@ -3,7 +3,10 @@ import { TcpPrinterAdapter } from "./tcp-printer.adapter.js";
 
 export interface PrintJob {
   printerId: string;
-  content: string;
+  /** Plain text content (text mode). Mutually exclusive with contentBuffer. */
+  content?: string;
+  /** Raw bytes to write directly (image/raster mode). Mutually exclusive with content. */
+  contentBuffer?: Buffer;
   type: "receipt" | "kitchen";
   /** If provided, a TCP adapter is created/reused for this printer. */
   printerConfig?: PrinterConfig;
@@ -27,7 +30,8 @@ class MockPrinterAdapter implements PrinterAdapter {
   constructor(private readonly logger: Logger) {}
 
   async print(job: PrintJob): Promise<PrintResult> {
-    this.logger.info({ printerId: job.printerId, type: job.type, bytes: job.content.length }, "[printer] mock print");
+    const bytes = job.contentBuffer?.length ?? job.content?.length ?? 0;
+    this.logger.info({ printerId: job.printerId, type: job.type, bytes }, "[printer] mock print");
     return { success: true, message: "Mock print OK" };
   }
 }

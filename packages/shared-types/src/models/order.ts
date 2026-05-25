@@ -6,6 +6,12 @@ export type OrderStatus =
   | "completed"
   | "cancelled";
 
+export interface OrderItemOption {
+  readonly optionId: string;
+  readonly optionName: string;
+  readonly priceDelta: number;
+}
+
 export interface OrderItem {
   readonly id: string;
   readonly productId: string;
@@ -13,6 +19,7 @@ export interface OrderItem {
   readonly quantity: number;
   readonly unitPrice: number;
   readonly notes?: string;
+  readonly options?: ReadonlyArray<OrderItemOption>;
 }
 
 export interface Order {
@@ -23,6 +30,7 @@ export interface Order {
   readonly status: OrderStatus;
   readonly items: ReadonlyArray<OrderItem>;
   readonly totalAmount: number;
+  readonly receiptNumber?: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly syncedAt?: Date;

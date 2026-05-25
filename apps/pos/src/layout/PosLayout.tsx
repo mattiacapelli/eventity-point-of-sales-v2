@@ -68,11 +68,8 @@ export function PosLayout({ children }: PosLayoutProps) {
           zIndex: 10,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <span style={{ color: "var(--color-accent)", fontSize: "var(--text-lg)", fontWeight: 700, letterSpacing: "-0.5px" }}>
-            Eventity
-          </span>
-          <span style={{ color: "rgba(255,255,255,0.45)", fontSize: "var(--text-sm)" }}>POS</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <img src="/logo.svg" alt="Eventity" style={{ height: "24px", display: "block" }} />
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-sm)" }}>

@@ -37,6 +37,7 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       active?: boolean;
       receiptEnabled?: boolean;
       kitchenEnabled?: boolean;
+      printMode?: "text" | "image";
     };
     const id = randomUUID();
     await fastify.ctx.db.insert(printers).values({
@@ -49,6 +50,7 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       active:         body.active ?? true,
       receiptEnabled: body.receiptEnabled ?? false,
       kitchenEnabled: body.kitchenEnabled ?? false,
+      printMode:      body.printMode ?? "text",
     });
     const [row] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, id));
     return reply.status(201).send(row);
@@ -67,6 +69,7 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       active: boolean;
       receiptEnabled: boolean;
       kitchenEnabled: boolean;
+      printMode: "text" | "image";
     }>;
 
     const [existing] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, id));
@@ -81,6 +84,7 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       active?: boolean;
       receiptEnabled?: boolean;
       kitchenEnabled?: boolean;
+      printMode?: string;
     } = {};
     if (body.name !== undefined) update.name = body.name;
     if (body.type !== undefined) update.type = body.type;
@@ -90,6 +94,7 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.active !== undefined) update.active = body.active;
     if (body.receiptEnabled !== undefined) update.receiptEnabled = body.receiptEnabled;
     if (body.kitchenEnabled !== undefined) update.kitchenEnabled = body.kitchenEnabled;
+    if (body.printMode !== undefined) update.printMode = body.printMode;
 
     if (Object.keys(update).length > 0) {
       await fastify.ctx.db.update(printers).set(update).where(eq(printers.id, id));

@@ -12,6 +12,8 @@ const ConfigSchema = z.object({
   corsOrigins: z.string().default(""),
   // Timezone for receipt timestamps (IANA format e.g. "Europe/Rome")
   timezone: z.string().default("Europe/Rome"),
+  // Base directory for persistent data (logos, fonts, images). Defaults to /data in production.
+  dataDir: z.string().default("/data"),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
@@ -27,6 +29,7 @@ export function loadConfig(overrides: Partial<Record<string, string>> = {}): App
     env: overrides["NODE_ENV"] ?? process.env["NODE_ENV"],
     corsOrigins: overrides["CORS_ORIGINS"] ?? process.env["CORS_ORIGINS"],
     timezone: overrides["TZ"] ?? process.env["TZ"],
+    dataDir: overrides["DATA_DIR"] ?? process.env["DATA_DIR"],
   };
 
   const result = ConfigSchema.safeParse(raw);

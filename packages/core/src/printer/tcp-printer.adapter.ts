@@ -117,7 +117,7 @@ export class TcpPrinterAdapter implements PrinterAdapter {
       return { success: false, message: `Printer ${this.host}:${this.port} not connected` };
     }
 
-    const buf = buildEscPosBuffer(job.content);
+    const buf = job.contentBuffer ?? buildEscPosBuffer(job.content ?? "");
 
     return new Promise<PrintResult>((resolve) => {
       this.socket!.write(buf, (err) => {

@@ -37,6 +37,7 @@ export {
   Squares2X2Icon,
   ListBulletIcon,
   ArrowPathIcon,
+  ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
 
 export {

@@ -1,15 +1,22 @@
 const DEFAULT_WIDTH = 42;
 
+export interface KitchenTicketItemOption {
+  optionName: string;
+  priceDelta: number;
+}
+
 export interface KitchenTicketItem {
   name: string;
   quantity: number;
-  options?: string[];   // selected options / additions
-  removals?: string[];  // "NO onion" style removals
+  options?: KitchenTicketItemOption[];
+  removals?: string[];
   notes?: string;
 }
 
 export interface KitchenTicketData {
   orderId: string;
+  receiptDisplay?: string;
+  tableId?: string | null;
   centerName: string;
   timestamp: Date;
   items: KitchenTicketItem[];
@@ -24,8 +31,8 @@ function center(text: string, width: number): string {
   return text.padStart(padded);
 }
 
-function bigOrderNumber(orderId: string, width: number): string {
-  const short = `#${orderId.slice(-6).toUpperCase()}`;
+function bigOrderNumber(displayNum: string, width: number): string {
+  const short = `#${displayNum}`;
   // Double-width simulation with spaces between chars (ESC/POS would use GS ! 0x11 but plain text fallback)
   const spaced = short.split("").join(" ");
   return center(spaced, width);
@@ -37,19 +44,21 @@ export function formatKitchenTicket(data: KitchenTicketData, width = DEFAULT_WID
   lines.push(divider(width));
   lines.push(center(data.centerName.toUpperCase(), width));
   lines.push(divider(width));
-  lines.push(bigOrderNumber(data.orderId, width));
+  lines.push(bigOrderNumber(data.receiptDisplay ?? data.orderId.slice(-6).toUpperCase(), width));
+  if (data.tableId) {
+    lines.push(center(`Tavolo ${data.tableId}`, width));
+  }
   lines.push(center(data.timestamp.toLocaleString("it-IT"), width));
   lines.push(divider(width));
   lines.push("");
 
   for (const item of data.items) {
-    // Main item line: qty × name
     const qty = String(item.quantity).padStart(2);
     lines.push(`${qty}x  ${item.name}`);
 
     // Options (additions)
     for (const opt of item.options ?? []) {
-      lines.push(`      + ${opt}`);
+      lines.push(`      + ${opt.optionName}`);
     }
 
     // Removals

@@ -1,7 +1,18 @@
 import { randomUUID } from "node:crypto";
-import { eq, desc, and, gte, lte, inArray, orders, orderItems, products, options, sql } from "@pos/db";
+import { eq, desc, and, gte, lte, inArray, orders, orderItems, orderItemOptions, products, options, sql, appSettings, receiptCounters } from "@pos/db";
 import type { DbClient } from "@pos/db";
-import type { Order, OrderItem, CreateOrderInput, OrderStatus, UpdateOrderInput } from "@pos/shared-types";
+import type { Order, OrderItem, OrderItemOption, CreateOrderInput, OrderStatus, UpdateOrderInput } from "@pos/shared-types";
+
+export function formatReceiptNumber(
+  n: number | undefined,
+  id: string,
+  prefix: string,
+  padding: number,
+): string {
+  if (n === undefined) return id.slice(-6).toUpperCase();
+  const padded = padding > 0 ? String(n).padStart(padding, "0") : String(n);
+  return `${prefix}${padded}`;
+}
 
 type DbOrderRow = {
   id: string;
@@ -10,6 +21,7 @@ type DbOrderRow = {
   shiftId: string | null;
   status: string;
   totalAmount: number;
+  receiptNumber: number | null;
   createdAt: Date;
   updatedAt: Date;
   syncedAt: Date | null;
@@ -32,6 +44,7 @@ type JoinRow = {
   shiftId: string | null;
   status: string;
   totalAmount: number;
+  receiptNumber: number | null;
   createdAt: Date;
   updatedAt: Date;
   syncedAt: Date | null;
@@ -47,33 +60,46 @@ type JoinRow = {
 export class OrderRepository {
   constructor(private readonly db: DbClient) {}
 
+  private async _getAppSetting(key: string): Promise<string | null> {
+    const rows = await this.db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, key));
+    return rows[0]?.value ?? null;
+  }
+
+  private async _nextReceiptNumber(scope: string): Promise<number> {
+    await this.db.insert(receiptCounters).values({ scope, lastValue: 0 }).onConflictDoNothing();
+    await this.db.update(receiptCounters).set({ lastValue: sql`last_value + 1` }).where(eq(receiptCounters.scope, scope));
+    const [row] = await this.db.select({ v: receiptCounters.lastValue }).from(receiptCounters).where(eq(receiptCounters.scope, scope));
+    return row!.v;
+  }
+
   async findById(id: string): Promise<Order | null> {
     const rows = await this.db
       .select({
         // order columns
-        orderId:      orders.id,
-        tableId:      orders.tableId,
-        eventId:      orders.eventId,
-        shiftId:      orders.shiftId,
-        status:       orders.status,
-        totalAmount:  orders.totalAmount,
-        createdAt:    orders.createdAt,
-        updatedAt:    orders.updatedAt,
-        syncedAt:     orders.syncedAt,
+        orderId:       orders.id,
+        tableId:       orders.tableId,
+        eventId:       orders.eventId,
+        shiftId:       orders.shiftId,
+        status:        orders.status,
+        totalAmount:   orders.totalAmount,
+        receiptNumber: orders.receiptNumber,
+        createdAt:     orders.createdAt,
+        updatedAt:     orders.updatedAt,
+        syncedAt:      orders.syncedAt,
         // item columns (null when no items)
-        itemId:       orderItems.id,
-        productId:    orderItems.productId,
-        itemName:     orderItems.name,
-        quantity:     orderItems.quantity,
-        unitPrice:    orderItems.unitPrice,
-        notes:        orderItems.notes,
+        itemId:        orderItems.id,
+        productId:     orderItems.productId,
+        itemName:      orderItems.name,
+        quantity:      orderItems.quantity,
+        unitPrice:     orderItems.unitPrice,
+        notes:         orderItems.notes,
       })
       .from(orders)
       .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
       .where(eq(orders.id, id));
 
     if (rows.length === 0) return null;
-    return this._collapseRows(rows as unknown as JoinRow[])[0] ?? null;
+    return (await this._collapseRowsWithOptions(rows as unknown as JoinRow[]))[0] ?? null;
   }
 
   async findAll(filters?: { status?: OrderStatus; shiftId?: string; from?: number; to?: number; limit?: number; offset?: number }): Promise<Order[]> {
@@ -100,28 +126,29 @@ export class OrderRepository {
 
     const rows = await this.db
       .select({
-        orderId:      orders.id,
-        tableId:      orders.tableId,
-        eventId:      orders.eventId,
-        shiftId:      orders.shiftId,
-        status:       orders.status,
-        totalAmount:  orders.totalAmount,
-        createdAt:    orders.createdAt,
-        updatedAt:    orders.updatedAt,
-        syncedAt:     orders.syncedAt,
-        itemId:       orderItems.id,
-        productId:    orderItems.productId,
-        itemName:     orderItems.name,
-        quantity:     orderItems.quantity,
-        unitPrice:    orderItems.unitPrice,
-        notes:        orderItems.notes,
+        orderId:       orders.id,
+        tableId:       orders.tableId,
+        eventId:       orders.eventId,
+        shiftId:       orders.shiftId,
+        status:        orders.status,
+        totalAmount:   orders.totalAmount,
+        receiptNumber: orders.receiptNumber,
+        createdAt:     orders.createdAt,
+        updatedAt:     orders.updatedAt,
+        syncedAt:      orders.syncedAt,
+        itemId:        orderItems.id,
+        productId:     orderItems.productId,
+        itemName:      orderItems.name,
+        quantity:      orderItems.quantity,
+        unitPrice:     orderItems.unitPrice,
+        notes:         orderItems.notes,
       })
       .from(orders)
       .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
       .where(inArray(orders.id, matchingIds))
       .orderBy(desc(orders.createdAt));
 
-    return this._collapseRows(rows as unknown as JoinRow[]);
+    return this._collapseRowsWithOptions(rows as unknown as JoinRow[]);
   }
 
   async create(input: CreateOrderInput): Promise<Order> {
@@ -138,19 +165,19 @@ export class OrderRepository {
 
     // Collect all option IDs across all items
     const allOptionIds = input.items.flatMap((i) => i.selectedOptionIds ?? []);
-    const optionDeltaMap = new Map<string, number>();
+    const optionMap = new Map<string, { priceDelta: number; name: string }>();
     if (allOptionIds.length > 0) {
       const optionRows = await this.db
-        .select({ id: options.id, priceDelta: options.priceDelta })
+        .select({ id: options.id, priceDelta: options.priceDelta, name: options.name })
         .from(options)
         .where(inArray(options.id, allOptionIds));
-      for (const o of optionRows) optionDeltaMap.set(o.id, o.priceDelta);
+      for (const o of optionRows) optionMap.set(o.id, { priceDelta: o.priceDelta, name: o.name });
     }
 
     const itemsWithIds = input.items.map((item) => {
       const basePrice = productPriceMap.get(item.productId) ?? 0;
       const optionDelta = (item.selectedOptionIds ?? []).reduce(
-        (sum, oid) => sum + (optionDeltaMap.get(oid) ?? 0),
+        (sum, oid) => sum + (optionMap.get(oid)?.priceDelta ?? 0),
         0
       );
       return {
@@ -160,6 +187,7 @@ export class OrderRepository {
         quantity: item.quantity,
         unitPrice: basePrice + optionDelta,
         notes: item.notes ?? null,
+        selectedOptionIds: item.selectedOptionIds ?? [],
       };
     });
 
@@ -168,6 +196,14 @@ export class OrderRepository {
       0
     );
 
+    const mode = await this._getAppSetting("receipt_number_mode") ?? "default";
+    let receiptNumber: number | null = null;
+    if (mode === "global") {
+      receiptNumber = await this._nextReceiptNumber("global");
+    } else if (mode === "shift" && input.shiftId) {
+      receiptNumber = await this._nextReceiptNumber(`shift:${input.shiftId}`);
+    }
+
     await this.db.insert(orders).values({
       id,
       tableId: input.tableId ?? null,
@@ -175,6 +211,7 @@ export class OrderRepository {
       shiftId: input.shiftId ?? null,
       status: "pending",
       totalAmount,
+      receiptNumber,
       createdAt: now,
       updatedAt: now,
     });
@@ -191,6 +228,30 @@ export class OrderRepository {
           notes: item.notes,
         }))
       );
+
+      // Persist selected options for each item
+      const optionInserts = itemsWithIds.flatMap((item) =>
+        item.selectedOptionIds.flatMap((oid) => {
+          const opt = optionMap.get(oid);
+          if (!opt) return [];
+          return [{ id: randomUUID(), orderItemId: item.id, optionId: oid, optionName: opt.name, priceDelta: opt.priceDelta }];
+        })
+      );
+      if (optionInserts.length > 0) {
+        await this.db.insert(orderItemOptions).values(optionInserts);
+      }
+    }
+
+    // Load persisted options for return value
+    const allItemIds = itemsWithIds.map((i) => i.id);
+    const persistedOptions = allItemIds.length > 0
+      ? await this.db.select().from(orderItemOptions).where(inArray(orderItemOptions.orderItemId, allItemIds))
+      : [];
+    const optsByItemId = new Map<string, OrderItemOption[]>();
+    for (const o of persistedOptions) {
+      const arr = optsByItemId.get(o.orderItemId) ?? [];
+      arr.push({ optionId: o.optionId, optionName: o.optionName, priceDelta: o.priceDelta });
+      optsByItemId.set(o.orderItemId, arr);
     }
 
     return this.toOrder(
@@ -201,11 +262,13 @@ export class OrderRepository {
         shiftId: input.shiftId ?? null,
         status: "pending",
         totalAmount,
+        receiptNumber,
         createdAt: now,
         updatedAt: now,
         syncedAt: null,
       },
-      itemsWithIds.map((item) => ({ ...item, orderId: id }))
+      itemsWithIds.map((item) => ({ ...item, orderId: id })),
+      optsByItemId,
     );
   }
 
@@ -223,7 +286,19 @@ export class OrderRepository {
     await this.db.delete(orders).where(eq(orders.id, id));
   }
 
-  private _collapseRows(rows: JoinRow[]): Order[] {
+  private async _loadOptionsMap(itemIds: string[]): Promise<Map<string, OrderItemOption[]>> {
+    const map = new Map<string, OrderItemOption[]>();
+    if (itemIds.length === 0) return map;
+    const rows = await this.db.select().from(orderItemOptions).where(inArray(orderItemOptions.orderItemId, itemIds));
+    for (const o of rows) {
+      const arr = map.get(o.orderItemId) ?? [];
+      arr.push({ optionId: o.optionId, optionName: o.optionName, priceDelta: o.priceDelta });
+      map.set(o.orderItemId, arr);
+    }
+    return map;
+  }
+
+  private async _collapseRowsWithOptions(rows: JoinRow[]): Promise<Order[]> {
     const orderMap = new Map<string, { row: JoinRow; items: DbItemRow[] }>();
     for (const r of rows) {
       if (!orderMap.has(r.orderId)) {
@@ -241,6 +316,9 @@ export class OrderRepository {
         });
       }
     }
+    const allItemIds = [...orderMap.values()].flatMap(({ items }) => items.map((i) => i.id));
+    const optsByItemId = await this._loadOptionsMap(allItemIds);
+
     return [...orderMap.values()].map(({ row, items }) =>
       this.toOrder(
         {
@@ -250,16 +328,18 @@ export class OrderRepository {
           shiftId: row.shiftId,
           status: row.status,
           totalAmount: row.totalAmount,
+          receiptNumber: row.receiptNumber,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
           syncedAt: row.syncedAt,
         },
         items,
+        optsByItemId,
       )
     );
   }
 
-  private toOrder(row: DbOrderRow, items: DbItemRow[]): Order {
+  private toOrder(row: DbOrderRow, items: DbItemRow[], optsByItemId?: Map<string, OrderItemOption[]>): Order {
     const base: Order = {
       id: row.id,
       status: row.status as OrderStatus,
@@ -267,6 +347,7 @@ export class OrderRepository {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       items: items.map((i): OrderItem => {
+        const opts = optsByItemId?.get(i.id) ?? [];
         const item: OrderItem = {
           id: i.id,
           productId: i.productId,
@@ -274,12 +355,14 @@ export class OrderRepository {
           quantity: i.quantity,
           unitPrice: i.unitPrice,
           ...(i.notes !== null ? { notes: i.notes } : {}),
+          ...(opts.length > 0 ? { options: opts } : {}),
         };
         return item;
       }),
       ...(row.tableId !== null ? { tableId: row.tableId } : {}),
       ...(row.eventId !== null ? { eventId: row.eventId } : {}),
       ...(row.shiftId !== null ? { shiftId: row.shiftId } : {}),
+      ...(row.receiptNumber !== null ? { receiptNumber: row.receiptNumber } : {}),
       ...(row.syncedAt !== null ? { syncedAt: row.syncedAt } : {}),
     };
     return base;
