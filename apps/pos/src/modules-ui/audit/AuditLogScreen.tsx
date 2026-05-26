@@ -77,28 +77,28 @@ function MetaCell({ entry }: { entry: AuditEntry }) {
     case "order_completed":
       return (
         <span>
-          {m.receiptNumber ? <strong>#{String(m.receiptNumber)}</strong> : <span style={{ color: "#9ca3af" }}>—</span>}
-          {" · "}{fmtEur(m.totalAmount)}
+          {m["receiptNumber"] ? <strong>#{String(m["receiptNumber"])}</strong> : <span style={{ color: "#9ca3af" }}>—</span>}
+          {" · "}{fmtEur(m["totalAmount"])}
         </span>
       );
     case "order_cancelled":
-      return <span>{fmtEur(m.totalAmount)}</span>;
+      return <span>{fmtEur(m["totalAmount"])}</span>;
     case "payment_completed":
     case "payment_refunded":
       return (
         <span>
-          {fmtEur(m.amount)}{" · "}
-          <span style={{ color: "#6b7280" }}>{METHOD_LABELS[String(m.method)] ?? String(m.method)}</span>
-          {m.reference ? <span style={{ color: "#9ca3af" }}> · {String(m.reference)}</span> : null}
+          {fmtEur(m["amount"])}{" · "}
+          <span style={{ color: "#6b7280" }}>{METHOD_LABELS[String(m["method"])] ?? String(m["method"])}</span>
+          {m["reference"] ? <span style={{ color: "#9ca3af" }}> · {String(m["reference"])}</span> : null}
         </span>
       );
     case "shift_opened":
-      return <span>Cassa iniziale {fmtEur(m.openingCash)}</span>;
+      return <span>Cassa iniziale {fmtEur(m["openingCash"])}</span>;
     case "shift_closed":
       return (
         <span>
-          {fmtEur(m.totalSales)} · {String(m.totalOrders)} ordini
-          {m.notes ? <span style={{ color: "#9ca3af" }}> · {String(m.notes)}</span> : null}
+          {fmtEur(m["totalSales"])} · {String(m["totalOrders"])} ordini
+          {m["notes"] ? <span style={{ color: "#9ca3af" }}> · {String(m["notes"])}</span> : null}
         </span>
       );
     default:

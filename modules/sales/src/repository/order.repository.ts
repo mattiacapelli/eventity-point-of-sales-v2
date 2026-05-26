@@ -175,7 +175,8 @@ export class OrderRepository {
     }
 
     const itemsWithIds = input.items.map((item) => {
-      const basePrice = productPriceMap.get(item.productId) ?? 0;
+      const basePrice = productPriceMap.get(item.productId);
+      if (basePrice === undefined) throw new Error(`Product not found: ${item.productId}`);
       const optionDelta = (item.selectedOptionIds ?? []).reduce(
         (sum, oid) => sum + (optionMap.get(oid)?.priceDelta ?? 0),
         0

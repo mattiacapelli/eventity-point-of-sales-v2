@@ -1,6 +1,6 @@
 import "@fastify/swagger";
 import type { FastifyPluginAsync } from "fastify";
-import { desc, eq, inArray } from "@pos/db";
+import { desc, eq, gte, lte, inArray, and } from "@pos/db";
 import { orders, payments, shifts, users } from "@pos/db";
 import { requireRole, AuthError } from "@pos/core";
 
@@ -64,13 +64,17 @@ const auditLogRoutes: FastifyPluginAsync = async (fastify) => {
 
     const fromMs = q.from ?? 0;
     const toMs   = q.to ?? Date.now();
+    const fromDate = new Date(fromMs);
+    const toDate   = new Date(toMs);
 
     const tsOf = (d: Date | number | null): number =>
       d === null ? 0 : d instanceof Date ? d.getTime() : (d as number);
 
     // ── Orders ────────────────────────────────────────────────────────────────
     if (!q.type || ["order_created", "order_completed", "order_cancelled"].includes(q.type)) {
-      const orderRows = await db.select().from(orders).orderBy(desc(orders.createdAt));
+      const orderRows = await db.select().from(orders)
+        .where(and(gte(orders.createdAt, fromDate), lte(orders.createdAt, toDate)))
+        .orderBy(desc(orders.createdAt));
 
       for (const o of orderRows) {
         const createdMs = tsOf(o.createdAt);
@@ -141,10 +145,11 @@ const auditLogRoutes: FastifyPluginAsync = async (fastify) => {
           ? eq(payments.status, "completed")
           : inArray(payments.status, ["completed", "refunded"]);
 
-      const paymentRows = await db.select().from(payments).where(statusFilter).orderBy(desc(payments.createdAt));
+      const paymentRows = await db.select().from(payments)
+        .where(and(statusFilter, gte(payments.createdAt, fromDate), lte(payments.createdAt, toDate)))
+        .orderBy(desc(payments.createdAt));
       for (const p of paymentRows) {
         const createdMs = tsOf(p.createdAt);
-        if (createdMs < fromMs || createdMs > toMs) continue;
         entries.push({
           id: `payment_${p.status}:${p.id}`,
           type: p.status === "refunded" ? "payment_refunded" : "payment_completed",

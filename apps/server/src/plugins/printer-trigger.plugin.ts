@@ -66,43 +66,51 @@ async function _printKitchenTickets(
     optionsByItemId.set(opt.orderItemId, arr);
   }
 
-  // Group items by production center
+  // Batch-load product→category, category→productionCenter, center names in 3 queries
+  const productIds = [...new Set(items.map((i) => i.productId))];
+  const productCatRows = productIds.length > 0
+    ? await db.select({ id: products.id, categoryId: products.categoryId })
+        .from(products).where(inArray(products.id, productIds))
+    : [];
+  const productCatMap = new Map(productCatRows.map((r) => [r.id, r.categoryId ?? null]));
+
+  const categoryIds = [...new Set(productCatRows.map((r) => r.categoryId).filter((c): c is string => c !== null))];
+  const pcCatRows = categoryIds.length > 0
+    ? await db.select({ categoryId: productionCenterCategories.categoryId, productionCenterId: productionCenterCategories.productionCenterId })
+        .from(productionCenterCategories).where(inArray(productionCenterCategories.categoryId, categoryIds))
+    : [];
+  // categoryId → productionCenterIds[]
+  const catToCenters = new Map<string, string[]>();
+  for (const r of pcCatRows) {
+    const arr = catToCenters.get(r.categoryId) ?? [];
+    arr.push(r.productionCenterId);
+    catToCenters.set(r.categoryId, arr);
+  }
+
+  const centerIds = [...new Set(pcCatRows.map((r) => r.productionCenterId))];
+  const centerNameRows = centerIds.length > 0
+    ? await db.select({ id: productionCenters.id, name: productionCenters.name })
+        .from(productionCenters).where(inArray(productionCenters.id, centerIds))
+    : [];
+  const centerNameMap = new Map(centerNameRows.map((r) => [r.id, r.name]));
+
+  // Group items by production center using the pre-loaded maps
   const centerItems: Map<string, { centerName: string; items: OrderItemRow[] }> = new Map();
   const unroutedItems: OrderItemRow[] = [];
 
   for (const item of items) {
-    const [productRow] = await db.select({ categoryId: products.categoryId })
-      .from(products)
-      .where(eq(products.id, item.productId))
-      .limit(1);
+    const categoryId = productCatMap.get(item.productId) ?? null;
+    if (!categoryId) { unroutedItems.push(item); continue; }
 
-    if (!productRow?.categoryId) {
-      unroutedItems.push(item);
-      continue;
-    }
+    const centerIdsForCat = catToCenters.get(categoryId);
+    if (!centerIdsForCat || centerIdsForCat.length === 0) { unroutedItems.push(item); continue; }
 
-    const pcRows = await db.select({ productionCenterId: productionCenterCategories.productionCenterId })
-      .from(productionCenterCategories)
-      .where(eq(productionCenterCategories.categoryId, productRow.categoryId));
-
-    if (pcRows.length === 0) {
-      unroutedItems.push(item);
-      continue;
-    }
-
-    for (const pcRow of pcRows) {
-      const existing = centerItems.get(pcRow.productionCenterId);
+    for (const centerId of centerIdsForCat) {
+      const existing = centerItems.get(centerId);
       if (existing) {
         existing.items.push(item);
       } else {
-        const [pcNameRow] = await db.select({ name: productionCenters.name })
-          .from(productionCenters)
-          .where(eq(productionCenters.id, pcRow.productionCenterId))
-          .limit(1);
-        centerItems.set(pcRow.productionCenterId, {
-          centerName: pcNameRow?.name ?? "Cucina",
-          items: [item],
-        });
+        centerItems.set(centerId, { centerName: centerNameMap.get(centerId) ?? "Cucina", items: [item] });
       }
     }
   }
@@ -157,27 +165,37 @@ async function _printKitchenTickets(
           const template = templateRows.find((t) => t.productionCenterId === centerId) ?? templateRows[0];
 
           if (template?.blocks) {
-            const blocks = typeof template.blocks === "string" ? JSON.parse(template.blocks) : template.blocks;
-            const pngBuffer = await renderKitchenImage({
-              blocks: blocks as KitchenBlock[],
-              canvasWidth: template.canvasWidth ?? 576,
-              logoPath: template.logoPath ? resolve(join(dataDir, template.logoPath)) : null,
-              centerName,
-              orderId,
-              receiptDisplay,
-              tableId,
-              timestamp: now,
-              items: ticketItems,
-            });
-            const rasterBuffer = await pngToEscposRaster(pngBuffer, template.canvasWidth ?? 576);
-            await printerService.printDirect({
-              printerId: printer.id,
-              contentBuffer: rasterBuffer,
-              type: "kitchen",
-              printerConfig,
-            });
-            logger.info({ printerId: printer.id, orderId, centerName, mode: "image" }, "Kitchen ticket printed");
-            continue;
+            let blocks: KitchenBlock[];
+            try {
+              blocks = (typeof template.blocks === "string" ? JSON.parse(template.blocks) : template.blocks) as KitchenBlock[];
+            } catch {
+              logger.warn({ printerId: printer.id, orderId }, "Kitchen template blocks JSON invalid — falling back to text mode");
+              // fall through to text-mode below
+              blocks = [];
+            }
+            if (blocks.length > 0) {
+              const pngBuffer = await renderKitchenImage({
+                blocks,
+                canvasWidth: template.canvasWidth ?? 576,
+                logoPath: template.logoPath ? resolve(join(dataDir, template.logoPath)) : null,
+                centerName,
+                orderId,
+                receiptDisplay,
+                tableId,
+                timestamp: now,
+                items: ticketItems,
+              });
+              const rasterBuffer = await pngToEscposRaster(pngBuffer, template.canvasWidth ?? 576);
+              await printerService.printDirect({
+                printerId: printer.id,
+                contentBuffer: rasterBuffer,
+                type: "kitchen",
+                printerConfig,
+              });
+              logger.info({ printerId: printer.id, orderId, centerName, mode: "image" }, "Kitchen ticket printed");
+              continue;
+            }
+            // blocks empty after parse error — fall through to text
           }
           // Fall through to text if no template
         }
@@ -419,7 +437,13 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
     ): Promise<void> {
       const useImageMode = tmpl?.printMode === "image" && !!tmpl?.blocks;
       if (useImageMode) {
-        const blocks = JSON.parse(tmpl!.blocks!) as ReceiptBlock[];
+        let blocks: ReceiptBlock[];
+        try {
+          blocks = (typeof tmpl!.blocks === "string" ? JSON.parse(tmpl!.blocks!) : tmpl!.blocks) as ReceiptBlock[];
+        } catch {
+          logger.warn({ jobId: payload.jobId }, "Receipt template blocks JSON invalid — falling back to text mode");
+          return printOneReceipt({ ...tmpl!, printMode: "text" }, jobItems, jobTotal, categoryName);
+        }
         const pngBuffer = await renderReceiptImage({
           blocks,
           canvasWidth: tmpl!.canvasWidth ?? 576,

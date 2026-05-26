@@ -61,6 +61,22 @@ export class WsBroadcaster {
     return this.clients.size;
   }
 
+  /** Send an event only to clients that belong to a specific terminal. */
+  sendToTerminal<K extends PlatformEventName>(
+    terminalId: string,
+    event: K,
+    payload: PlatformEventMap[K],
+  ): void {
+    const message = JSON.stringify({ event, payload, timestamp: new Date().toISOString() });
+    const dead: string[] = [];
+    for (const [id, client] of this.clients) {
+      if (client.terminalId !== terminalId) continue;
+      if (!client.isAlive()) { dead.push(id); continue; }
+      try { client.send(message); } catch { dead.push(id); }
+    }
+    for (const id of dead) this.clients.delete(id);
+  }
+
   private broadcast<K extends PlatformEventName>(
     event: K,
     payload: PlatformEventMap[K]
