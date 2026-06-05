@@ -1,4 +1,4 @@
-import { sqliteTable, text, real, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, real, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const categories = sqliteTable("categories", {
   id:        text("id").primaryKey(),
@@ -54,7 +54,9 @@ export const printers = sqliteTable("printers", {
   receiptEnabled:  integer("receipt_enabled", { mode: "boolean" }).notNull().default(false),
   kitchenEnabled:  integer("kitchen_enabled", { mode: "boolean" }).notNull().default(false),
   printMode:       text("print_mode").notNull().default("text"),
-});
+}, (t) => ({
+  hostPortUniq: uniqueIndex("printers_host_port_uniq").on(t.host, t.port),
+}));
 
 export const receiptTemplates = sqliteTable("receipt_templates", {
   id:              text("id").primaryKey(),

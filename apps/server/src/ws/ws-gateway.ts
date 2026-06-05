@@ -31,6 +31,14 @@ const wsGateway: FastifyPluginAsync = async (fastify) => {
 
       fastify.ctx.logger.debug({ clientId }, "WS client connected");
 
+      const pingInterval = setInterval(() => {
+        if (socket.readyState === socket.OPEN) {
+          socket.send(JSON.stringify({ type: "ping" }));
+        } else {
+          clearInterval(pingInterval);
+        }
+      }, 30_000);
+
       socket.on("message", (raw: Buffer | string) => {
         try {
           const msg = JSON.parse(raw.toString()) as { type?: string };
@@ -38,6 +46,7 @@ const wsGateway: FastifyPluginAsync = async (fastify) => {
             socket.send(JSON.stringify({ type: "pong" }));
             return;
           }
+          if (msg.type === "pong") return;
           fastify.ctx.logger.debug({ clientId, msg }, "WS message received");
         } catch {
           fastify.ctx.logger.warn({ clientId }, "WS: could not parse message");
@@ -45,6 +54,7 @@ const wsGateway: FastifyPluginAsync = async (fastify) => {
       });
 
       socket.on("close", () => {
+        clearInterval(pingInterval);
         broadcaster.removeClient(clientId);
         fastify.ctx.logger.debug({ clientId }, "WS client disconnected");
       });

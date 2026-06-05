@@ -305,6 +305,7 @@ ALTER TABLE receipt_templates ADD COLUMN print_method TEXT NOT NULL DEFAULT 'sin
 ALTER TABLE receipt_templates ADD COLUMN role TEXT NOT NULL DEFAULT 'master';
 ALTER TABLE payments ADD COLUMN terminal_id TEXT REFERENCES terminals(id);
 INSERT OR IGNORE INTO app_settings(key,value) VALUES('multi_terminal_enabled','false');
+CREATE UNIQUE INDEX IF NOT EXISTS printers_host_port_uniq ON printers(host, port) WHERE host IS NOT NULL AND port IS NOT NULL;
 `;
 
 export function runMigrations(dbPath: string): void {

@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
 
 export const orders = sqliteTable("orders", {
   id: text("id").primaryKey(),
@@ -13,7 +13,11 @@ export const orders = sqliteTable("orders", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
   syncedAt: integer("synced_at", { mode: "timestamp" }),
-});
+}, (t) => ({
+  shiftIdx:     index("orders_shift_id_idx").on(t.shiftId),
+  createdAtIdx: index("orders_created_at_idx").on(t.createdAt),
+  statusIdx:    index("orders_status_idx").on(t.status),
+}));
 
 export const orderItems = sqliteTable("order_items", {
   id: text("id").primaryKey(),
@@ -23,7 +27,9 @@ export const orderItems = sqliteTable("order_items", {
   quantity: integer("quantity").notNull(),
   unitPrice: real("unit_price").notNull(),
   notes: text("notes"),
-});
+}, (t) => ({
+  orderIdIdx: index("order_items_order_id_idx").on(t.orderId),
+}));
 
 export const orderItemOptions = sqliteTable("order_item_options", {
   id:          text("id").primaryKey(),

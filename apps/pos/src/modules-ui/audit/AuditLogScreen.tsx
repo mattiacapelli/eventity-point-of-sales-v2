@@ -244,8 +244,8 @@ export function AuditLogScreen() {
               </p>
             </div>
             <div style={{ display: "flex", gap: "var(--sp-sm)" }}>
-              <Button size="sm" variant="ghost" onClick={() => exportCsv(entries)} disabled={entries.length === 0}>
-                Esporta CSV
+              <Button size="sm" variant="ghost" onClick={() => exportCsv(entries)} disabled={entries.length === 0} title="Esporta solo gli elementi attualmente caricati">
+                Esporta CSV (pagina corrente)
               </Button>
               <Button size="sm" variant="ghost" onClick={() => load(0, false)}>
                 Aggiorna

@@ -16,8 +16,21 @@ export function ProductConfigurator({ product, onClose }: Props) {
 
   const [groups, setGroups] = useState<OptionGroupWithOptions[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   // selected: optionGroupId → Set of optionIds
   const [selected, setSelected] = useState<Record<string, Set<string>>>({});
+
+  function fetchGroups() {
+    setLoading(true);
+    setLoadError(null);
+    adminApi.optionGroups.list(product.id)
+      .then((gs) => {
+        setGroups(gs);
+        setOptionGroups(product.id, gs);
+      })
+      .catch((e: Error) => setLoadError(e.message ?? "Errore caricamento opzioni"))
+      .finally(() => setLoading(false));
+  }
 
   useEffect(() => {
     const cached = optionGroupsByProduct[product.id];
@@ -25,15 +38,8 @@ export function ProductConfigurator({ product, onClose }: Props) {
       setGroups(cached);
       return;
     }
-    setLoading(true);
-    adminApi.optionGroups.list(product.id)
-      .then((gs) => {
-        setGroups(gs);
-        setOptionGroups(product.id, gs);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [product.id]);
+    fetchGroups();
+  }, [product.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Prevent background scroll
   useEffect(() => {
@@ -183,12 +189,25 @@ export function ProductConfigurator({ product, onClose }: Props) {
               Caricamento opzioni…
             </div>
           )}
-          {!loading && groups.length === 0 && (
+          {!loading && loadError && (
+            <div style={{ padding: "40px", textAlign: "center" }}>
+              <div style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)", marginBottom: "12px" }}>
+                {loadError}
+              </div>
+              <button
+                onClick={fetchGroups}
+                style={{ padding: "8px 20px", borderRadius: "var(--radius-md)", border: "1.5px solid var(--color-brand)", background: "transparent", color: "var(--color-brand)", fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 600, cursor: "pointer" }}
+              >
+                Riprova
+              </button>
+            </div>
+          )}
+          {!loading && !loadError && groups.length === 0 && (
             <div style={{ padding: "40px", textAlign: "center", color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>
               Nessuna opzione configurabile
             </div>
           )}
-          {!loading && groups.map((group) => {
+          {!loading && !loadError && groups.map((group) => {
             const sel = selected[group.id] ?? new Set<string>();
             const activeOptions = group.options.filter((o) => o.active);
             const isRemoval = group.type === "removal";

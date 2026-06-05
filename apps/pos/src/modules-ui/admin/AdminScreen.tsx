@@ -563,17 +563,25 @@ function RestaurantTab() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           <div style={{ background: "var(--color-white)", borderRadius: "var(--radius-xl)", padding: "28px", boxShadow: "var(--shadow-sm)", display: "flex", flexDirection: "column", gap: "18px" }}>
-            {fields.map(({ key, label, placeholder }) => (
-              <div key={key}>
-                <label style={labelStyle}>{label}</label>
-                <input
-                  style={inputStyle}
-                  value={form[key]}
-                  onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                  placeholder={placeholder}
-                />
-              </div>
-            ))}
+            {fields.map(({ key, label, placeholder }) => {
+              const vatWarning = key === "vat" && form.vat && !/^(IT\d{11}|\d{16})$/i.test(form.vat.replace(/\s/g, ""));
+              return (
+                <div key={key}>
+                  <label style={labelStyle}>{label}</label>
+                  <input
+                    style={{ ...inputStyle, borderColor: vatWarning ? "#f59e0b" : undefined }}
+                    value={form[key]}
+                    onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                    placeholder={placeholder}
+                  />
+                  {vatWarning && (
+                    <div style={{ marginTop: "4px", fontSize: "var(--text-xs)", color: "#92400e" }}>
+                      Formato non standard (atteso: IT + 11 cifre o Codice Fiscale 16 caratteri)
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Logo */}
