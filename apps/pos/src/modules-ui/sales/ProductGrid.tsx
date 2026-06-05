@@ -9,25 +9,9 @@ import type { Product } from "@pos/shared-types";
 import type { ProductGridSlot } from "@pos/shared-types";
 import { ProductConfigurator } from "./ProductConfigurator.js";
 import {
-  ClipboardDocumentListIcon,
-  ChartBarIcon,
-  Cog6ToothIcon,
-  Bars3Icon,
-  WrenchScrewdriverIcon,
   TagIcon,
   ClockIcon,
-  ShieldCheckIcon,
 } from "../../components/ui/icons.js";
-
-// ─── Nav ──────────────────────────────────────────────────────────────────────
-
-const NAV_ITEMS = [
-  { path: "/history",  label: "Storico ordini",  Icon: ClipboardDocumentListIcon, adminOnly: false },
-  { path: "/stats",    label: "Statistiche",      Icon: ChartBarIcon,              adminOnly: false },
-  { path: "/settings", label: "Impostazioni",     Icon: Cog6ToothIcon,             adminOnly: false },
-  { path: "/admin",    label: "Amministrazione",  Icon: WrenchScrewdriverIcon,     adminOnly: true  },
-  { path: "/audit",    label: "Audit Log",        Icon: ShieldCheckIcon,           adminOnly: true  },
-];
 
 // ─── Sort helper ──────────────────────────────────────────────────────────────
 
@@ -312,15 +296,11 @@ function GridArea({ products, slots, scope, baseCols, editMode, locked, showPric
 export function ProductGrid() {
   const { categories, products, productionCenters, optionGroupsByProduct, setOptionGroups } = useAdminStore();
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [configuratorProduct, setConfiguratorProduct] = useState<Product | null>(null);
   const addToCart = useStore((s) => s.addToCart);
-  const session = useStore((s) => s.session);
-  const isAdmin = session?.role === "admin";
   const { currentShift, setShiftModalOpen } = useShiftStore();
   const navigate = useNavigate();
   const location = useLocation();
-  const menuRef  = useRef<HTMLDivElement>(null);
 
   const { viewMode, showPrice, showDescription, sortBy, baseCols, editMode, layouts, loadLayout, saveLayout, updateSlot, setEditMode, applyServerPrefs } = useGridStore();
 
@@ -453,16 +433,6 @@ export function ProductGrid() {
     };
   }
 
-  // Close fly-out on outside click
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [menuOpen]);
-
   async function handleProductClick(product: Product) {
     if (!currentShift) return;
     let groups = optionGroupsByProduct[product.id];
@@ -586,7 +556,6 @@ export function ProductGrid() {
         {/* Sidebar — only in category view */}
         {showSidebar && (
           <div
-            ref={menuRef}
             style={{
               width: "72px",
               flexShrink: 0,
@@ -609,7 +578,7 @@ export function ProductGrid() {
                   return (
                     <button
                       key={cat.id}
-                      onClick={() => { setActiveCategoryId(cat.id); setMenuOpen(false); }}
+                      onClick={() => setActiveCategoryId(cat.id)}
                       style={{
                         width: "100%", display: "flex", flexDirection: "column",
                         alignItems: "center", justifyContent: "center", gap: "4px",
@@ -628,55 +597,6 @@ export function ProductGrid() {
                 })
               )}
             </div>
-
-            <div style={{ height: "1px", background: "var(--color-gray-200)", margin: "0 10px" }} />
-
-            <div style={{ padding: "8px 6px" }}>
-              <button
-                onClick={() => setMenuOpen((o) => !o)}
-                style={{
-                  width: "100%", display: "flex", flexDirection: "column",
-                  alignItems: "center", justifyContent: "center", gap: "4px",
-                  padding: "10px 4px", borderRadius: "10px", border: "none",
-                  background: menuOpen ? "rgba(48,107,52,0.1)" : "transparent",
-                  cursor: "pointer", minHeight: "56px", fontFamily: "var(--font)",
-                }}
-              >
-                <Bars3Icon style={{ width: "22px", height: "22px", color: menuOpen ? "var(--color-brand)" : "var(--color-gray-400)" }} />
-                <span style={{ fontSize: "10px", fontWeight: 700, color: menuOpen ? "var(--color-brand)" : "var(--color-gray-500)" }}>Menu</span>
-              </button>
-            </div>
-
-            {menuOpen && (
-              <div style={{
-                position: "absolute", left: "72px", bottom: "8px",
-                background: "var(--color-white)", borderRadius: "12px",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.14)", border: "1px solid var(--color-gray-200)",
-                minWidth: "200px", overflow: "hidden", zIndex: 70,
-              }}>
-                {NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin).map((item, i, arr) => {
-                  const active = location.pathname === item.path;
-                  const { Icon } = item;
-                  return (
-                    <button
-                      key={item.path}
-                      onClick={() => { navigate(item.path); setMenuOpen(false); }}
-                      style={{
-                        width: "100%", display: "flex", alignItems: "center", gap: "12px",
-                        padding: "13px 16px", border: "none",
-                        borderBottom: i < arr.length - 1 ? "1px solid var(--color-gray-100)" : "none",
-                        background: active ? "rgba(48,107,52,0.06)" : "var(--color-white)",
-                        cursor: "pointer", fontFamily: "var(--font)", textAlign: "left",
-                      }}
-                    >
-                      <Icon style={{ width: "18px", height: "18px", color: active ? "var(--color-brand)" : "var(--color-gray-500)", flexShrink: 0 }} />
-                      <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: active ? "var(--color-brand)" : "var(--color-gray-700)" }}>{item.label}</span>
-                      {active && <span style={{ marginLeft: "auto", width: "6px", height: "6px", borderRadius: "50%", background: "var(--color-brand)", flexShrink: 0 }} />}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
           </div>
         )}
 
