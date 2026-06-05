@@ -708,6 +708,8 @@ function ProductsTab() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
   const [ingredientsProduct, setIngredientsProduct] = useState<Product | null>(null);
+  const [productSearch, setProductSearch] = useState("");
+  const [productCategoryFilter, setProductCategoryFilter] = useState("");
 
   function openCreate() {
     setEditTarget(null);
@@ -734,6 +736,11 @@ function ProductsTab() {
     if (!editTarget) return;
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 5_000_000) {
+      alert("Immagine troppo grande (max 5 MB)");
+      e.target.value = "";
+      return;
+    }
     setImageUploading(true);
     try {
       const result = await adminApi.products.uploadImage(editTarget.id, file);
@@ -822,6 +829,25 @@ function ProductsTab() {
         </Button>
       </div>
 
+      {/* Filters */}
+      <div style={{ display: "flex", gap: "10px", marginBottom: "var(--sp-md)" }}>
+        <input
+          type="search"
+          value={productSearch}
+          onChange={(e) => setProductSearch(e.target.value)}
+          placeholder="Cerca prodotto…"
+          style={{ ...inputStyle, flex: 1, height: "38px" }}
+        />
+        <select
+          value={productCategoryFilter}
+          onChange={(e) => setProductCategoryFilter(e.target.value)}
+          style={{ ...inputStyle, flex: "0 0 180px", height: "38px", paddingRight: "8px" }}
+        >
+          <option value="">Tutte le categorie</option>
+          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
+
       {/* Table */}
       <div style={{ background: "var(--color-white)", borderRadius: "var(--radius-xl)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -842,7 +868,11 @@ function ProductsTab() {
                 </td>
               </tr>
             )}
-            {products.map((p) => {
+            {products.filter((p) => {
+              if (productSearch && !p.name.toLowerCase().includes(productSearch.toLowerCase())) return false;
+              if (productCategoryFilter && p.categoryId !== productCategoryFilter) return false;
+              return true;
+            }).map((p) => {
               const isExpanded = expandedProductId === p.id;
               return (
                 <React.Fragment key={p.id}>

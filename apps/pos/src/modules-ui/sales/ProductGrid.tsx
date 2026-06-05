@@ -37,13 +37,14 @@ interface CardProps {
   editMode: boolean;
   showPrice: boolean;
   showDescription: boolean;
+  loading?: boolean;
   onClick: () => void;
   onDragStart: (e: React.DragEvent, productId: string) => void;
   onResizeStart: (e: React.PointerEvent, productId: string, scope: string) => void;
   scope: string;
 }
 
-function ProductCard({ product, slot, locked, editMode, showPrice, showDescription, onClick, onDragStart, onResizeStart, scope }: CardProps) {
+function ProductCard({ product, slot, locked, editMode, showPrice, showDescription, loading, onClick, onDragStart, onResizeStart, scope }: CardProps) {
   const hasColor = !!product.color;
   const hasImage = !!product.imageData;
   const imageUrl = hasImage ? `/api/static/${product.imageData}` : null;
@@ -85,7 +86,7 @@ function ProductCard({ product, slot, locked, editMode, showPrice, showDescripti
       }}
     >
       <button
-        disabled={locked || editMode}
+        disabled={locked || editMode || loading}
         onClick={onClick}
         style={{
           width: "100%",
@@ -163,6 +164,19 @@ function ProductCard({ product, slot, locked, editMode, showPrice, showDescripti
         </div>
       </button>
 
+      {loading && (
+        <div style={{
+          position: "absolute", inset: 0, borderRadius: "var(--radius-lg)",
+          background: "rgba(255,255,255,0.65)", display: "flex", alignItems: "center", justifyContent: "center",
+          pointerEvents: "none",
+        }}>
+          <div style={{
+            width: 20, height: 20, border: "2.5px solid var(--color-brand)", borderTopColor: "transparent",
+            borderRadius: "50%", animation: "spin 0.6s linear infinite",
+          }} />
+        </div>
+      )}
+
       {editMode && slot && (
         <div
           onPointerDown={(e) => {
@@ -219,13 +233,14 @@ interface GridAreaProps {
   locked: boolean;
   showPrice: boolean;
   showDescription: boolean;
+  loadingProductId: string | null;
   onProductClick: (p: Product) => void;
   onDragStart: (e: React.DragEvent, productId: string, scope: string) => void;
   onDrop: (scope: string, x: number, y: number) => void;
   onResizeStart: (e: React.PointerEvent, productId: string, scope: string) => void;
 }
 
-function GridArea({ products, slots, scope, baseCols, editMode, locked, showPrice, showDescription, onProductClick, onDragStart, onDrop, onResizeStart }: GridAreaProps) {
+function GridArea({ products, slots, scope, baseCols, editMode, locked, showPrice, showDescription, loadingProductId, onProductClick, onDragStart, onDrop, onResizeStart }: GridAreaProps) {
   const slotMap = new Map(slots.map((s) => [s.productId, s]));
   const positioned = products.filter((p) => slotMap.has(p.id));
   const floating = products.filter((p) => !slotMap.has(p.id));
@@ -263,6 +278,7 @@ function GridArea({ products, slots, scope, baseCols, editMode, locked, showPric
           editMode={editMode}
           showPrice={showPrice}
           showDescription={showDescription}
+          loading={loadingProductId === p.id}
           onClick={() => onProductClick(p)}
           onDragStart={(e, id) => onDragStart(e, id, scope)}
           onResizeStart={onResizeStart}
@@ -281,6 +297,7 @@ function GridArea({ products, slots, scope, baseCols, editMode, locked, showPric
           editMode={editMode}
           showPrice={showPrice}
           showDescription={showDescription}
+          loading={loadingProductId === p.id}
           onClick={() => onProductClick(p)}
           onDragStart={(e, id) => onDragStart(e, id, scope)}
           onResizeStart={onResizeStart}
@@ -303,6 +320,9 @@ export function ProductGrid() {
   const location = useLocation();
 
   const { viewMode, showPrice, showDescription, sortBy, baseCols, editMode, layouts, loadLayout, saveLayout, updateSlot, setEditMode, applyServerPrefs } = useGridStore();
+
+  const [loadingProductId, setLoadingProductId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Drag state
   const dragProductIdRef = useRef<string | null>(null);
@@ -434,11 +454,16 @@ export function ProductGrid() {
   }
 
   async function handleProductClick(product: Product) {
-    if (!currentShift) return;
+    if (!currentShift || loadingProductId) return;
     let groups = optionGroupsByProduct[product.id];
     if (!groups) {
-      groups = await adminApi.optionGroups.list(product.id);
-      setOptionGroups(product.id, groups);
+      setLoadingProductId(product.id);
+      try {
+        groups = await adminApi.optionGroups.list(product.id);
+        setOptionGroups(product.id, groups);
+      } finally {
+        setLoadingProductId(null);
+      }
     }
     if (groups.length > 0) {
       setConfiguratorProduct(product);
@@ -449,7 +474,10 @@ export function ProductGrid() {
 
   // ── Compute products for each view ──────────────────────────────────────────
 
-  const activeProducts = products.filter((p) => p.active);
+  const searchLower = searchQuery.toLowerCase();
+  const activeProducts = products.filter((p) => p.active && (
+    !searchLower || p.name.toLowerCase().includes(searchLower)
+  ));
 
   function getProductsForCategory(catId: string) {
     return sortProducts(activeProducts.filter((p) => p.categoryId === catId), sortBy);
@@ -603,6 +631,24 @@ export function ProductGrid() {
         {/* Content area */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
+          {/* Search bar */}
+          {!editMode && (
+            <div style={{ padding: "8px 12px", flexShrink: 0, borderBottom: "1px solid var(--color-gray-100)" }}>
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cerca prodotto…"
+                style={{
+                  width: "100%", height: "36px", padding: "0 12px",
+                  borderRadius: "var(--radius-lg)", border: "1.5px solid var(--color-gray-200)",
+                  fontSize: "var(--text-sm)", fontFamily: "var(--font)", outline: "none",
+                  background: "var(--color-white)", color: "var(--color-gray-800)", boxSizing: "border-box",
+                }}
+              />
+            </div>
+          )}
+
           {/* Edit mode banner */}
           {editMode && (
             <div style={{
@@ -654,6 +700,7 @@ export function ProductGrid() {
                   onProductClick={(p) => void handleProductClick(p)}
                   onDragStart={handleDragStart}
                   onDrop={handleDrop}
+                  loadingProductId={loadingProductId}
                   onResizeStart={handleResizeStart}
                 />
               );
@@ -670,6 +717,7 @@ export function ProductGrid() {
                 locked={!currentShift}
                 showPrice={showPrice}
                 showDescription={showDescription}
+                loadingProductId={loadingProductId}
                 onProductClick={(p) => void handleProductClick(p)}
                 onDragStart={handleDragStart}
                 onDrop={handleDrop}
@@ -701,6 +749,7 @@ export function ProductGrid() {
                   onProductClick={(p) => void handleProductClick(p)}
                   onDragStart={handleDragStart}
                   onDrop={handleDrop}
+                  loadingProductId={loadingProductId}
                   onResizeStart={handleResizeStart}
                 />
               </div>
