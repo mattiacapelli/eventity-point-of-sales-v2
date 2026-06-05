@@ -12,11 +12,19 @@ export function TerminalSelectModal({ onSelected }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const { setTerminal } = useTerminalStore();
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const { setTerminal, clearTerminal } = useTerminalStore();
 
   useEffect(() => {
     adminApi.terminals.list()
-      .then((list) => setTerminals(list.filter((t) => t.active)))
+      .then((list) => {
+        const active = list.filter((t) => t.active);
+        setTerminals(active);
+        // If only one terminal exists, pre-select it
+        if (active.length === 1) setSelected(active[0]!.id);
+      })
       .catch(() => setTerminals([]))
       .finally(() => setLoading(false));
   }, []);
@@ -26,13 +34,33 @@ export function TerminalSelectModal({ onSelected }: Props) {
     const terminal = terminals.find((t) => t.id === selected);
     if (!terminal) return;
     setSaving(true);
-    try {
-      await adminApi.terminals.heartbeat(selected);
-    } catch {
-      // non-blocking
-    }
+    try { await adminApi.terminals.heartbeat(selected); } catch { /* non-blocking */ }
     setTerminal(terminal.id, terminal.name);
     setSaving(false);
+    onSelected();
+  }
+
+  async function handleCreate() {
+    const name = newName.trim();
+    if (!name) return;
+    setCreating(true);
+    try {
+      const terminal = await adminApi.terminals.create({ name });
+      setTerminals((prev) => [...prev, terminal]);
+      setSelected(terminal.id);
+      setShowCreate(false);
+      setNewName("");
+    } catch {
+      // ignore
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  function handleSkip() {
+    // Disable multi-terminal and proceed without selecting a terminal
+    adminApi.settings.update({ multiTerminalEnabled: false }).catch(() => {});
+    clearTerminal();
     onSelected();
   }
 
@@ -42,82 +70,174 @@ export function TerminalSelectModal({ onSelected }: Props) {
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 9999,
-      background: "rgba(0,0,0,0.6)",
+      background: "rgba(0,0,0,0.55)",
       display: "flex", alignItems: "center", justifyContent: "center",
     }}>
       <div style={{
-        background: "var(--color-surface)",
-        borderRadius: 12,
-        padding: "2rem",
-        minWidth: 340,
-        maxWidth: 480,
-        width: "90vw",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+        background: "var(--color-white)",
+        borderRadius: "var(--radius-xl)",
+        padding: "28px 28px 24px",
+        width: "min(420px, 90vw)",
+        boxShadow: "0 16px 48px rgba(0,0,0,0.22)",
       }}>
-        <h2 style={{ margin: "0 0 0.5rem", fontSize: "var(--text-xl)", color: "var(--color-text)" }}>
-          Seleziona terminale
-        </h2>
-        <p style={{ margin: "0 0 1.5rem", color: "var(--color-text-secondary)", fontSize: "var(--text-sm)" }}>
-          Scegli la cassa da cui stai operando.
-        </p>
+        {/* Header */}
+        <div style={{ marginBottom: "20px" }}>
+          <div style={{ fontSize: "var(--text-xl)", fontWeight: 800, color: "var(--color-gray-900)", marginBottom: "4px" }}>
+            Seleziona terminale
+          </div>
+          <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)" }}>
+            Scegli la cassa da cui stai operando.
+          </div>
+        </div>
 
+        {/* Content */}
         {loading ? (
-          <p style={{ color: "var(--color-text-secondary)" }}>Caricamento...</p>
-        ) : terminals.length === 0 ? (
-          <p style={{ color: "var(--color-text-secondary)" }}>
-            Nessun terminale attivo. Creane uno dalla sezione Admin → Terminali.
-          </p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.5rem" }}>
+          <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)", padding: "12px 0" }}>
+            Caricamento...
+          </div>
+        ) : terminals.length === 0 && !showCreate ? (
+          <div style={{
+            background: "#fef9ec",
+            border: "1px solid #fde68a",
+            borderRadius: "var(--radius-md)",
+            padding: "14px",
+            fontSize: "var(--text-sm)",
+            color: "#92400e",
+            marginBottom: "16px",
+            lineHeight: 1.5,
+          }}>
+            Nessun terminale configurato. Creane uno adesso oppure disabilita il multi-terminale per continuare.
+          </div>
+        ) : !showCreate ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
             {terminals.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setSelected(t.id)}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "0.75rem 1rem",
-                  borderRadius: 8,
-                  border: `2px solid ${selected === t.id ? "var(--color-accent)" : "var(--color-border)"}`,
-                  background: selected === t.id ? "var(--color-accent-muted, rgba(var(--accent-rgb),0.1))" : "var(--color-surface-raised)",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  width: "100%",
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "12px 14px",
+                  borderRadius: "var(--radius-md)",
+                  border: `2px solid ${selected === t.id ? "var(--color-brand)" : "var(--color-gray-200)"}`,
+                  background: selected === t.id ? "rgba(48,107,52,0.06)" : "var(--color-white)",
+                  cursor: "pointer", textAlign: "left", width: "100%",
+                  transition: "border-color 0.15s",
                 }}
               >
-                <span style={{ fontWeight: 600, color: "var(--color-text)", fontSize: "var(--text-md)" }}>
+                <span style={{ fontWeight: 700, color: "var(--color-gray-900)", fontSize: "var(--text-sm)" }}>
                   {t.name}
                 </span>
-                <span style={{
-                  fontSize: "var(--text-xs)",
-                  color: isOnline(t) ? "#22c55e" : "var(--color-text-secondary)",
-                  fontWeight: 500,
-                }}>
+                <span style={{ fontSize: "11px", color: isOnline(t) ? "#22c55e" : "var(--color-gray-400)", fontWeight: 600 }}>
                   {isOnline(t) ? "● online" : "○ offline"}
                 </span>
               </button>
             ))}
           </div>
+        ) : null}
+
+        {/* Inline create form */}
+        {showCreate && (
+          <div style={{ marginBottom: "16px" }}>
+            <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-700)", marginBottom: "8px" }}>
+              Nome del terminale
+            </div>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input
+                autoFocus
+                type="text"
+                placeholder="Es. Cassa 1"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void handleCreate(); }}
+                style={{
+                  flex: 1, height: "40px", padding: "0 12px",
+                  border: "1.5px solid var(--color-gray-200)",
+                  borderRadius: "var(--radius-md)",
+                  fontFamily: "var(--font)", fontSize: "var(--text-sm)",
+                  outline: "none",
+                }}
+              />
+              <button
+                onClick={() => void handleCreate()}
+                disabled={!newName.trim() || creating}
+                style={{
+                  padding: "0 16px", height: "40px",
+                  borderRadius: "var(--radius-md)", border: "none",
+                  background: newName.trim() ? "var(--color-brand)" : "var(--color-gray-200)",
+                  color: newName.trim() ? "white" : "var(--color-gray-400)",
+                  fontFamily: "var(--font)", fontWeight: 700, fontSize: "var(--text-sm)",
+                  cursor: newName.trim() ? "pointer" : "not-allowed",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {creating ? "..." : "Crea"}
+              </button>
+              <button
+                onClick={() => { setShowCreate(false); setNewName(""); }}
+                style={{
+                  padding: "0 12px", height: "40px",
+                  borderRadius: "var(--radius-md)",
+                  border: "1.5px solid var(--color-gray-200)",
+                  background: "white", color: "var(--color-gray-500)",
+                  fontFamily: "var(--font)", fontWeight: 600, fontSize: "var(--text-sm)",
+                  cursor: "pointer",
+                }}
+              >
+                Annulla
+              </button>
+            </div>
+          </div>
         )}
 
-        <button
-          onClick={handleConfirm}
-          disabled={!selected || saving}
-          style={{
-            width: "100%",
-            padding: "0.75rem",
-            borderRadius: 8,
-            border: "none",
-            background: selected ? "var(--color-accent)" : "var(--color-border)",
-            color: selected ? "#fff" : "var(--color-text-secondary)",
-            fontWeight: 700,
-            fontSize: "var(--text-md)",
-            cursor: selected ? "pointer" : "not-allowed",
-          }}
-        >
-          {saving ? "Salvataggio..." : "Usa questo terminale"}
-        </button>
+        {/* Actions */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {!showCreate && (
+            <button
+              onClick={() => void handleConfirm()}
+              disabled={!selected || saving}
+              style={{
+                width: "100%", padding: "12px",
+                borderRadius: "var(--radius-md)", border: "none",
+                background: selected ? "var(--color-brand)" : "var(--color-gray-200)",
+                color: selected ? "white" : "var(--color-gray-400)",
+                fontFamily: "var(--font)", fontWeight: 700, fontSize: "var(--text-md)",
+                cursor: selected ? "pointer" : "not-allowed",
+              }}
+            >
+              {saving ? "Salvataggio..." : "Usa questo terminale"}
+            </button>
+          )}
+
+          {!showCreate && (
+            <button
+              onClick={() => setShowCreate(true)}
+              style={{
+                width: "100%", padding: "10px",
+                borderRadius: "var(--radius-md)",
+                border: "1.5px solid var(--color-gray-200)",
+                background: "white", color: "var(--color-gray-600)",
+                fontFamily: "var(--font)", fontWeight: 600, fontSize: "var(--text-sm)",
+                cursor: "pointer",
+              }}
+            >
+              + Crea nuovo terminale
+            </button>
+          )}
+
+          <button
+            onClick={handleSkip}
+            style={{
+              width: "100%", padding: "8px",
+              borderRadius: "var(--radius-md)",
+              border: "none", background: "none",
+              color: "var(--color-gray-400)",
+              fontFamily: "var(--font)", fontWeight: 500, fontSize: "var(--text-xs)",
+              cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px",
+            }}
+          >
+            Disabilita multi-terminale e continua
+          </button>
+        </div>
       </div>
     </div>
   );
