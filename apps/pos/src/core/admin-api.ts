@@ -214,6 +214,9 @@ export const adminApi = {
       gridSortBy: "custom" | "name" | "price" | "color" | "category";
       gridBaseCols: number;
       multiTerminalEnabled: boolean;
+      cartNotesEnabled: boolean;
+      cartPaxEnabled: boolean;
+      cartDiscountEnabled: boolean;
     }>("GET", "/admin/settings"),
     update: (data: Partial<{
       expressMode: boolean;
@@ -226,6 +229,9 @@ export const adminApi = {
       gridSortBy: "custom" | "name" | "price" | "color" | "category";
       gridBaseCols: number;
       multiTerminalEnabled: boolean;
+      cartNotesEnabled: boolean;
+      cartPaxEnabled: boolean;
+      cartDiscountEnabled: boolean;
     }>) => req<{
       expressMode: boolean;
       receiptNumberMode: "default" | "global" | "shift";
@@ -237,6 +243,9 @@ export const adminApi = {
       gridSortBy: "custom" | "name" | "price" | "color" | "category";
       gridBaseCols: number;
       multiTerminalEnabled: boolean;
+      cartNotesEnabled: boolean;
+      cartPaxEnabled: boolean;
+      cartDiscountEnabled: boolean;
     }>("PATCH", "/admin/settings", data),
     resetReceiptCounter: (scope?: string, startFrom?: number) =>
       req<{ scope: string; lastValue: number }>("POST", "/admin/settings/reset-receipt-counter", { scope: scope ?? "global", startFrom: startFrom ?? 0 }),

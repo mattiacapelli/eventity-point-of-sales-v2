@@ -310,6 +310,9 @@ ALTER TABLE orders ADD COLUMN notes TEXT;
 ALTER TABLE orders ADD COLUMN discount_amount REAL NOT NULL DEFAULT 0;
 ALTER TABLE orders ADD COLUMN discount_type TEXT;
 ALTER TABLE orders ADD COLUMN pax INTEGER;
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('cart_notes_enabled','true');
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('cart_pax_enabled','true');
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('cart_discount_enabled','true');
 `;
 
 export function runMigrations(dbPath: string): void {

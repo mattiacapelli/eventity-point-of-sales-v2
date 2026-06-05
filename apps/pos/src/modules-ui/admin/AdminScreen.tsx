@@ -3080,6 +3080,10 @@ function AdvancedTab({ onModuleToggle }: { onModuleToggle?: () => void }) {
   const [savingExpress, setSavingExpress] = useState(false);
   const [multiTerminalEnabled, setMultiTerminalEnabled] = useState(false);
   const [savingMultiTerminal, setSavingMultiTerminal] = useState(false);
+  const [cartNotesEnabled, setCartNotesEnabled] = useState(true);
+  const [cartPaxEnabled, setCartPaxEnabled] = useState(true);
+  const [cartDiscountEnabled, setCartDiscountEnabled] = useState(true);
+  const [savingCartFeature, setSavingCartFeature] = useState<string | null>(null);
   const [modules, setModules] = useState<ModuleInfo[]>([]);
   const [loadingModules, setLoadingModules] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
@@ -3089,6 +3093,9 @@ function AdvancedTab({ onModuleToggle }: { onModuleToggle?: () => void }) {
     adminApi.settings.get().then((s) => {
       setExpressMode(s.expressMode);
       setMultiTerminalEnabled(s.multiTerminalEnabled);
+      setCartNotesEnabled(s.cartNotesEnabled);
+      setCartPaxEnabled(s.cartPaxEnabled);
+      setCartDiscountEnabled(s.cartDiscountEnabled);
     }).catch(() => {});
 
     adminApi.modules.list()
@@ -3190,6 +3197,39 @@ function AdvancedTab({ onModuleToggle }: { onModuleToggle?: () => void }) {
           >
             <span style={thumbStyle(multiTerminalEnabled)} />
           </button>
+        </div>
+      </div>
+
+      {/* Cart features */}
+      <div style={cardStyle}>
+        <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-900)", marginBottom: "16px" }}>Funzionalità cassa</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {(
+            [
+              { key: "cartNotesEnabled", label: "Note ordine", desc: "Campo note libere sulla comanda (allergie, preferenze, ecc.)", value: cartNotesEnabled, set: setCartNotesEnabled },
+              { key: "cartPaxEnabled", label: "Coperti", desc: "Stepper per il numero di coperti associato all'ordine", value: cartPaxEnabled, set: setCartPaxEnabled },
+              { key: "cartDiscountEnabled", label: "Sconto", desc: "Applica uno sconto percentuale o fisso all'ordine", value: cartDiscountEnabled, set: setCartDiscountEnabled },
+            ] as const
+          ).map(({ key, label, desc, value, set }) => (
+            <div key={key} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--sp-md)" }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)", marginBottom: "3px" }}>{label}</div>
+                <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", lineHeight: 1.5 }}>{desc}</div>
+              </div>
+              <button
+                disabled={savingCartFeature === key}
+                onClick={async () => {
+                  const next = !value;
+                  setSavingCartFeature(key);
+                  try { await adminApi.settings.update({ [key]: next } as Parameters<typeof adminApi.settings.update>[0]); set(next); }
+                  catch { /* ignore */ } finally { setSavingCartFeature(null); }
+                }}
+                style={toggleStyle(value, savingCartFeature === key)}
+              >
+                <span style={thumbStyle(value)} />
+              </button>
+            </div>
+          ))}
         </div>
       </div>
 

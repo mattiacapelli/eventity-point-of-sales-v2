@@ -6,6 +6,7 @@ import { requireRole, AuthError } from "@pos/core";
 const RECEIPT_NUM_KEYS = ["receipt_number_mode", "receipt_number_prefix", "receipt_number_padding"] as const;
 const GRID_KEYS = ["grid_view_mode", "grid_show_price", "grid_show_description", "grid_sort_by", "grid_base_cols"] as const;
 const TERMINAL_KEYS = ["multi_terminal_enabled"] as const;
+const CART_KEYS = ["cart_notes_enabled", "cart_pax_enabled", "cart_discount_enabled"] as const;
 
 const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("onRequest", async (request, reply) => {
@@ -25,7 +26,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["admin"], summary: "Get app settings" },
   }, async (_request, reply) => {
     const db = fastify.ctx.db;
-    const keys = ["express_mode", ...RECEIPT_NUM_KEYS, ...GRID_KEYS, ...TERMINAL_KEYS];
+    const keys = ["express_mode", ...RECEIPT_NUM_KEYS, ...GRID_KEYS, ...TERMINAL_KEYS, ...CART_KEYS];
     const rows = await db.select().from(appSettings).where(inArray(appSettings.key, keys));
     const m = Object.fromEntries(rows.map((r) => [r.key, r.value]));
 
@@ -40,6 +41,9 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       gridSortBy: (m["grid_sort_by"] ?? "custom") as "custom" | "name" | "price" | "color" | "category",
       gridBaseCols: parseInt(m["grid_base_cols"] ?? "5", 10),
       multiTerminalEnabled: m["multi_terminal_enabled"] === "true",
+      cartNotesEnabled: m["cart_notes_enabled"] !== "false",
+      cartPaxEnabled: m["cart_pax_enabled"] !== "false",
+      cartDiscountEnabled: m["cart_discount_enabled"] !== "false",
     });
   });
 
@@ -58,6 +62,9 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       gridSortBy: "custom" | "name" | "price" | "color" | "category";
       gridBaseCols: number;
       multiTerminalEnabled: boolean;
+      cartNotesEnabled: boolean;
+      cartPaxEnabled: boolean;
+      cartDiscountEnabled: boolean;
     }>;
     const db = fastify.ctx.db;
 
@@ -72,13 +79,16 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.gridSortBy !== undefined) upserts.push({ key: "grid_sort_by", value: body.gridSortBy });
     if (body.gridBaseCols !== undefined) upserts.push({ key: "grid_base_cols", value: String(body.gridBaseCols) });
     if (body.multiTerminalEnabled !== undefined) upserts.push({ key: "multi_terminal_enabled", value: String(body.multiTerminalEnabled) });
+    if (body.cartNotesEnabled !== undefined) upserts.push({ key: "cart_notes_enabled", value: String(body.cartNotesEnabled) });
+    if (body.cartPaxEnabled !== undefined) upserts.push({ key: "cart_pax_enabled", value: String(body.cartPaxEnabled) });
+    if (body.cartDiscountEnabled !== undefined) upserts.push({ key: "cart_discount_enabled", value: String(body.cartDiscountEnabled) });
 
     for (const { key, value } of upserts) {
       await db.insert(appSettings).values({ key, value }).onConflictDoUpdate({ target: appSettings.key, set: { value } });
     }
 
     // Re-read and return current state
-    const keys = ["express_mode", ...RECEIPT_NUM_KEYS, ...GRID_KEYS, ...TERMINAL_KEYS];
+    const keys = ["express_mode", ...RECEIPT_NUM_KEYS, ...GRID_KEYS, ...TERMINAL_KEYS, ...CART_KEYS];
     const rows = await db.select().from(appSettings).where(inArray(appSettings.key, keys));
     const m = Object.fromEntries(rows.map((r) => [r.key, r.value]));
 
@@ -93,6 +103,9 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       gridSortBy: (m["grid_sort_by"] ?? "custom") as "custom" | "name" | "price" | "color" | "category",
       gridBaseCols: parseInt(m["grid_base_cols"] ?? "5", 10),
       multiTerminalEnabled: m["multi_terminal_enabled"] === "true",
+      cartNotesEnabled: m["cart_notes_enabled"] !== "false",
+      cartPaxEnabled: m["cart_pax_enabled"] !== "false",
+      cartDiscountEnabled: m["cart_discount_enabled"] !== "false",
     });
   });
 
