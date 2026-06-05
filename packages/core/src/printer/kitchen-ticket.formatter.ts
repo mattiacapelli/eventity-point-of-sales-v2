@@ -19,6 +19,8 @@ export interface KitchenTicketData {
   tableId?: string | null;
   centerName: string;
   timestamp: Date;
+  orderNotes?: string | null;
+  pax?: number | null;
   items: KitchenTicketItem[];
 }
 
@@ -48,8 +50,15 @@ export function formatKitchenTicket(data: KitchenTicketData, width = DEFAULT_WID
   if (data.tableId) {
     lines.push(center(`Tavolo ${data.tableId}`, width));
   }
+  if (data.pax) {
+    lines.push(center(`Coperti: ${data.pax}`, width));
+  }
   lines.push(center(data.timestamp.toLocaleString("it-IT"), width));
   lines.push(divider(width));
+  if (data.orderNotes) {
+    lines.push(`NOTE: ${data.orderNotes}`);
+    lines.push(divider(width));
+  }
   lines.push("");
 
   for (const item of data.items) {

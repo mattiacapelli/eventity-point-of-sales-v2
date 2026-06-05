@@ -21,6 +21,10 @@ type DbOrderRow = {
   shiftId: string | null;
   status: string;
   totalAmount: number;
+  discountAmount: number;
+  discountType: string | null;
+  notes: string | null;
+  pax: number | null;
   receiptNumber: number | null;
   createdAt: Date;
   updatedAt: Date;
@@ -44,6 +48,10 @@ type JoinRow = {
   shiftId: string | null;
   status: string;
   totalAmount: number;
+  discountAmount: number;
+  discountType: string | null;
+  orderNotes: string | null;
+  pax: number | null;
   receiptNumber: number | null;
   createdAt: Date;
   updatedAt: Date;
@@ -76,23 +84,27 @@ export class OrderRepository {
     const rows = await this.db
       .select({
         // order columns
-        orderId:       orders.id,
-        tableId:       orders.tableId,
-        eventId:       orders.eventId,
-        shiftId:       orders.shiftId,
-        status:        orders.status,
-        totalAmount:   orders.totalAmount,
-        receiptNumber: orders.receiptNumber,
-        createdAt:     orders.createdAt,
-        updatedAt:     orders.updatedAt,
-        syncedAt:      orders.syncedAt,
+        orderId:        orders.id,
+        tableId:        orders.tableId,
+        eventId:        orders.eventId,
+        shiftId:        orders.shiftId,
+        status:         orders.status,
+        totalAmount:    orders.totalAmount,
+        discountAmount: orders.discountAmount,
+        discountType:   orders.discountType,
+        orderNotes:     orders.notes,
+        pax:            orders.pax,
+        receiptNumber:  orders.receiptNumber,
+        createdAt:      orders.createdAt,
+        updatedAt:      orders.updatedAt,
+        syncedAt:       orders.syncedAt,
         // item columns (null when no items)
-        itemId:        orderItems.id,
-        productId:     orderItems.productId,
-        itemName:      orderItems.name,
-        quantity:      orderItems.quantity,
-        unitPrice:     orderItems.unitPrice,
-        notes:         orderItems.notes,
+        itemId:         orderItems.id,
+        productId:      orderItems.productId,
+        itemName:       orderItems.name,
+        quantity:       orderItems.quantity,
+        unitPrice:      orderItems.unitPrice,
+        notes:          orderItems.notes,
       })
       .from(orders)
       .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
@@ -126,22 +138,26 @@ export class OrderRepository {
 
     const rows = await this.db
       .select({
-        orderId:       orders.id,
-        tableId:       orders.tableId,
-        eventId:       orders.eventId,
-        shiftId:       orders.shiftId,
-        status:        orders.status,
-        totalAmount:   orders.totalAmount,
-        receiptNumber: orders.receiptNumber,
-        createdAt:     orders.createdAt,
-        updatedAt:     orders.updatedAt,
-        syncedAt:      orders.syncedAt,
-        itemId:        orderItems.id,
-        productId:     orderItems.productId,
-        itemName:      orderItems.name,
-        quantity:      orderItems.quantity,
-        unitPrice:     orderItems.unitPrice,
-        notes:         orderItems.notes,
+        orderId:        orders.id,
+        tableId:        orders.tableId,
+        eventId:        orders.eventId,
+        shiftId:        orders.shiftId,
+        status:         orders.status,
+        totalAmount:    orders.totalAmount,
+        discountAmount: orders.discountAmount,
+        discountType:   orders.discountType,
+        orderNotes:     orders.notes,
+        pax:            orders.pax,
+        receiptNumber:  orders.receiptNumber,
+        createdAt:      orders.createdAt,
+        updatedAt:      orders.updatedAt,
+        syncedAt:       orders.syncedAt,
+        itemId:         orderItems.id,
+        productId:      orderItems.productId,
+        itemName:       orderItems.name,
+        quantity:       orderItems.quantity,
+        unitPrice:      orderItems.unitPrice,
+        notes:          orderItems.notes,
       })
       .from(orders)
       .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
@@ -192,10 +208,12 @@ export class OrderRepository {
       };
     });
 
-    const totalAmount = itemsWithIds.reduce(
+    const subtotal = itemsWithIds.reduce(
       (sum, item) => sum + item.unitPrice * item.quantity,
       0
     );
+    const discountAmount = Math.min(input.discountAmount ?? 0, subtotal);
+    const totalAmount = subtotal - discountAmount;
 
     const mode = await this._getAppSetting("receipt_number_mode") ?? "default";
     let receiptNumber: number | null = null;
@@ -212,6 +230,10 @@ export class OrderRepository {
       shiftId: input.shiftId ?? null,
       status: "pending",
       totalAmount,
+      discountAmount,
+      discountType: input.discountType ?? null,
+      notes: input.notes ?? null,
+      pax: input.pax ?? null,
       receiptNumber,
       createdAt: now,
       updatedAt: now,
@@ -263,6 +285,10 @@ export class OrderRepository {
         shiftId: input.shiftId ?? null,
         status: "pending",
         totalAmount,
+        discountAmount,
+        discountType: input.discountType ?? null,
+        notes: input.notes ?? null,
+        pax: input.pax ?? null,
         receiptNumber,
         createdAt: now,
         updatedAt: now,
@@ -329,6 +355,10 @@ export class OrderRepository {
           shiftId: row.shiftId,
           status: row.status,
           totalAmount: row.totalAmount,
+          discountAmount: row.discountAmount,
+          discountType: row.discountType,
+          notes: row.orderNotes,
+          pax: row.pax,
           receiptNumber: row.receiptNumber,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
@@ -345,6 +375,7 @@ export class OrderRepository {
       id: row.id,
       status: row.status as OrderStatus,
       totalAmount: row.totalAmount,
+      discountAmount: row.discountAmount,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       items: items.map((i): OrderItem => {
@@ -363,6 +394,9 @@ export class OrderRepository {
       ...(row.tableId !== null ? { tableId: row.tableId } : {}),
       ...(row.eventId !== null ? { eventId: row.eventId } : {}),
       ...(row.shiftId !== null ? { shiftId: row.shiftId } : {}),
+      ...(row.discountType !== null ? { discountType: row.discountType } : {}),
+      ...(row.notes !== null ? { notes: row.notes } : {}),
+      ...(row.pax !== null ? { pax: row.pax } : {}),
       ...(row.receiptNumber !== null ? { receiptNumber: row.receiptNumber } : {}),
       ...(row.syncedAt !== null ? { syncedAt: row.syncedAt } : {}),
     };

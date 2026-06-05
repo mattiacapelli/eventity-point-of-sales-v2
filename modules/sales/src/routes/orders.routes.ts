@@ -28,6 +28,10 @@ const orderSchema = {
     eventId: { type: "string", nullable: true },
     status: { type: "string" },
     totalAmount: { type: "number" },
+    discountAmount: { type: "number" },
+    discountType: { type: "string", nullable: true },
+    notes: { type: "string", nullable: true },
+    pax: { type: "integer", nullable: true },
     createdAt: { type: "string" },
     updatedAt: { type: "string" },
     items: { type: "array", items: orderItemSchema },
@@ -101,10 +105,14 @@ export function registerOrderRoutes(
         type: "object",
         required: ["items"],
         properties: {
-          tableId: { type: "string" },
-          eventId: { type: "string" },
-          shiftId: { type: "string" },
-          items: { type: "array", items: orderItemSchema, minItems: 1 },
+          tableId:        { type: "string" },
+          eventId:        { type: "string" },
+          shiftId:        { type: "string" },
+          notes:          { type: "string" },
+          discountAmount: { type: "number", minimum: 0 },
+          discountType:   { type: "string" },
+          pax:            { type: "integer", minimum: 1 },
+          items:          { type: "array", items: orderItemSchema, minItems: 1 },
         },
       },
       response: {
@@ -403,7 +411,7 @@ export function registerOrderRoutes(
               continue;
             }
           }
-          const content = formatKitchenTicket({ orderId: id, receiptDisplay, tableId, centerName, timestamp: now, items: ticketItems });
+          const content = formatKitchenTicket({ orderId: id, receiptDisplay, tableId, centerName, timestamp: now, orderNotes: orderRow.notes, pax: orderRow.pax, items: ticketItems });
           await printerService.printDirect({ printerId: printer.id, content, type: "kitchen", printerConfig });
         } catch (err) {
           logger.error({ err, printerId: printer.id, orderId: id }, "Reprint kitchen ticket failed");

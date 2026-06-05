@@ -306,6 +306,10 @@ ALTER TABLE receipt_templates ADD COLUMN role TEXT NOT NULL DEFAULT 'master';
 ALTER TABLE payments ADD COLUMN terminal_id TEXT REFERENCES terminals(id);
 INSERT OR IGNORE INTO app_settings(key,value) VALUES('multi_terminal_enabled','false');
 CREATE UNIQUE INDEX IF NOT EXISTS printers_host_port_uniq ON printers(host, port) WHERE host IS NOT NULL AND port IS NOT NULL;
+ALTER TABLE orders ADD COLUMN notes TEXT;
+ALTER TABLE orders ADD COLUMN discount_amount REAL NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN discount_type TEXT;
+ALTER TABLE orders ADD COLUMN pax INTEGER;
 `;
 
 export function runMigrations(dbPath: string): void {

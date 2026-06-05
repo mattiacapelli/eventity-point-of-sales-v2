@@ -56,6 +56,7 @@ export class KitchenRepository {
       id: row.id,
       status: row.status as OrderStatus,
       totalAmount: row.totalAmount,
+      discountAmount: (row as unknown as { discountAmount?: number }).discountAmount ?? 0,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       items: (items as unknown as DbItemRow[]).map((i): OrderItem => ({

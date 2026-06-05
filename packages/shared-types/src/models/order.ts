@@ -30,6 +30,10 @@ export interface Order {
   readonly status: OrderStatus;
   readonly items: ReadonlyArray<OrderItem>;
   readonly totalAmount: number;
+  readonly discountAmount: number;
+  readonly discountType?: string;
+  readonly notes?: string;
+  readonly pax?: number;
   readonly receiptNumber?: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -58,6 +62,10 @@ export interface CreateOrderInput {
   readonly tableId?: string;
   readonly eventId?: string;
   readonly shiftId?: string;
+  readonly notes?: string;
+  readonly discountAmount?: number;
+  readonly discountType?: string;
+  readonly pax?: number;
   readonly items: ReadonlyArray<CreateOrderItemInput>;
 }
 

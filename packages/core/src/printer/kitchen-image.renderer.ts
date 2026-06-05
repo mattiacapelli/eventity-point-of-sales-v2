@@ -18,6 +18,8 @@ export interface KitchenRenderData {
   orderId: string;
   receiptDisplay?: string | undefined;
   tableId?: string | null;
+  orderNotes?: string | null;
+  pax?: number | null;
   timestamp: Date;
   items: KitchenRenderItem[];
 }

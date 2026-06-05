@@ -29,10 +29,18 @@ interface PayModalProps {
   onPaid: () => void;
 }
 
+const BANKNOTES = [5, 10, 20, 50, 100];
+
 function PayModal({ order, onClose, onPaid }: PayModalProps) {
   const [method, setMethod] = useState<PaymentMethod>("cash");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [received, setReceived] = useState<string>("");
+
+  const receivedNum = parseFloat(received) || 0;
+  const change = method === "cash" && receivedNum >= order.totalAmount
+    ? receivedNum - order.totalAmount
+    : null;
 
   const handlePay = async () => {
     setLoading(true);
@@ -52,7 +60,7 @@ function PayModal({ order, onClose, onPaid }: PayModalProps) {
   };
 
   return (
-    <Modal open onClose={onClose} title="Conferma pagamento" width="400px">
+    <Modal open onClose={onClose} title="Conferma pagamento" width="420px">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
         {/* Order summary */}
         <div
@@ -130,6 +138,79 @@ function PayModal({ order, onClose, onPaid }: PayModalProps) {
             ))}
           </div>
         </div>
+
+        {/* Cash section */}
+        {method === "cash" && (
+          <div>
+            <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)" }}>
+              Importo ricevuto
+            </div>
+            {/* Banknote presets */}
+            <div style={{ display: "flex", gap: "6px", marginBottom: "8px", flexWrap: "wrap" }}>
+              {BANKNOTES.map((note) => (
+                <button
+                  key={note}
+                  onClick={() => setReceived(String(note))}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "var(--radius-md)",
+                    border: `1.5px solid ${receivedNum === note ? "var(--color-brand)" : "var(--color-gray-300)"}`,
+                    background: receivedNum === note ? "rgba(48,107,52,0.08)" : "var(--color-white)",
+                    fontFamily: "var(--font)",
+                    fontSize: "var(--text-sm)",
+                    fontWeight: 600,
+                    color: receivedNum === note ? "var(--color-brand)" : "var(--color-gray-700)",
+                    cursor: "pointer",
+                  }}
+                >
+                  €{note}
+                </button>
+              ))}
+            </div>
+            {/* Free input */}
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={received}
+              onChange={(e) => setReceived(e.target.value)}
+              placeholder={`Es. ${order.totalAmount.toFixed(2)}`}
+              style={{
+                width: "100%",
+                height: "44px",
+                padding: "0 12px",
+                borderRadius: "var(--radius-md)",
+                border: "2px solid var(--color-gray-200)",
+                fontFamily: "var(--font)",
+                fontSize: "var(--text-md)",
+                fontWeight: 600,
+                boxSizing: "border-box",
+              }}
+            />
+            {/* Change display */}
+            {change !== null && (
+              <div style={{
+                marginTop: "10px",
+                padding: "10px 14px",
+                borderRadius: "var(--radius-md)",
+                background: "rgba(34,197,94,0.12)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}>
+                <span style={{ fontWeight: 600, color: "#166534" }}>Resto</span>
+                <span style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "#166534" }}>
+                  {formatEur(change)}
+                </span>
+              </div>
+            )}
+            {received && receivedNum < order.totalAmount && (
+              <div style={{ marginTop: "6px", fontSize: "var(--text-xs)", color: "var(--color-danger)", fontWeight: 500 }}>
+                Importo insufficiente (mancano {formatEur(order.totalAmount - receivedNum)})
+              </div>
+            )}
+          </div>
+        )}
 
         {error && (
           <div

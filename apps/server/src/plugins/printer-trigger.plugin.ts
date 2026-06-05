@@ -47,12 +47,14 @@ async function _printKitchenTickets(
 ): Promise<void> {
   if (items.length === 0) return;
 
-  // Load tableId for this order
-  const [orderRow] = await db.select({ tableId: orders.tableId })
+  // Load order-level metadata
+  const [orderRow] = await db.select({ tableId: orders.tableId, notes: orders.notes, pax: orders.pax })
     .from(orders)
     .where(eq(orders.id, orderId))
     .limit(1);
   const tableId = orderRow?.tableId ?? null;
+  const orderNotes = orderRow?.notes ?? null;
+  const pax = orderRow?.pax ?? null;
 
   // Load all options for these order items
   const itemIds = items.map((i) => i.id);
@@ -182,6 +184,8 @@ async function _printKitchenTickets(
                 orderId,
                 receiptDisplay,
                 tableId,
+                orderNotes,
+                pax,
                 timestamp: now,
                 items: ticketItems,
               });
@@ -204,6 +208,8 @@ async function _printKitchenTickets(
           orderId,
           ...(receiptDisplay !== undefined ? { receiptDisplay } : {}),
           ...(tableId ? { tableId } : {}),
+          ...(orderNotes ? { orderNotes } : {}),
+          ...(pax ? { pax } : {}),
           centerName,
           timestamp: now,
           items: ticketItems,

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import type { Order } from "@pos/shared-types";
 import { KitchenLayout } from "../../layout/KitchenLayout.js";
 import { KitchenOrderCard } from "./KitchenOrderCard.js";
@@ -8,10 +8,39 @@ import { useStore } from "../../state/global-store.js";
 
 const KITCHEN_STATUSES = ["pending", "confirmed", "preparing", "ready"];
 
+function playBeep() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.4, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.25);
+    osc.onended = () => { void ctx.close(); };
+  } catch {
+    // AudioContext not available (e.g. during SSR/test)
+  }
+}
+
 export function KitchenScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [muted, setMuted] = useState(() => localStorage.getItem("kitchen_mute") === "true");
+  const mutedRef = useRef(muted);
   const upsertOrder = useStore((s) => s.upsertOrder);
+
+  function toggleMute() {
+    setMuted((prev) => {
+      const next = !prev;
+      mutedRef.current = next;
+      localStorage.setItem("kitchen_mute", String(next));
+      return next;
+    });
+  }
 
   const loadQueue = useCallback(async () => {
     try {
@@ -37,6 +66,7 @@ export function KitchenScreen() {
           if (prev.some((o) => o.id === payload.order.id)) return prev;
           return [payload.order, ...prev];
         });
+        if (!mutedRef.current) playBeep();
       }
     });
 
@@ -74,6 +104,31 @@ export function KitchenScreen() {
 
   return (
     <KitchenLayout>
+      {/* Mute toggle — fixed top-right */}
+      <button
+        onClick={toggleMute}
+        title={muted ? "Attiva suoni" : "Silenzia"}
+        style={{
+          position: "fixed",
+          top: "12px",
+          right: "12px",
+          zIndex: 300,
+          width: "40px",
+          height: "40px",
+          borderRadius: "50%",
+          border: "2px solid var(--color-gray-300)",
+          background: muted ? "#fef2f2" : "var(--color-white)",
+          cursor: "pointer",
+          fontSize: "18px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
+        }}
+      >
+        {muted ? "🔇" : "🔔"}
+      </button>
+
       {loading ? (
         <div
           style={{
