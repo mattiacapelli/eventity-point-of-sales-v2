@@ -68,14 +68,23 @@ function AppInner() {
       .finally(() => setBooted(true));
   }, []);
 
-  // Load settings to check multiTerminalEnabled; reset dismiss on login
+  // Load settings + validate stored terminalId still exists on the server
   useEffect(() => {
-    if (session) {
-      setTerminalModalDismissed(false);
-      adminApi.settings.get()
-        .then((s) => setMultiTerminalEnabled(s.multiTerminalEnabled))
-        .catch(() => {});
-    }
+    if (!session) return;
+    setTerminalModalDismissed(false);
+    const { terminalId: storedId, clearTerminal } = useTerminalStore.getState();
+    adminApi.settings.get()
+      .then((s) => {
+        setMultiTerminalEnabled(s.multiTerminalEnabled);
+        if (s.multiTerminalEnabled && storedId) {
+          // Validate the stored terminal still exists
+          return adminApi.terminals.list().then((list) => {
+            const still = list.find((t) => t.id === storedId && t.active);
+            if (!still) clearTerminal();
+          });
+        }
+      })
+      .catch(() => {});
   }, [session?.userId]);
 
   // Periodic heartbeat so this terminal stays "online" in the list
