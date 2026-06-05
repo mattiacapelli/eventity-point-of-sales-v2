@@ -68,7 +68,7 @@ function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
         style={{
           position: "fixed",
           bottom: "76px",
-          left: "16px",
+          left: "12px",
           zIndex: 200,
           width: "220px",
           background: "var(--color-surface, var(--color-white, #fff))",
@@ -130,7 +130,7 @@ export function NavMenuFab() {
         style={{
           position: "fixed",
           bottom: "20px",
-          left: "16px",
+          left: "12px",
           zIndex: 201,
           width: "48px",
           height: "48px",
