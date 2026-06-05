@@ -30,6 +30,7 @@ import type { ModuleInfo, InventoryItemRecord, InventoryMovementRecord, ProductI
 import { apiClient } from "../../core/api-client.js";
 import type { ZReport } from "../../core/api-client.js";
 import { BackupTab } from "./BackupTab.js";
+import { NavMenuFab } from "../../components/NavMenu.js";
 
 // ─── Tab types ───────────────────────────────────────────────────────────────
 
@@ -4391,6 +4392,8 @@ export function AdminScreen() {
           </div>
         )}
       </div>
+
+      <NavMenuFab />
     </div>
   );
 }

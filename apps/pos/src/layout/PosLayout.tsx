@@ -3,6 +3,7 @@ import { useStore } from "../state/global-store.js";
 import { useShiftStore } from "../state/shift-store.js";
 import { authClient } from "../core/auth-client.js";
 import { ArrowRightOnRectangleIcon, ClockIcon, WifiIcon, SignalSlashIcon } from "../components/ui/icons.js";
+import { NavMenuFab } from "../components/NavMenu.js";
 
 interface PosLayoutProps {
   children: React.ReactNode;
@@ -148,6 +149,8 @@ export function PosLayout({ children }: PosLayoutProps) {
       <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
         {children}
       </div>
+
+      <NavMenuFab />
     </div>
   );
 }
