@@ -159,10 +159,16 @@ const kitchenTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
     const data = await request.file();
     if (!data) return reply.status(400).send({ error: "No file uploaded" });
 
+    const MIME_TO_EXT: Record<string, string> = {
+      "image/png": ".png", "image/jpeg": ".jpg", "image/jpg": ".jpg",
+      "image/webp": ".webp", "image/gif": ".gif",
+    };
+    const ext = MIME_TO_EXT[data.mimetype];
+    if (!ext) return reply.status(400).send({ error: "Only PNG/JPG/WEBP/GIF allowed" });
+
     const LOGOS_DIR = resolve(kitchenLogosDir(fastify.ctx.config.dataDir));
     ensureDir(LOGOS_DIR);
-    const ext = data.filename.split(".").pop() ?? "png";
-    const filename = `${id}.${ext}`;
+    const filename = `${id}${ext}`;
     const relPath = `logos/kitchen/${filename}`;
     const absPath = join(LOGOS_DIR, filename);
     const buffer = await data.toBuffer();

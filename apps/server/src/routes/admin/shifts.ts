@@ -1,7 +1,7 @@
 import "@fastify/swagger";
 import type { FastifyPluginAsync } from "fastify";
-import { eq, desc, and, isNull } from "@pos/db";
-import { shifts } from "@pos/db";
+import { eq, desc, and, isNull, count, inArray } from "@pos/db";
+import { shifts, orders } from "@pos/db";
 import { randomUUID } from "node:crypto";
 import { requireRole, AuthError } from "@pos/core";
 
@@ -75,14 +75,27 @@ const shiftsRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["shifts"], summary: "Close a shift" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as {
+    const { force, ...bodyRest } = request.body as {
       closingCash?: number;
       notes?: string;
+      force?: boolean;
     };
+    const body = bodyRest;
 
     const [existing] = await fastify.ctx.db.select().from(shifts).where(eq(shifts.id, id));
     if (!existing) return reply.status(404).send({ error: "Not found" });
     if (existing.closedAt !== null) return reply.status(409).send({ error: "Shift already closed" });
+
+    if (!force) {
+      const countRows = await fastify.ctx.db
+        .select({ pendingCount: count() })
+        .from(orders)
+        .where(and(eq(orders.shiftId, id), inArray(orders.status, ["pending", "preparing"])));
+      const pendingCount = countRows[0]?.pendingCount ?? 0;
+      if (pendingCount > 0) {
+        return reply.status(409).send({ error: `Ci sono ${pendingCount} ordini ancora attivi. Usa force=true per forzare la chiusura.`, pendingCount });
+      }
+    }
 
     await fastify.ctx.db.update(shifts).set({
       closedAt:    Date.now(),

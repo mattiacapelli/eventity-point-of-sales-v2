@@ -1,6 +1,6 @@
 import "@fastify/swagger";
 import type { FastifyPluginAsync } from "fastify";
-import { eq, asc } from "@pos/db";
+import { eq, asc, and, like } from "@pos/db";
 import { products, categories } from "@pos/db";
 import { randomUUID } from "node:crypto";
 import { requireRole, AuthError } from "@pos/core";
@@ -54,21 +54,18 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       search?: string;
     };
 
-    let query = fastify.ctx.db
+    const conditions = [];
+    if (categoryId) conditions.push(eq(products.categoryId, categoryId));
+    if (active !== undefined) conditions.push(eq(products.active, active === "true"));
+    if (search) conditions.push(like(products.name, `%${search}%`));
+
+    const rows = await fastify.ctx.db
       .select(PRODUCT_SELECT)
       .from(products)
       .leftJoin(categories, eq(products.categoryId, categories.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(asc(products.sortOrder), asc(products.name));
 
-    // Apply filters via where chaining isn't easily composable in drizzle without and()
-    // So we fetch all and filter in JS — acceptable for the small datasets at play
-    let rows = await query;
-    if (categoryId) rows = rows.filter((r) => r.categoryId === categoryId);
-    if (active !== undefined) rows = rows.filter((r) => r.active === (active === "true"));
-    if (search) {
-      const q = search.toLowerCase();
-      rows = rows.filter((r) => r.name.toLowerCase().includes(q));
-    }
     return reply.send(rows);
   });
 
@@ -181,6 +178,11 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["products"], summary: "Delete a product" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const [existing] = await fastify.ctx.db.select({ imageData: products.imageData }).from(products).where(eq(products.id, id));
+    if (existing?.imageData) {
+      const absPath = resolve(join(fastify.ctx.config.dataDir, existing.imageData));
+      if (existsSync(absPath)) { try { unlinkSync(absPath); } catch { /* ok */ } }
+    }
     await fastify.ctx.db.delete(products).where(eq(products.id, id));
     return reply.status(204).send();
   });
@@ -197,16 +199,20 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     const data = await request.file();
     if (!data) return reply.status(400).send({ error: "No file uploaded" });
 
-    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"];
-    if (!allowed.includes(data.mimetype)) {
+    const MIME_TO_EXT: Record<string, string> = {
+      "image/png": ".png", "image/jpeg": ".jpg", "image/jpg": ".jpg",
+      "image/webp": ".webp", "image/gif": ".gif",
+    };
+    const ext = MIME_TO_EXT[data.mimetype];
+    if (!ext) {
       return reply.status(400).send({ error: "Only PNG/JPG/WEBP/GIF allowed" });
     }
 
-    const ext = extname(data.filename).toLowerCase() || ".png";
     const IMAGES_DIR = resolve(productImagesDir(fastify.ctx.config.dataDir));
     ensureDir(IMAGES_DIR);
-    const relPath = `images/products/${id}${ext}`;
-    const absPath = join(IMAGES_DIR, `${id}${ext}`);
+    const safeFilename = `${id}${ext}`;
+    const relPath = `images/products/${safeFilename}`;
+    const absPath = join(IMAGES_DIR, safeFilename);
 
     // Remove old image files for this product (different extension)
     for (const oldExt of IMAGE_EXTS) {

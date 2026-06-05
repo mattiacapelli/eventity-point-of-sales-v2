@@ -1133,15 +1133,19 @@ function CategoriesTab() {
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [addedName, setAddedName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleAdd() {
     if (!newName.trim()) return;
     setAdding(true);
+    const name = newName.trim();
     try {
-      const created = await adminApi.categories.create({ name: newName.trim() });
+      const created = await adminApi.categories.create({ name });
       upsertCategory(created);
       setNewName("");
+      setAddedName(name);
+      setTimeout(() => setAddedName(null), 3000);
     } finally {
       setAdding(false);
     }
@@ -1210,6 +1214,20 @@ function CategoriesTab() {
           Aggiungi
         </Button>
       </div>
+
+      {addedName && (
+        <div style={{
+          marginBottom: "var(--sp-md)",
+          padding: "10px 16px",
+          borderRadius: "var(--radius-lg)",
+          background: "#d1fae5",
+          color: "#065f46",
+          fontSize: "var(--text-sm)",
+          fontWeight: 600,
+        }}>
+          Categoria &quot;{addedName}&quot; aggiunta.
+        </div>
+      )}
 
       {/* List */}
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -2006,7 +2024,10 @@ function PrintersTab() {
       setTestResult((prev) => ({ ...prev, [id]: result.message }));
     } catch (e) {
       setTestResult((prev) => ({ ...prev, [id]: e instanceof Error ? e.message : "Errore" }));
-    } finally { setTestingId(null); }
+    } finally {
+      setTestingId(null);
+      setTimeout(() => setTestResult((prev) => { const n = { ...prev }; delete n[id]; return n; }), 5000);
+    }
   }
 
   return (
@@ -3266,7 +3287,7 @@ function ReceiptNumberingSection() {
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)" }}>Confermi il reset a 0?</span>
               <button onClick={async () => {
-                await adminApi.settings.resetReceiptCounter("global");
+                await adminApi.settings.resetReceiptCounter(receiptMode === "shift" ? "shift" : "global");
                 setResetConfirm(false);
                 setResetDone(true);
                 setTimeout(() => setResetDone(false), 3000);
@@ -3811,6 +3832,8 @@ function InventoryTab() {
       const updated = await adminApi.inventory.adjustStock(adjustTarget.id, Number(adjustQty), adjustReason || undefined);
       setItems((prev) => prev.map((i) => i.id === adjustTarget.id ? updated : i));
       setAdjustTarget(null);
+      setAdjustQty("0");
+      setAdjustReason("");
     } finally { setSaving(false); }
   }
 

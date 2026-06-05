@@ -306,24 +306,47 @@ export function registerOrderRoutes(
       optsByItemId.set(opt.orderItemId, arr);
     }
 
-    // Group items by production center (same logic as printer-trigger)
+    // Group items by production center — batch-loaded to avoid N+1
     const centerItems = new Map<string, { centerName: string; items: typeof items }>();
     const unroutedItems: typeof items = [];
 
+    const productIds = [...new Set(items.map((i) => i.productId))];
+    const productCatRows = productIds.length > 0
+      ? await db.select({ id: products.id, categoryId: products.categoryId })
+          .from(products).where(inArray(products.id, productIds))
+      : [];
+    const productCatMap = new Map(productCatRows.map((r) => [r.id, r.categoryId]));
+
+    const catIds = [...new Set(productCatRows.map((r) => r.categoryId).filter((id): id is string => id !== null))];
+    const pcCatRows = catIds.length > 0
+      ? await db.select({ categoryId: productionCenterCategories.categoryId, productionCenterId: productionCenterCategories.productionCenterId })
+          .from(productionCenterCategories).where(inArray(productionCenterCategories.categoryId, catIds))
+      : [];
+    const catToCenters = new Map<string, string[]>();
+    for (const r of pcCatRows) {
+      const arr = catToCenters.get(r.categoryId) ?? [];
+      arr.push(r.productionCenterId);
+      catToCenters.set(r.categoryId, arr);
+    }
+
+    const centerIds = [...new Set(pcCatRows.map((r) => r.productionCenterId))];
+    const centerNameRows = centerIds.length > 0
+      ? await db.select({ id: productionCenters.id, name: productionCenters.name })
+          .from(productionCenters).where(inArray(productionCenters.id, centerIds))
+      : [];
+    const centerNameMap = new Map(centerNameRows.map((r) => [r.id, r.name]));
+
     for (const item of items) {
-      const [productRow] = await db.select({ categoryId: products.categoryId }).from(products).where(eq(products.id, item.productId)).limit(1);
-      if (!productRow?.categoryId) { unroutedItems.push(item); continue; }
-      const pcRows = await db.select({ productionCenterId: productionCenterCategories.productionCenterId })
-        .from(productionCenterCategories)
-        .where(eq(productionCenterCategories.categoryId, productRow.categoryId));
-      if (pcRows.length === 0) { unroutedItems.push(item); continue; }
-      for (const pcRow of pcRows) {
-        const existing = centerItems.get(pcRow.productionCenterId);
+      const categoryId = productCatMap.get(item.productId) ?? null;
+      if (!categoryId) { unroutedItems.push(item); continue; }
+      const centerIdList = catToCenters.get(categoryId) ?? [];
+      if (centerIdList.length === 0) { unroutedItems.push(item); continue; }
+      for (const centerId of centerIdList) {
+        const existing = centerItems.get(centerId);
         if (existing) {
           existing.items.push(item);
         } else {
-          const [pcNameRow] = await db.select({ name: productionCenters.name }).from(productionCenters).where(eq(productionCenters.id, pcRow.productionCenterId)).limit(1);
-          centerItems.set(pcRow.productionCenterId, { centerName: pcNameRow?.name ?? "Cucina", items: [item] });
+          centerItems.set(centerId, { centerName: centerNameMap.get(centerId) ?? "Cucina", items: [item] });
         }
       }
     }

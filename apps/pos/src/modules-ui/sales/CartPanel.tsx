@@ -67,11 +67,12 @@ export function CartPanel() {
         {cart.length > 0 && (
           <button
             onClick={clearCart}
+            disabled={loading}
             style={{
-              color: "var(--color-danger)",
+              color: loading ? "var(--color-gray-400)" : "var(--color-danger)",
               fontSize: "var(--text-sm)",
               fontWeight: 600,
-              cursor: "pointer",
+              cursor: loading ? "not-allowed" : "pointer",
               background: "none",
               border: "none",
               fontFamily: "var(--font)",

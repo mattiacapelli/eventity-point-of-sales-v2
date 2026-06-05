@@ -202,13 +202,14 @@ const receiptTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
     if (!data) return reply.status(400).send({ error: "No file" });
     if (!data.filename.endsWith(".ttf")) return reply.status(400).send({ error: "Only .ttf files allowed" });
 
+    const safeName = data.filename.replace(/[^a-zA-Z0-9_.-]/g, "_");
     ensureDir(FONTS_DIR);
-    const destPath = join(FONTS_DIR, data.filename);
+    const destPath = join(FONTS_DIR, safeName);
     const chunks: Buffer[] = [];
     for await (const chunk of data.file) chunks.push(chunk as Buffer);
     await writeFile(destPath, Buffer.concat(chunks));
 
-    return reply.status(201).send({ name: data.filename.replace(".ttf", "") });
+    return reply.status(201).send({ name: safeName.replace(".ttf", "") });
   });
 
   // --- Font delete ---

@@ -67,7 +67,20 @@ export const useGridStore = create<GridStore>((set, get) => ({
     }, 600);
   },
 
-  setEditMode: (v) => set({ editMode: v }),
+  setEditMode: (v) => {
+    set({ editMode: v });
+    if (!v) {
+      // Flush any pending debounced saves immediately on edit mode exit
+      for (const [scope, timer] of saveTimers) {
+        clearTimeout(timer);
+        saveTimers.delete(scope);
+        const slots = get().layouts[scope];
+        if (slots !== undefined) {
+          void adminApi.gridLayouts.save(scope, slots);
+        }
+      }
+    }
+  },
 
   // Called once on mount with values from the server — only applied before any user change
   applyServerPrefs: (serverPrefs) => {
