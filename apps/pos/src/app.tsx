@@ -52,6 +52,7 @@ function AppInner() {
   const [booted, setBooted] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [multiTerminalEnabled, setMultiTerminalEnabled] = useState(false);
+  const [terminalModalDismissed, setTerminalModalDismissed] = useState(false);
   const session = useStore((s) => s.session);
   const { setCurrentShift } = useShiftStore();
   const { terminalId } = useTerminalStore();
@@ -67,14 +68,25 @@ function AppInner() {
       .finally(() => setBooted(true));
   }, []);
 
-  // Load settings to check multiTerminalEnabled
+  // Load settings to check multiTerminalEnabled; reset dismiss on login
   useEffect(() => {
     if (session) {
+      setTerminalModalDismissed(false);
       adminApi.settings.get()
         .then((s) => setMultiTerminalEnabled(s.multiTerminalEnabled))
         .catch(() => {});
     }
   }, [session?.userId]);
+
+  // Periodic heartbeat so this terminal stays "online" in the list
+  useEffect(() => {
+    if (!terminalId || !session) return;
+    adminApi.terminals.heartbeat(terminalId).catch(() => {});
+    const interval = setInterval(() => {
+      adminApi.terminals.heartbeat(terminalId).catch(() => {});
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, [terminalId, session?.userId]);
 
   // Sync shift on login/logout
   useEffect(() => {
@@ -107,12 +119,12 @@ function AppInner() {
     );
   }
 
-  const needsTerminalSelect = multiTerminalEnabled && !terminalId;
+  const needsTerminalSelect = multiTerminalEnabled && !terminalId && !terminalModalDismissed;
 
   return (
     <>
       {needsTerminalSelect && (
-        <TerminalSelectModal onSelected={() => {}} />
+        <TerminalSelectModal onSelected={() => setTerminalModalDismissed(true)} />
       )}
     <Suspense fallback={<LoadingScreen />}>
       <Routes>

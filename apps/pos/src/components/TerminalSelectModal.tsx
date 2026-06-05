@@ -58,8 +58,9 @@ export function TerminalSelectModal({ onSelected }: Props) {
   }
 
   function handleSkip() {
-    // Disable multi-terminal and proceed without selecting a terminal
-    adminApi.settings.update({ multiTerminalEnabled: false }).catch(() => {});
+    // Just clear the terminal selection — multiTerminalEnabled stays true
+    // so the modal reappears next time the user logs in.
+    // This lets them bypass for this session only.
     clearTerminal();
     onSelected();
   }
@@ -235,7 +236,7 @@ export function TerminalSelectModal({ onSelected }: Props) {
               cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px",
             }}
           >
-            Disabilita multi-terminale e continua
+            Continua senza selezionare (solo questa sessione)
           </button>
         </div>
       </div>
