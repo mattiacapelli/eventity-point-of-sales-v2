@@ -183,15 +183,18 @@ interface VariantPopoverProps {
   productId: string;
   productName: string;
   unitPrice: number;
+  existingNotes?: string;
   onClose: () => void;
 }
 
-function VariantPopover({ cartKey, productId, productName, unitPrice, onClose }: VariantPopoverProps) {
+function VariantPopover({ cartKey, productId, productName, unitPrice, existingNotes, onClose }: VariantPopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
   const addToCart = useStore((s) => s.addToCart);
+  const updateItemNotes = useStore((s) => s.updateItemNotes);
   const [groups, setGroups] = useState<OptionGroupWithOptions[] | null>(null);
   const [loadErr, setLoadErr] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [freeNote, setFreeNote] = useState(existingNotes ?? "");
   useClickOutside(ref, onClose);
 
   useEffect(() => {
@@ -223,7 +226,13 @@ function VariantPopover({ cartKey, productId, productName, unitPrice, onClose }:
     const opts = allOptions
       .filter((o) => selected.has(o.id))
       .map((o) => ({ optionId: o.id, optionGroupId: o.optionGroupId, name: o.name, priceDelta: o.priceDelta, isRemoval: o.groupType === "removal" }));
-    addToCart({ productId, name: productName, unitPrice, selectedOptions: opts });
+    const trimmedNote = freeNote.trim();
+    addToCart({ productId, name: productName, unitPrice, selectedOptions: opts, ...(trimmedNote ? { notes: trimmedNote } : {}) });
+    onClose();
+  }
+
+  function handleSaveNote() {
+    updateItemNotes(cartKey, freeNote.trim());
     onClose();
   }
 
@@ -253,9 +262,30 @@ function VariantPopover({ cartKey, productId, productName, unitPrice, onClose }:
         </div>
       )}
 
+      {/* Free-text note — always shown regardless of option groups */}
+      {groups !== null && (
+        <div style={{ marginBottom: "12px" }}>
+          <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--color-gray-500)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
+            Nota libera
+          </div>
+          <textarea
+            rows={2}
+            placeholder="Es. senza cipolla, ben cotto…"
+            value={freeNote}
+            onChange={(e) => setFreeNote(e.target.value)}
+            style={{
+              width: "100%", padding: "7px 10px",
+              border: "1.5px solid var(--color-gray-200)", borderRadius: "var(--radius-md)",
+              fontFamily: "var(--font)", fontSize: "var(--text-xs)",
+              resize: "none", boxSizing: "border-box", outline: "none",
+            }}
+          />
+        </div>
+      )}
+
       {groups && groups.length === 0 && (
-        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
-          Nessuna variante disponibile per questo prodotto
+        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginBottom: "8px" }}>
+          Nessun gruppo opzioni per questo prodotto.
         </div>
       )}
 
@@ -299,26 +329,40 @@ function VariantPopover({ cartKey, productId, productName, unitPrice, onClose }:
         </div>
       ))}
 
-      {groups && groups.length > 0 && (
-        <button
-          onClick={handleAdd}
-          disabled={selected.size === 0}
-          style={{
-            marginTop: "4px",
-            width: "100%",
-            padding: "10px",
-            borderRadius: "var(--radius-md)",
-            border: "none",
-            background: selected.size > 0 ? "var(--color-brand)" : "var(--color-gray-200)",
-            color: selected.size > 0 ? "white" : "var(--color-gray-400)",
-            fontFamily: "var(--font)",
-            fontSize: "var(--text-sm)",
-            fontWeight: 700,
-            cursor: selected.size > 0 ? "pointer" : "not-allowed",
-          }}
-        >
-          Aggiungi variante al carrello
-        </button>
+      {/* Action buttons */}
+      {groups !== null && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "4px" }}>
+          {groups.length > 0 && (
+            <button
+              onClick={handleAdd}
+              disabled={selected.size === 0}
+              style={{
+                width: "100%", padding: "10px",
+                borderRadius: "var(--radius-md)", border: "none",
+                background: selected.size > 0 ? "var(--color-brand)" : "var(--color-gray-200)",
+                color: selected.size > 0 ? "white" : "var(--color-gray-400)",
+                fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 700,
+                cursor: selected.size > 0 ? "pointer" : "not-allowed",
+              }}
+            >
+              Aggiungi variante al carrello
+            </button>
+          )}
+          <button
+            onClick={handleSaveNote}
+            style={{
+              width: "100%", padding: "9px",
+              borderRadius: "var(--radius-md)",
+              border: "1.5px solid var(--color-gray-200)",
+              background: "white",
+              color: "var(--color-gray-700)",
+              fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            {freeNote.trim() ? "Salva nota" : "Chiudi"}
+          </button>
+        </div>
       )}
     </div>
   );
@@ -503,6 +547,11 @@ export function CartPanel() {
                           senza {removals.map((o) => o.name).join(", ")}
                         </div>
                       )}
+                      {item.notes && (
+                        <div style={{ fontSize: "10px", color: "var(--color-gray-400)", fontStyle: "italic", marginTop: "2px" }}>
+                          ✏️ {item.notes}
+                        </div>
+                      )}
                       {/* Variant button */}
                       <button
                         onClick={() => openVariant({ cartKey: item.cartKey, productId: item.productId, name: item.name, unitPrice: item.unitPrice })}
@@ -554,20 +603,23 @@ export function CartPanel() {
       </div>
 
       {/* Variant popover anchor */}
-      {hasItems && (
-        <div ref={variantRef} style={{ position: "relative", flexShrink: 0 }}>
-          {variantTarget && (
+      {hasItems && variantTarget && (() => {
+        const itemNotes = cart.find((c) => c.cartKey === variantTarget.cartKey)?.notes;
+        const notesProps = itemNotes !== undefined ? { existingNotes: itemNotes } : {};
+        return (
+          <div ref={variantRef} style={{ position: "relative", flexShrink: 0 }}>
             <VariantPopover
               key={variantTarget.cartKey}
               cartKey={variantTarget.cartKey}
               productId={variantTarget.productId}
               productName={variantTarget.name}
               unitPrice={variantTarget.unitPrice}
+              {...notesProps}
               onClose={() => setVariantTarget(null)}
             />
-          )}
-        </div>
-      )}
+          </div>
+        );
+      })()}
 
       {/* Chips bar — only shown if at least one feature is enabled */}
       {hasItems && hasAnyFeature && (

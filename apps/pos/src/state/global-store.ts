@@ -69,6 +69,7 @@ interface GlobalState {
     notes?: string;
   }) => void;
   updateCartQty: (cartKey: string, quantity: number) => void;
+  updateItemNotes: (cartKey: string, notes: string) => void;
   removeFromCart: (cartKey: string) => void;
   clearCart: () => void;
   cartTotal: () => number;
@@ -145,6 +146,17 @@ export const useStore = create<GlobalState>((set, get) => ({
       const nextCart = quantity <= 0
         ? s.cart.filter((c) => c.cartKey !== cartKey)
         : s.cart.map((c) => (c.cartKey === cartKey ? { ...c, quantity } : c));
+      persistCart(nextCart);
+      return { cart: nextCart };
+    }),
+  updateItemNotes: (cartKey, notes) =>
+    set((s) => {
+      const trimmed = notes.trim();
+      const nextCart = s.cart.map((c): CartItem => {
+        if (c.cartKey !== cartKey) return c;
+        const { notes: _n, ...rest } = c;
+        return trimmed ? { ...rest, notes: trimmed } : { ...rest };
+      });
       persistCart(nextCart);
       return { cart: nextCart };
     }),
