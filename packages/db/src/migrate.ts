@@ -65,7 +65,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_token              ON sessions(token);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id            ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at         ON sessions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_orders_status               ON orders(status);
-CREATE INDEX IF NOT EXISTS idx_orders_shift_id             ON orders(shift_id);
+-- idx_orders_shift_id moved to EXTRA_COLUMNS (column added via ALTER TABLE)
 CREATE INDEX IF NOT EXISTS idx_orders_created_at           ON orders(created_at);
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id        ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_payments_order_id           ON payments(order_id);
@@ -273,6 +273,7 @@ ALTER TABLE products ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE products ADD COLUMN created_at INTEGER;
 ALTER TABLE products ADD COLUMN updated_at INTEGER;
 ALTER TABLE orders ADD COLUMN shift_id TEXT REFERENCES shifts(id);
+CREATE INDEX IF NOT EXISTS idx_orders_shift_id ON orders(shift_id);
 ALTER TABLE orders ADD COLUMN receipt_number INTEGER;
 INSERT OR IGNORE INTO app_settings(key,value) VALUES('receipt_number_mode','default');
 INSERT OR IGNORE INTO app_settings(key,value) VALUES('receipt_number_prefix','');
