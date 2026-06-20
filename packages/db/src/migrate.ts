@@ -70,8 +70,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_created_at           ON orders(created_at)
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id        ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_payments_order_id           ON payments(order_id);
 CREATE INDEX IF NOT EXISTS idx_processed_events_handler    ON processed_events(handler_id, trace_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_movements_item    ON inventory_movements(item_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_inventory_movements_order   ON inventory_movements(order_id);
+-- idx_inventory_movements_* moved after table definition below
 
 CREATE TABLE IF NOT EXISTS categories (
   id   TEXT PRIMARY KEY,
@@ -197,6 +196,9 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
   order_id   TEXT REFERENCES orders(id),
   created_at INTEGER NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_item  ON inventory_movements(item_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_order ON inventory_movements(order_id);
 
 CREATE TABLE IF NOT EXISTS product_ingredients (
   id                TEXT PRIMARY KEY,
