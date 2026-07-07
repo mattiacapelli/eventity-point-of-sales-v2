@@ -39,6 +39,7 @@ export {
   ArrowPathIcon,
   ShieldCheckIcon,
   HomeIcon,
+  UserGroupIcon,
 } from "@heroicons/react/24/outline";
 
 export {

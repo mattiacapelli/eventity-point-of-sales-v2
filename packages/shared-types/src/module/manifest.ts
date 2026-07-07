@@ -15,6 +15,8 @@ export type ModulePermission =
   | "inventory:write"
   | "events:read"
   | "events:write"
+  | "fiscal:read"
+  | "fiscal:write"
   | "print:send";
 
 export interface RouteDefinition {

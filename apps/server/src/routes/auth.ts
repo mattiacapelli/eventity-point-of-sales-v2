@@ -169,49 +169,6 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
   );
-
-  // Bootstrap route — create user (first-run or admin use)
-  fastify.post(
-    "/auth/register",
-    {
-      schema: {
-        tags: ["auth"],
-        summary: "Create a user (admin or first-run setup)",
-        body: {
-          type: "object",
-          required: ["name", "username", "role", "pin"],
-          properties: {
-            name:     { type: "string", minLength: 1 },
-            username: { type: "string", minLength: 3, maxLength: 32 },
-            role:     { type: "string", enum: ["admin", "cashier", "kitchen", "waiter", "viewer"] },
-            pin:      { type: "string", minLength: 4, maxLength: 8 },
-          },
-        },
-        response: {
-          201: { type: "object", properties: { userId: { type: "string" } } },
-        },
-      },
-    },
-    async (request, reply) => {
-      const body = request.body as {
-        name: string;
-        username: string;
-        role: "admin" | "cashier" | "kitchen" | "waiter" | "viewer";
-        pin: string;
-      };
-      try {
-        const userId = await fastify.authService.createUser(body);
-        return reply.status(201).send({ userId });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Registration failed";
-        // unique constraint violation
-        if (msg.includes("UNIQUE")) {
-          return reply.status(409).send({ error: "Username already exists" });
-        }
-        throw err;
-      }
-    }
-  );
 };
 
 export default authRoutes;

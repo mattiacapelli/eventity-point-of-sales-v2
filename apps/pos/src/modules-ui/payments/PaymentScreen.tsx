@@ -2,13 +2,14 @@ import React, { useEffect, useState, useCallback } from "react";
 import type { Order } from "@pos/shared-types";
 import { PosLayout } from "../../layout/PosLayout.js";
 import { apiClient } from "../../core/api-client.js";
+import { adminApi } from "../../core/admin-api.js";
 import { wsClient } from "../../core/ws-client.js";
 import { useStore } from "../../state/global-store.js";
+import { useAdminStore } from "../../state/admin-store.js";
 import { Button } from "../../components/ui/Button.js";
 import { Badge } from "../../components/ui/Badge.js";
 import { Card } from "../../components/ui/Card.js";
 import { Modal } from "../../components/ui/Modal.js";
-import type { PaymentMethod } from "@pos/shared-types";
 
 const PAYABLE_STATUSES = ["pending", "confirmed", "preparing", "ready", "completed"];
 
@@ -16,11 +17,11 @@ function formatEur(n: number) {
   return `€${n.toFixed(2)}`;
 }
 
-const METHOD_LABELS: Record<PaymentMethod, string> = {
-  cash:           "💵 Contanti",
-  card:           "💳 Carta",
-  digital_wallet: "📱 Digitale",
-  tab:            "🗒️ Conto aperto",
+const METHOD_ICONS: Record<string, string> = {
+  cash:           "💵",
+  card:           "💳",
+  digital_wallet: "📱",
+  tab:            "🗒️",
 };
 
 interface PayModalProps {
@@ -32,23 +33,40 @@ interface PayModalProps {
 const BANKNOTES = [5, 10, 20, 50, 100];
 
 function PayModal({ order, onClose, onPaid }: PayModalProps) {
-  const [method, setMethod] = useState<PaymentMethod>("cash");
+  const { paymentMethods, setPaymentMethods } = useAdminStore();
+  const activeMethods = paymentMethods.filter((m) => m.active);
+  const [methodId, setMethodId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [received, setReceived] = useState<string>("");
 
+  useEffect(() => {
+    if (paymentMethods.length === 0) {
+      adminApi.paymentMethods.list().then((ms) => {
+        setPaymentMethods(ms);
+        const active = ms.filter((m) => m.active);
+        if (active.length > 0 && !methodId) setMethodId(active[0]!.id);
+      }).catch(console.error);
+    } else if (!methodId && activeMethods.length > 0) {
+      setMethodId(activeMethods[0]!.id);
+    }
+  }, []);
+
+  const selectedMethod = activeMethods.find((m) => m.id === methodId);
+  const isCash = selectedMethod?.type === "cash";
   const receivedNum = parseFloat(received) || 0;
-  const change = method === "cash" && receivedNum >= order.totalAmount
+  const change = isCash && receivedNum >= order.totalAmount
     ? receivedNum - order.totalAmount
     : null;
 
   const handlePay = async () => {
+    if (!selectedMethod) return;
     setLoading(true);
     setError(null);
     try {
       await apiClient.payments.pay({
         orderId: order.id,
-        method,
+        method: selectedMethod.id,
         amount: order.totalAmount,
       });
       onPaid();
@@ -114,33 +132,33 @@ function PayModal({ order, onClose, onPaid }: PayModalProps) {
             Metodo di pagamento
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-            {(Object.entries(METHOD_LABELS) as [PaymentMethod, string][]).map(([m, label]) => (
+            {activeMethods.map((m) => (
               <button
-                key={m}
-                onClick={() => setMethod(m)}
+                key={m.id}
+                onClick={() => setMethodId(m.id)}
                 style={{
                   padding: "12px",
                   borderRadius: "var(--radius-lg)",
-                  border: `2px solid ${method === m ? "var(--color-brand)" : "var(--color-gray-200)"}`,
-                  background: method === m ? "rgba(48,107,52,0.06)" : "var(--color-white)",
+                  border: `2px solid ${methodId === m.id ? "var(--color-brand)" : "var(--color-gray-200)"}`,
+                  background: methodId === m.id ? "rgba(48,107,52,0.06)" : "var(--color-white)",
                   fontFamily: "var(--font)",
                   fontSize: "var(--text-sm)",
                   fontWeight: 600,
-                  color: method === m ? "var(--color-brand)" : "var(--color-gray-700)",
+                  color: methodId === m.id ? "var(--color-brand)" : "var(--color-gray-700)",
                   cursor: "pointer",
                   textAlign: "center",
                   minHeight: "52px",
                   transition: "all var(--transition)",
                 }}
               >
-                {label}
+                {METHOD_ICONS[m.type] ?? ""} {m.name}
               </button>
             ))}
           </div>
         </div>
 
         {/* Cash section */}
-        {method === "cash" && (
+        {isCash && (
           <div>
             <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)" }}>
               Importo ricevuto
@@ -227,7 +245,7 @@ function PayModal({ order, onClose, onPaid }: PayModalProps) {
           </div>
         )}
 
-        <Button fullWidth size="xl" loading={loading} onClick={() => void handlePay()}>
+        <Button fullWidth size="xl" loading={loading} disabled={!selectedMethod} onClick={() => void handlePay()}>
           Paga {formatEur(order.totalAmount)}
         </Button>
       </div>

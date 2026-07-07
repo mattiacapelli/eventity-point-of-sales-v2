@@ -6,7 +6,7 @@ import type { Payment, CreatePaymentInput } from "@pos/shared-types";
 type DbPaymentRow = {
   id: string;
   orderId: string;
-  method: "cash" | "card" | "digital_wallet" | "tab";
+  method: string;
   status: "pending" | "completed" | "failed" | "refunded";
   amount: number;
   currency: string;

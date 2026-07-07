@@ -9,7 +9,8 @@ export interface ReceiptRenderData {
   logoPath?: string | null;
   orderId: string;
   receiptDisplay?: string;
-  items: { name: string; quantity: number; unitPrice: number }[];
+  items: { name: string; quantity: number; unitPrice: number; category?: string }[];
+  showItemCategory?: boolean;
   total: number;
   paymentMethod: string;
   currency: string;
@@ -20,6 +21,9 @@ export interface ReceiptRenderData {
   restaurantVat: string;
   restaurantPhone: string;
   categoryName?: string;
+  terminalName?: string;
+  tableId?: string;
+  customerName?: string;
 }
 
 const BUNDLED_FONTS_DIR = new URL("../../assets/fonts", import.meta.url).pathname;
@@ -121,6 +125,9 @@ export async function renderReceiptImage(data: ReceiptRenderData): Promise<Buffe
         break;
       case "items":
         h += data.items.length * lineH;
+        if (data.showItemCategory) {
+          h += data.items.filter((i) => i.category).length * lineH;
+        }
         break;
       case "text":
       case "footer":
@@ -134,6 +141,15 @@ export async function renderReceiptImage(data: ReceiptRenderData): Promise<Buffe
         break;
       case "category-name":
         h += data.categoryName ? lineH : 0;
+        break;
+      case "terminal-name":
+        h += data.terminalName ? lineH : 0;
+        break;
+      case "table-name":
+        h += data.tableId ? lineH : 0;
+        break;
+      case "customer-name":
+        h += data.customerName ? lineH : 0;
         break;
     }
     heights.push(h);
@@ -154,8 +170,14 @@ export async function renderReceiptImage(data: ReceiptRenderData): Promise<Buffe
     const block = visibleBlocks[i]!;
     y += block.paddingTop;
 
+    if (block.invertColors) {
+      const blockHeight = heights[i]! - block.paddingTop;
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, y, width, blockHeight);
+    }
+
     ctx.font = resolveFont(block);
-    ctx.fillStyle = "#000000";
+    ctx.fillStyle = block.invertColors ? "#ffffff" : "#000000";
     ctx.textAlign = ctxAlign(block.align);
     ctx.textBaseline = "top";
     const x = xForAlign(block.align, width, PADDING);
@@ -181,7 +203,7 @@ export async function renderReceiptImage(data: ReceiptRenderData): Promise<Buffe
         ctx.beginPath();
         ctx.moveTo(PADDING, dy);
         ctx.lineTo(width - PADDING, dy);
-        ctx.strokeStyle = "#000000";
+        ctx.strokeStyle = block.invertColors ? "#ffffff" : "#000000";
         ctx.lineWidth = 1;
         ctx.stroke();
         y += 12;
@@ -227,6 +249,11 @@ export async function renderReceiptImage(data: ReceiptRenderData): Promise<Buffe
           ctx.textAlign = "right";
           ctx.fillText(price, rightX, y);
           y += lineH;
+          if (data.showItemCategory && item.category) {
+            ctx.textAlign = "left";
+            ctx.fillText(`  ${item.category}`, PADDING, y);
+            y += lineH;
+          }
         }
         ctx.textAlign = ctxAlign(block.align);
         break;
@@ -253,6 +280,24 @@ export async function renderReceiptImage(data: ReceiptRenderData): Promise<Buffe
       case "category-name":
         if (data.categoryName) {
           ctx.fillText(data.categoryName.toUpperCase(), x, y);
+          y += lineH;
+        }
+        break;
+      case "terminal-name":
+        if (data.terminalName) {
+          ctx.fillText(`Cassa: ${data.terminalName}`, x, y);
+          y += lineH;
+        }
+        break;
+      case "table-name":
+        if (data.tableId) {
+          ctx.fillText(`Tavolo: ${data.tableId}`, x, y);
+          y += lineH;
+        }
+        break;
+      case "customer-name":
+        if (data.customerName) {
+          ctx.fillText(`Cliente: ${data.customerName}`, x, y);
           y += lineH;
         }
         break;

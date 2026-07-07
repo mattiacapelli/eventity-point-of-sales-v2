@@ -17,6 +17,7 @@ export interface KitchenTicketData {
   orderId: string;
   receiptDisplay?: string;
   tableId?: string | null;
+  customerName?: string | null;
   centerName: string;
   timestamp: Date;
   orderNotes?: string | null;
@@ -49,6 +50,9 @@ export function formatKitchenTicket(data: KitchenTicketData, width = DEFAULT_WID
   lines.push(bigOrderNumber(data.receiptDisplay ?? data.orderId.slice(-6).toUpperCase(), width));
   if (data.tableId) {
     lines.push(center(`Tavolo ${data.tableId}`, width));
+  }
+  if (data.customerName) {
+    lines.push(center(`Cliente: ${data.customerName}`, width));
   }
   if (data.pax) {
     lines.push(center(`Coperti: ${data.pax}`, width));

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq, desc, and, gte, lte, inArray, orders, orderItems, orderItemOptions, products, options, sql, appSettings, receiptCounters } from "@pos/db";
 import type { DbClient } from "@pos/db";
-import type { Order, OrderItem, OrderItemOption, CreateOrderInput, OrderStatus, UpdateOrderInput } from "@pos/shared-types";
+import type { Order, OrderItem, OrderItemOption, VatBreakdown, CreateOrderInput, OrderStatus, UpdateOrderInput } from "@pos/shared-types";
 
 export function formatReceiptNumber(
   n: number | undefined,
@@ -17,8 +17,10 @@ export function formatReceiptNumber(
 type DbOrderRow = {
   id: string;
   tableId: string | null;
+  customerName: string | null;
   eventId: string | null;
   shiftId: string | null;
+  terminalId: string | null;
   status: string;
   totalAmount: number;
   discountAmount: number;
@@ -26,6 +28,9 @@ type DbOrderRow = {
   notes: string | null;
   pax: number | null;
   receiptNumber: number | null;
+  fiscalDocNumber: string | null;
+  fiscalDocDate: string | null;
+  fiscalRtSerial: string | null;
   createdAt: Date;
   updatedAt: Date;
   syncedAt: Date | null;
@@ -38,14 +43,17 @@ type DbItemRow = {
   name: string;
   quantity: number;
   unitPrice: number;
+  vatRate?: number;
   notes: string | null;
 };
 
 type JoinRow = {
   orderId: string;
   tableId: string | null;
+  customerName: string | null;
   eventId: string | null;
   shiftId: string | null;
+  terminalId: string | null;
   status: string;
   totalAmount: number;
   discountAmount: number;
@@ -53,6 +61,9 @@ type JoinRow = {
   orderNotes: string | null;
   pax: number | null;
   receiptNumber: number | null;
+  fiscalDocNumber: string | null;
+  fiscalDocDate: string | null;
+  fiscalRtSerial: string | null;
   createdAt: Date;
   updatedAt: Date;
   syncedAt: Date | null;
@@ -74,9 +85,16 @@ export class OrderRepository {
   }
 
   private async _nextReceiptNumber(scope: string): Promise<number> {
-    await this.db.insert(receiptCounters).values({ scope, lastValue: 0 }).onConflictDoNothing();
-    await this.db.update(receiptCounters).set({ lastValue: sql`last_value + 1` }).where(eq(receiptCounters.scope, scope));
-    const [row] = await this.db.select({ v: receiptCounters.lastValue }).from(receiptCounters).where(eq(receiptCounters.scope, scope));
+    // Single atomic upsert+increment+return — SQLite serialises writes so no two
+    // concurrent callers can read the same counter value.
+    const [row] = await this.db
+      .insert(receiptCounters)
+      .values({ scope, lastValue: 1 })
+      .onConflictDoUpdate({
+        target: receiptCounters.scope,
+        set: { lastValue: sql`${receiptCounters.lastValue} + 1` },
+      })
+      .returning({ v: receiptCounters.lastValue });
     return row!.v;
   }
 
@@ -86,18 +104,23 @@ export class OrderRepository {
         // order columns
         orderId:        orders.id,
         tableId:        orders.tableId,
+        customerName:   orders.customerName,
         eventId:        orders.eventId,
         shiftId:        orders.shiftId,
+        terminalId:     orders.terminalId,
         status:         orders.status,
         totalAmount:    orders.totalAmount,
         discountAmount: orders.discountAmount,
         discountType:   orders.discountType,
         orderNotes:     orders.notes,
-        pax:            orders.pax,
-        receiptNumber:  orders.receiptNumber,
-        createdAt:      orders.createdAt,
-        updatedAt:      orders.updatedAt,
-        syncedAt:       orders.syncedAt,
+        pax:             orders.pax,
+        receiptNumber:   orders.receiptNumber,
+        fiscalDocNumber: orders.fiscalDocNumber,
+        fiscalDocDate:   orders.fiscalDocDate,
+        fiscalRtSerial:  orders.fiscalRtSerial,
+        createdAt:       orders.createdAt,
+        updatedAt:       orders.updatedAt,
+        syncedAt:        orders.syncedAt,
         // item columns (null when no items)
         itemId:         orderItems.id,
         productId:      orderItems.productId,
@@ -114,10 +137,11 @@ export class OrderRepository {
     return (await this._collapseRowsWithOptions(rows as unknown as JoinRow[]))[0] ?? null;
   }
 
-  async findAll(filters?: { status?: OrderStatus; shiftId?: string; from?: number; to?: number; limit?: number; offset?: number }): Promise<Order[]> {
+  async findAll(filters?: { status?: OrderStatus; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number }): Promise<Order[]> {
     const conditions = [];
     if (filters?.status !== undefined) conditions.push(eq(orders.status, filters.status));
     if (filters?.shiftId !== undefined) conditions.push(eq(orders.shiftId, filters.shiftId));
+    if (filters?.terminalId !== undefined) conditions.push(eq(orders.terminalId, filters.terminalId));
     if (filters?.from !== undefined) conditions.push(gte(orders.createdAt, new Date(filters.from)));
     if (filters?.to !== undefined) conditions.push(lte(orders.createdAt, new Date(filters.to)));
 
@@ -140,20 +164,25 @@ export class OrderRepository {
       .select({
         orderId:        orders.id,
         tableId:        orders.tableId,
+        customerName:   orders.customerName,
         eventId:        orders.eventId,
         shiftId:        orders.shiftId,
+        terminalId:     orders.terminalId,
         status:         orders.status,
         totalAmount:    orders.totalAmount,
         discountAmount: orders.discountAmount,
         discountType:   orders.discountType,
         orderNotes:     orders.notes,
-        pax:            orders.pax,
-        receiptNumber:  orders.receiptNumber,
-        createdAt:      orders.createdAt,
-        updatedAt:      orders.updatedAt,
-        syncedAt:       orders.syncedAt,
-        itemId:         orderItems.id,
-        productId:      orderItems.productId,
+        pax:             orders.pax,
+        receiptNumber:   orders.receiptNumber,
+        fiscalDocNumber: orders.fiscalDocNumber,
+        fiscalDocDate:   orders.fiscalDocDate,
+        fiscalRtSerial:  orders.fiscalRtSerial,
+        createdAt:       orders.createdAt,
+        updatedAt:       orders.updatedAt,
+        syncedAt:        orders.syncedAt,
+        itemId:          orderItems.id,
+        productId:       orderItems.productId,
         itemName:       orderItems.name,
         quantity:       orderItems.quantity,
         unitPrice:      orderItems.unitPrice,
@@ -174,10 +203,10 @@ export class OrderRepository {
     // Resolve canonical prices from DB — never trust client-supplied prices
     const productIds = [...new Set(input.items.map((i) => i.productId))];
     const productRows = await this.db
-      .select({ id: products.id, price: products.price })
+      .select({ id: products.id, price: products.price, vatRate: products.vatRate })
       .from(products)
       .where(inArray(products.id, productIds));
-    const productPriceMap = new Map(productRows.map((p) => [p.id, p.price]));
+    const productPriceMap = new Map(productRows.map((p) => [p.id, { price: p.price, vatRate: p.vatRate ?? 10 }]));
 
     // Collect all option IDs across all items
     const allOptionIds = input.items.flatMap((i) => i.selectedOptionIds ?? []);
@@ -191,8 +220,8 @@ export class OrderRepository {
     }
 
     const itemsWithIds = input.items.map((item) => {
-      const basePrice = productPriceMap.get(item.productId);
-      if (basePrice === undefined) throw new Error(`Product not found: ${item.productId}`);
+      const productData = productPriceMap.get(item.productId);
+      if (productData === undefined) throw new Error(`Product not found: ${item.productId}`);
       const optionDelta = (item.selectedOptionIds ?? []).reduce(
         (sum, oid) => sum + (optionMap.get(oid)?.priceDelta ?? 0),
         0
@@ -202,7 +231,8 @@ export class OrderRepository {
         productId: item.productId,
         name: item.name,
         quantity: item.quantity,
-        unitPrice: basePrice + optionDelta,
+        unitPrice: productData.price + optionDelta,
+        vatRate: productData.vatRate,
         notes: item.notes ?? null,
         selectedOptionIds: item.selectedOptionIds ?? [],
       };
@@ -215,19 +245,23 @@ export class OrderRepository {
     const discountAmount = Math.min(input.discountAmount ?? 0, subtotal);
     const totalAmount = subtotal - discountAmount;
 
-    const mode = await this._getAppSetting("receipt_number_mode") ?? "default";
+    const mode = await this._getAppSetting("receipt_number_mode") ?? "shift";
     let receiptNumber: number | null = null;
     if (mode === "global") {
       receiptNumber = await this._nextReceiptNumber("global");
-    } else if (mode === "shift" && input.shiftId) {
-      receiptNumber = await this._nextReceiptNumber(`shift:${input.shiftId}`);
+    } else if (mode === "shift") {
+      // No active shift (e.g. order created outside a shift) — fall back to a
+      // global progressive so the receipt still gets a number instead of silently staying null.
+      receiptNumber = await this._nextReceiptNumber(input.shiftId ? `shift:${input.shiftId}` : "global");
     }
 
     await this.db.insert(orders).values({
       id,
       tableId: input.tableId ?? null,
+      customerName: null,
       eventId: input.eventId ?? null,
       shiftId: input.shiftId ?? null,
+      terminalId: input.terminalId ?? null,
       status: "pending",
       totalAmount,
       discountAmount,
@@ -281,8 +315,10 @@ export class OrderRepository {
       {
         id,
         tableId: input.tableId ?? null,
+        customerName: null,
         eventId: input.eventId ?? null,
         shiftId: input.shiftId ?? null,
+        terminalId: input.terminalId ?? null,
         status: "pending",
         totalAmount,
         discountAmount,
@@ -290,6 +326,9 @@ export class OrderRepository {
         notes: input.notes ?? null,
         pax: input.pax ?? null,
         receiptNumber,
+        fiscalDocNumber: null,
+        fiscalDocDate: null,
+        fiscalRtSerial: null,
         createdAt: now,
         updatedAt: now,
         syncedAt: null,
@@ -305,6 +344,22 @@ export class OrderRepository {
       .set({ status, updatedAt: new Date() })
       .where(eq(orders.id, id));
 
+    return this.findById(id);
+  }
+
+  async updateFiscalData(id: string, data: { fiscalDocNumber: string; fiscalDocDate: string; fiscalRtSerial: string }): Promise<void> {
+    await this.db
+      .update(orders)
+      .set({ fiscalDocNumber: data.fiscalDocNumber, fiscalDocDate: data.fiscalDocDate, fiscalRtSerial: data.fiscalRtSerial, updatedAt: new Date() })
+      .where(eq(orders.id, id));
+  }
+
+  async updateDetails(id: string, data: { tableId?: string | null; customerName?: string | null }): Promise<Order | null> {
+    const update: { tableId?: string | null; customerName?: string | null; updatedAt: Date } = { updatedAt: new Date() };
+    if ("tableId" in data) update.tableId = data.tableId ?? null;
+    if ("customerName" in data) update.customerName = data.customerName ?? null;
+
+    await this.db.update(orders).set(update).where(eq(orders.id, id));
     return this.findById(id);
   }
 
@@ -351,8 +406,10 @@ export class OrderRepository {
         {
           id: row.orderId,
           tableId: row.tableId,
+          customerName: row.customerName,
           eventId: row.eventId,
           shiftId: row.shiftId,
+          terminalId: row.terminalId,
           status: row.status,
           totalAmount: row.totalAmount,
           discountAmount: row.discountAmount,
@@ -360,6 +417,9 @@ export class OrderRepository {
           notes: row.orderNotes,
           pax: row.pax,
           receiptNumber: row.receiptNumber,
+          fiscalDocNumber: row.fiscalDocNumber,
+          fiscalDocDate: row.fiscalDocDate,
+          fiscalRtSerial: row.fiscalRtSerial,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
           syncedAt: row.syncedAt,
@@ -371,6 +431,22 @@ export class OrderRepository {
   }
 
   private toOrder(row: DbOrderRow, items: DbItemRow[], optsByItemId?: Map<string, OrderItemOption[]>): Order {
+    const mappedItems = items.map((i): OrderItem => {
+      const opts = optsByItemId?.get(i.id) ?? [];
+      return {
+        id: i.id,
+        productId: i.productId,
+        name: i.name,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        ...(i.vatRate !== undefined ? { vatRate: i.vatRate } : {}),
+        ...(i.notes !== null ? { notes: i.notes } : {}),
+        ...(opts.length > 0 ? { options: opts } : {}),
+      };
+    });
+
+    const vatBreakdown = computeVatBreakdown(mappedItems, row.discountAmount, row.totalAmount);
+
     const base: Order = {
       id: row.id,
       status: row.status as OrderStatus,
@@ -378,28 +454,41 @@ export class OrderRepository {
       discountAmount: row.discountAmount,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
-      items: items.map((i): OrderItem => {
-        const opts = optsByItemId?.get(i.id) ?? [];
-        const item: OrderItem = {
-          id: i.id,
-          productId: i.productId,
-          name: i.name,
-          quantity: i.quantity,
-          unitPrice: i.unitPrice,
-          ...(i.notes !== null ? { notes: i.notes } : {}),
-          ...(opts.length > 0 ? { options: opts } : {}),
-        };
-        return item;
-      }),
+      items: mappedItems,
+      ...(vatBreakdown.length > 0 ? { vatBreakdown } : {}),
       ...(row.tableId !== null ? { tableId: row.tableId } : {}),
+      ...(row.customerName !== null ? { customerName: row.customerName } : {}),
       ...(row.eventId !== null ? { eventId: row.eventId } : {}),
       ...(row.shiftId !== null ? { shiftId: row.shiftId } : {}),
+      ...(row.terminalId !== null ? { terminalId: row.terminalId } : {}),
       ...(row.discountType !== null ? { discountType: row.discountType } : {}),
       ...(row.notes !== null ? { notes: row.notes } : {}),
       ...(row.pax !== null ? { pax: row.pax } : {}),
       ...(row.receiptNumber !== null ? { receiptNumber: row.receiptNumber } : {}),
+      ...(row.fiscalDocNumber !== null ? { fiscalDocNumber: row.fiscalDocNumber } : {}),
+      ...(row.fiscalDocDate !== null ? { fiscalDocDate: row.fiscalDocDate } : {}),
+      ...(row.fiscalRtSerial !== null ? { fiscalRtSerial: row.fiscalRtSerial } : {}),
       ...(row.syncedAt !== null ? { syncedAt: row.syncedAt } : {}),
     };
     return base;
   }
+}
+
+export function computeVatBreakdown(items: ReadonlyArray<OrderItem>, discountAmount: number, totalAmount: number): VatBreakdown[] {
+  const subtotal = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+  const discountRatio = subtotal > 0 ? (1 - discountAmount / subtotal) : 1;
+
+  const byRate = new Map<number, number>();
+  for (const item of items) {
+    const rate = item.vatRate ?? 10;
+    const gross = item.unitPrice * item.quantity * discountRatio;
+    byRate.set(rate, (byRate.get(rate) ?? 0) + gross);
+  }
+
+  return [...byRate.entries()].map(([rate, gross]): VatBreakdown => {
+    const divisor = 1 + rate / 100;
+    const taxable = Math.round((gross / divisor) * 100) / 100;
+    const tax = Math.round((gross - taxable) * 100) / 100;
+    return { rate, taxable, tax };
+  });
 }

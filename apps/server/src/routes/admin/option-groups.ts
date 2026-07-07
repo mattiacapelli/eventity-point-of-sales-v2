@@ -1,25 +1,27 @@
 import "@fastify/swagger";
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
 import { eq, asc } from "@pos/db";
 import { optionGroups, options } from "@pos/db";
 import { randomUUID } from "node:crypto";
 import { requireRole, AuthError } from "@pos/core";
 
+async function adminOnly(request: FastifyRequest, reply: FastifyReply) {
+  try {
+    requireRole(request.session!, "admin");
+  } catch (err) {
+    if (err instanceof AuthError) return reply.status(403).send({ error: err.message });
+    throw err;
+  }
+}
+
 const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.addHook("onRequest", async (request, reply) => {
+  fastify.addHook("onRequest", async (request) => {
     await fastify.authenticate(request);
-    try {
-      requireRole(request.session!, "admin");
-    } catch (err) {
-      if (err instanceof AuthError) {
-        return reply.status(403).send({ error: err.message });
-      }
-      throw err;
-    }
   });
 
   // ── Option Groups ────────────────────────────────────────────────────────────
 
+  // GET /option-groups — readable by any authenticated user (needed to configure a product in the sales screen)
   fastify.get("/option-groups", {
     schema: { tags: ["option-groups"], summary: "List option groups for a product (with options)" },
   }, async (request, reply) => {
@@ -53,6 +55,7 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
           optionGroupId: o.optionGroupId,
           name: o.name,
           priceDelta: o.priceDelta,
+          prefix: o.prefix ?? "+",
           active: o.active,
           sortOrder: o.sortOrder,
         })),
@@ -63,6 +66,7 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post("/option-groups", {
     schema: { tags: ["option-groups"], summary: "Create an option group" },
+    preHandler: adminOnly,
   }, async (request, reply) => {
     const body = request.body as {
       productId: string;
@@ -90,6 +94,7 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.patch("/option-groups/:id", {
     schema: { tags: ["option-groups"], summary: "Update an option group" },
+    preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = request.body as Partial<{
@@ -135,6 +140,7 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.delete("/option-groups/:id", {
     schema: { tags: ["option-groups"], summary: "Delete an option group (cascades options)" },
+    preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
     await fastify.ctx.db.delete(optionGroups).where(eq(optionGroups.id, id));
@@ -145,11 +151,13 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post("/option-groups/:groupId/options", {
     schema: { tags: ["option-groups"], summary: "Create an option inside a group" },
+    preHandler: adminOnly,
   }, async (request, reply) => {
     const { groupId } = request.params as { groupId: string };
     const body = request.body as {
       name: string;
       priceDelta?: number;
+      prefix?: "+" | "-" | ">>";
       sortOrder?: number;
     };
     const id = randomUUID();
@@ -158,20 +166,24 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
       optionGroupId: groupId,
       name: body.name,
       priceDelta: body.priceDelta ?? 0,
+      prefix: body.prefix ?? "+",
       active: true,
       sortOrder: body.sortOrder ?? 0,
     });
     const [row] = await fastify.ctx.db.select().from(options).where(eq(options.id, id));
-    return reply.status(201).send(row);
+    if (!row) return reply.status(500).send({ error: "Insert failed" });
+    return reply.status(201).send({ ...row, prefix: row.prefix ?? "+" });
   });
 
   fastify.patch("/options/:optionId", {
     schema: { tags: ["option-groups"], summary: "Update an option" },
+    preHandler: adminOnly,
   }, async (request, reply) => {
     const { optionId } = request.params as { optionId: string };
     const body = request.body as Partial<{
       name: string;
       priceDelta: number;
+      prefix: "+" | "-" | ">>";
       active: boolean;
       sortOrder: number;
     }>;
@@ -182,11 +194,13 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
     const update: {
       name?: string;
       priceDelta?: number;
+      prefix?: string;
       active?: boolean;
       sortOrder?: number;
     } = {};
     if (body.name !== undefined) update.name = body.name;
     if (body.priceDelta !== undefined) update.priceDelta = body.priceDelta;
+    if (body.prefix !== undefined) update.prefix = body.prefix;
     if (body.active !== undefined) update.active = body.active;
     if (body.sortOrder !== undefined) update.sortOrder = body.sortOrder;
 
@@ -195,11 +209,13 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const [row] = await fastify.ctx.db.select().from(options).where(eq(options.id, optionId));
-    return reply.send(row);
+    if (!row) return reply.status(404).send({ error: "Not found" });
+    return reply.send({ ...row, prefix: row.prefix ?? "+" });
   });
 
   fastify.delete("/options/:optionId", {
     schema: { tags: ["option-groups"], summary: "Delete an option" },
+    preHandler: adminOnly,
   }, async (request, reply) => {
     const { optionId } = request.params as { optionId: string };
     await fastify.ctx.db.delete(options).where(eq(options.id, optionId));

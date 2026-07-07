@@ -6,6 +6,8 @@ export interface Category {
   active: boolean;
 }
 
+export type ProductReceiptPrintMode = "inherit" | "included" | "separate";
+
 export interface Product {
   id: string;
   name: string;
@@ -18,6 +20,8 @@ export interface Product {
   description: string | null;
   imageData: string | null;
   sortOrder: number;
+  vatRate: number;
+  receiptPrintMode: ProductReceiptPrintMode;
   createdAt: number | null;
   updatedAt: number | null;
 }
@@ -30,10 +34,13 @@ export interface ProductGridSlot {
   spanH: number;
 }
 
+export type ReceiptPrintMode = "included" | "separate";
+
 export interface ProductionCenter {
   id: string;
   name: string;
   color: string | null;
+  receiptPrintMode: ReceiptPrintMode;
 }
 
 export interface ProductionCenterWithCategories extends ProductionCenter {
@@ -42,11 +49,14 @@ export interface ProductionCenterWithCategories extends ProductionCenter {
 
 export type OptionGroupType = "single" | "multi" | "removal";
 
+export type OptionPrefix = "+" | "-" | ">>";
+
 export interface Option {
   id: string;
   optionGroupId: string;
   name: string;
   priceDelta: number;
+  prefix: OptionPrefix;
   active: boolean;
   sortOrder: number;
 }

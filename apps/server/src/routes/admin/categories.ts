@@ -1,23 +1,25 @@
 import "@fastify/swagger";
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
 import { eq, asc } from "@pos/db";
 import { categories } from "@pos/db";
 import { randomUUID } from "node:crypto";
 import { requireRole, AuthError } from "@pos/core";
 
+async function adminOnly(request: FastifyRequest, reply: FastifyReply) {
+  try {
+    requireRole(request.session!, "admin");
+  } catch (err) {
+    if (err instanceof AuthError) return reply.status(403).send({ error: err.message });
+    throw err;
+  }
+}
+
 const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.addHook("onRequest", async (request, reply) => {
+  fastify.addHook("onRequest", async (request) => {
     await fastify.authenticate(request);
-    try {
-      requireRole(request.session!, "admin");
-    } catch (err) {
-      if (err instanceof AuthError) {
-        return reply.status(403).send({ error: err.message });
-      }
-      throw err;
-    }
   });
 
+  // GET /categories — readable by any authenticated user (needed by the sales screen)
   fastify.get("/categories", {
     schema: { tags: ["categories"], summary: "List all categories" },
   }, async (_request, reply) => {
@@ -30,6 +32,7 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post("/categories", {
     schema: { tags: ["categories"], summary: "Create a category" },
+    preHandler: adminOnly,
   }, async (request, reply) => {
     const body = request.body as {
       name: string;
@@ -51,6 +54,7 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.patch("/categories/:id", {
     schema: { tags: ["categories"], summary: "Update a category" },
+    preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = request.body as Partial<{
@@ -80,6 +84,7 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.delete("/categories/:id", {
     schema: { tags: ["categories"], summary: "Delete a category" },
+    preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
     await fastify.ctx.db.delete(categories).where(eq(categories.id, id));

@@ -19,14 +19,17 @@ export const products = sqliteTable("products", {
   description:        text("description"),
   imageData:          text("image_data"),
   sortOrder:          integer("sort_order").notNull().default(0),
+  vatRate:            integer("vat_rate").notNull().default(10),
+  receiptPrintMode:   text("receipt_print_mode").notNull().default("inherit"),
   createdAt:          integer("created_at"),
   updatedAt:          integer("updated_at"),
 });
 
 export const productionCenters = sqliteTable("production_centers", {
-  id:    text("id").primaryKey(),
-  name:  text("name").notNull(),
-  color: text("color"),
+  id:               text("id").primaryKey(),
+  name:             text("name").notNull(),
+  color:            text("color"),
+  receiptPrintMode: text("receipt_print_mode").notNull().default("included"),
 });
 
 export const productionCenterCategories = sqliteTable("production_center_categories", {
@@ -35,12 +38,13 @@ export const productionCenterCategories = sqliteTable("production_center_categor
 });
 
 export const paymentMethods = sqliteTable("payment_methods", {
-  id:        text("id").primaryKey(),
-  name:      text("name").notNull(),
-  type:      text("type").notNull(),
-  active:    integer("active", { mode: "boolean" }).notNull().default(true),
-  sortOrder: integer("sort_order").notNull().default(0),
-  icon:      text("icon"),
+  id:               text("id").primaryKey(),
+  name:             text("name").notNull(),
+  type:             text("type").notNull(),
+  active:           integer("active", { mode: "boolean" }).notNull().default(true),
+  sortOrder:        integer("sort_order").notNull().default(0),
+  icon:             text("icon"),
+  excludeFromTotal: integer("exclude_from_total", { mode: "boolean" }).notNull().default(false),
 });
 
 export const printers = sqliteTable("printers", {
@@ -67,6 +71,7 @@ export const receiptTemplates = sqliteTable("receipt_templates", {
   showOrderNumber: integer("show_order_number", { mode: "boolean" }).notNull().default(true),
   showTimestamp:   integer("show_timestamp", { mode: "boolean" }).notNull().default(true),
   showPaymentMethod: integer("show_payment_method", { mode: "boolean" }).notNull().default(true),
+  showItemCategory: integer("show_item_category", { mode: "boolean" }).notNull().default(false),
   active:          integer("active", { mode: "boolean" }).notNull().default(true),
   printMode:       text("print_mode").notNull().default("text"),
   canvasWidth:     integer("canvas_width").notNull().default(576),
@@ -77,15 +82,16 @@ export const receiptTemplates = sqliteTable("receipt_templates", {
 });
 
 export const shifts = sqliteTable("shifts", {
-  id:            text("id").primaryKey(),
-  userId:        text("user_id").notNull(),
-  openedAt:      integer("opened_at").notNull(),
-  closedAt:      integer("closed_at"),
-  openingCash:   real("opening_cash").notNull().default(0),
-  closingCash:   real("closing_cash"),
-  totalSales:    real("total_sales").notNull().default(0),
-  totalOrders:   integer("total_orders").notNull().default(0),
-  notes:         text("notes"),
+  id:             text("id").primaryKey(),
+  userId:         text("user_id").notNull(),
+  openedAt:       integer("opened_at").notNull(),
+  closedAt:       integer("closed_at"),
+  openingCash:    real("opening_cash").notNull().default(0),
+  closingCash:    real("closing_cash"),
+  totalSales:     real("total_sales").notNull().default(0),
+  totalOrders:    integer("total_orders").notNull().default(0),
+  notes:          text("notes"),
+  zReportFiscal:  text("z_report_fiscal"),
 });
 
 export const appSettings = sqliteTable("app_settings", {
@@ -123,17 +129,34 @@ export const kitchenTemplates = sqliteTable("kitchen_templates", {
   logoPath:           text("logo_path"),
 });
 
+export const shiftReportTemplates = sqliteTable("shift_report_templates", {
+  id:          text("id").primaryKey(),
+  name:        text("name").notNull(),
+  active:      integer("active", { mode: "boolean" }).notNull().default(true),
+  printMode:   text("print_mode").notNull().default("image"),
+  canvasWidth: integer("canvas_width").notNull().default(576),
+  blocks:      text("blocks"),
+  logoPath:    text("logo_path"),
+});
+
 export const terminals = sqliteTable("terminals", {
-  id:         text("id").primaryKey(),
-  name:       text("name").notNull(),
-  active:     integer("active", { mode: "boolean" }).notNull().default(true),
-  createdAt:  integer("created_at").notNull(),
-  lastSeenAt: integer("last_seen_at"),
+  id:              text("id").primaryKey(),
+  name:            text("name").notNull(),
+  active:          integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt:       integer("created_at").notNull(),
+  lastSeenAt:      integer("last_seen_at"),
+  defaultViewMode: text("default_view_mode"),
 });
 
 export const terminalPrinters = sqliteTable("terminal_printers", {
   terminalId: text("terminal_id").notNull().references(() => terminals.id, { onDelete: "cascade" }),
   printerId:  text("printer_id").notNull().references(() => printers.id, { onDelete: "cascade" }),
+});
+
+export const terminalCategories = sqliteTable("terminal_categories", {
+  terminalId: text("terminal_id").notNull().references(() => terminals.id, { onDelete: "cascade" }),
+  categoryId: text("category_id").notNull().references(() => categories.id, { onDelete: "cascade" }),
+  sortOrder:  integer("sort_order").notNull().default(0),
 });
 
 export const productGridLayouts = sqliteTable("product_grid_layouts", {

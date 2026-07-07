@@ -21,6 +21,7 @@
     "@pos/core": "workspace:*",
     "@pos/db": "workspace:*",
     "@pos/event-bus": "workspace:*",
+    "@pos/module-fiscal": "workspace:*",
     "@pos/module-inventory": "workspace:*",
     "@pos/module-kitchen": "workspace:*",
     "@pos/module-payments": "workspace:*",

@@ -3,9 +3,10 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useStore } from "../../state/global-store.js";
 import { useAdminStore } from "../../state/admin-store.js";
 import { useShiftStore } from "../../state/shift-store.js";
-import { useGridStore } from "../../state/grid-store.js";
+import { useGridStore, type GridViewMode } from "../../state/grid-store.js";
+import { useTerminalStore } from "../../state/terminal-store.js";
 import { adminApi } from "../../core/admin-api.js";
-import type { Product } from "@pos/shared-types";
+import type { Product, Category } from "@pos/shared-types";
 import type { ProductGridSlot } from "@pos/shared-types";
 import { ProductConfigurator } from "./ProductConfigurator.js";
 import {
@@ -318,8 +319,15 @@ export function ProductGrid() {
   const { currentShift, setShiftModalOpen } = useShiftStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const { terminalId } = useTerminalStore();
+  const [visibleCategoryIds, setVisibleCategoryIds] = useState<string[] | null>(null);
 
   const { viewMode, showPrice, showDescription, sortBy, baseCols, editMode, layouts, loadLayout, saveLayout, updateSlot, setEditMode, applyServerPrefs } = useGridStore();
+
+  const visibleCategories: Category[] = visibleCategoryIds && visibleCategoryIds.length > 0
+    ? visibleCategoryIds.map((id) => categories.find((c) => c.id === id)).filter((c): c is Category => c !== undefined)
+    : categories;
+  const visibleCategoryIdSet = visibleCategoryIds && visibleCategoryIds.length > 0 ? new Set(visibleCategoryIds) : null;
 
   const [loadingProductId, setLoadingProductId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -361,12 +369,28 @@ export function ProductGrid() {
       .catch(() => {});
   }, [applyServerPrefs]);
 
-  // Auto-select first category
+  // Load terminal-specific visible categories and default view mode, if a terminal is selected
   useEffect(() => {
-    if (activeCategoryId === null && categories.length > 0) {
-      setActiveCategoryId(categories[0]?.id ?? null);
+    if (!terminalId) { setVisibleCategoryIds(null); return; }
+    adminApi.terminals.getCategories(terminalId)
+      .then((cats) => setVisibleCategoryIds(cats.map((c) => c.id)))
+      .catch(() => setVisibleCategoryIds(null));
+    adminApi.terminals.list()
+      .then((terminals) => {
+        const t = terminals.find((x) => x.id === terminalId);
+        if (t?.defaultViewMode) {
+          applyServerPrefs({ viewMode: t.defaultViewMode as GridViewMode });
+        }
+      })
+      .catch(() => {});
+  }, [terminalId, applyServerPrefs]);
+
+  // Auto-select first (visible) category
+  useEffect(() => {
+    if (activeCategoryId === null && visibleCategories.length > 0) {
+      setActiveCategoryId(visibleCategories[0]?.id ?? null);
     }
-  }, [categories, activeCategoryId]);
+  }, [visibleCategories, activeCategoryId]);
 
   // Load layout for current scope
   useEffect(() => {
@@ -375,10 +399,10 @@ export function ProductGrid() {
     } else if (viewMode !== "category") {
       void loadLayout("global");
       if (viewMode === "grouped_category") {
-        categories.forEach((c) => void loadLayout(`category:${c.id}`));
+        visibleCategories.forEach((c) => void loadLayout(`category:${c.id}`));
       }
     }
-  }, [viewMode, activeCategoryId, categories, loadLayout]);
+  }, [viewMode, activeCategoryId, visibleCategories, loadLayout]);
 
   // Resize pointer events (pointer instead of mouse because of setPointerCapture)
   useEffect(() => {
@@ -477,6 +501,8 @@ export function ProductGrid() {
   const searchLower = searchQuery.toLowerCase();
   const activeProducts = products.filter((p) => p.active && (
     !searchLower || p.name.toLowerCase().includes(searchLower)
+  ) && (
+    !visibleCategoryIdSet || !p.categoryId || visibleCategoryIdSet.has(p.categoryId)
   ));
 
   function getProductsForCategory(catId: string) {
@@ -485,7 +511,7 @@ export function ProductGrid() {
 
   function getGroupedProducts(): Array<{ label: string; color: string | null; products: Product[] }> {
     if (viewMode === "grouped_category") {
-      return categories
+      return visibleCategories
         .filter((c) => activeProducts.some((p) => p.categoryId === c.id))
         .map((c) => ({
           label: c.name,
@@ -595,12 +621,12 @@ export function ProductGrid() {
             }}
           >
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "2px", padding: "var(--sp-sm) 6px", overflowY: "auto", visibility: currentShift ? "visible" : "hidden" }}>
-              {categories.length === 0 ? (
+              {visibleCategories.length === 0 ? (
                 <div style={{ padding: "12px 4px", textAlign: "center" }}>
                   <TagIcon style={{ width: "20px", height: "20px", color: "var(--color-gray-300)", margin: "0 auto" }} />
                 </div>
               ) : (
-                categories.map((cat) => {
+                visibleCategories.map((cat) => {
                   const active = activeCategoryId === cat.id;
                   const accent = cat.color ?? "var(--color-brand)";
                   return (

@@ -225,7 +225,7 @@ function VariantPopover({ cartKey, productId, productName, unitPrice, existingNo
     const allOptions = groups.flatMap((g) => g.options.map((o) => ({ ...o, optionGroupId: g.id, groupType: g.type })));
     const opts = allOptions
       .filter((o) => selected.has(o.id))
-      .map((o) => ({ optionId: o.id, optionGroupId: o.optionGroupId, name: o.name, priceDelta: o.priceDelta, isRemoval: o.groupType === "removal" }));
+      .map((o) => ({ optionId: o.id, optionGroupId: o.optionGroupId, name: o.name, priceDelta: o.priceDelta, prefix: o.prefix ?? (o.groupType === "removal" ? "-" : "+"), isRemoval: o.prefix === "-" || o.groupType === "removal" }));
     const trimmedNote = freeNote.trim();
     addToCart({ productId, name: productName, unitPrice, selectedOptions: opts, ...(trimmedNote ? { notes: trimmedNote } : {}) });
     onClose();
@@ -300,6 +300,10 @@ function VariantPopover({ cartKey, productId, productName, unitPrice, existingNo
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
             {group.options.filter((o) => o.active).map((opt) => {
               const on = selected.has(opt.id);
+              const prefix = opt.prefix ?? (group.type === "removal" ? "-" : "+");
+              const isNeg = prefix === "-";
+              const isNote = prefix === ">>";
+              const activeColor = isNeg ? "var(--color-danger)" : isNote ? "var(--color-gray-500)" : "var(--color-brand)";
               return (
                 <button
                   key={opt.id}
@@ -307,18 +311,22 @@ function VariantPopover({ cartKey, productId, productName, unitPrice, existingNo
                   style={{
                     padding: "5px 12px",
                     borderRadius: "999px",
-                    border: `1.5px solid ${on ? "var(--color-brand)" : "var(--color-gray-200)"}`,
-                    background: on ? "rgba(48,107,52,0.08)" : "white",
+                    border: `1.5px solid ${on ? activeColor : "var(--color-gray-200)"}`,
+                    background: on ? (isNeg ? "rgba(239,68,68,0.08)" : isNote ? "rgba(107,114,128,0.08)" : "rgba(48,107,52,0.08)") : "white",
                     fontFamily: "var(--font)",
                     fontSize: "12px",
                     fontWeight: on ? 700 : 500,
-                    color: on ? "var(--color-brand)" : "var(--color-gray-700)",
+                    color: on ? activeColor : "var(--color-gray-700)",
                     cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
                   }}
                 >
-                  {opt.name}
-                  {opt.priceDelta !== 0 && (
-                    <span style={{ marginLeft: "4px", fontSize: "11px", color: on ? "var(--color-brand)" : "var(--color-gray-400)" }}>
+                  <span style={{ fontWeight: 800, opacity: on ? 1 : 0.4 }}>{prefix}</span>
+                  <span style={{ textDecoration: isNeg && on ? "line-through" : "none" }}>{opt.name}</span>
+                  {prefix !== ">>" && opt.priceDelta !== 0 && (
+                    <span style={{ fontSize: "11px", color: on ? activeColor : "var(--color-gray-400)" }}>
                       {opt.priceDelta > 0 ? `+€${opt.priceDelta.toFixed(2)}` : `-€${Math.abs(opt.priceDelta).toFixed(2)}`}
                     </span>
                   )}
@@ -436,7 +444,12 @@ export function CartPanel() {
           ...(c.selectedOptions.length > 0
             ? {
                 selectedOptionIds: c.selectedOptions.map((o) => o.optionId),
-                notes: c.selectedOptions.map((o) => (o.isRemoval ? `senza ${o.name}` : o.name)).join(", "),
+                notes: c.selectedOptions.map((o) => {
+                  const p = o.prefix ?? (o.isRemoval ? "-" : "+");
+                  if (p === "-") return `senza ${o.name}`;
+                  if (p === ">>") return `>> ${o.name}`;
+                  return o.name;
+                }).join(", "),
               }
             : c.notes !== undefined ? { notes: c.notes } : {}),
         })),
@@ -501,9 +514,10 @@ export function CartPanel() {
             </colgroup>
             <tbody>
               {cart.map((item) => {
-                const extras = item.selectedOptions.filter((o) => !o.isRemoval && o.priceDelta !== 0);
-                const removals = item.selectedOptions.filter((o) => o.isRemoval);
-                const modifiers = item.selectedOptions.filter((o) => !o.isRemoval && o.priceDelta === 0);
+                const extras = item.selectedOptions.filter((o) => (o.prefix ?? "+") !== "-" && (o.prefix ?? "+") !== ">>" && o.priceDelta !== 0);
+                const removals = item.selectedOptions.filter((o) => (o.prefix ?? (o.isRemoval ? "-" : "+")) === "-");
+                const notes_ = item.selectedOptions.filter((o) => (o.prefix ?? "+") === ">>");
+                const modifiers = item.selectedOptions.filter((o) => (o.prefix ?? "+") === "+" && o.priceDelta === 0);
                 const isVariantOpen = variantTarget?.cartKey === item.cartKey;
 
                 return (
@@ -533,18 +547,23 @@ export function CartPanel() {
                         {item.name}
                       </div>
                       {modifiers.length > 0 && (
-                        <div style={{ fontSize: "11px", color: "var(--color-gray-400)", marginTop: "1px" }}>
-                          {modifiers.map((o) => o.name).join(", ")}
+                        <div style={{ fontSize: "11px", color: "var(--color-brand)", marginTop: "1px" }}>
+                          + {modifiers.map((o) => o.name).join(", ")}
                         </div>
                       )}
                       {extras.length > 0 && (
                         <div style={{ fontSize: "11px", color: "var(--color-brand)", marginTop: "1px" }}>
-                          +{extras.map((o) => o.name).join(", ")}
+                          + {extras.map((o) => `${o.name} +€${o.priceDelta.toFixed(2)}`).join(", ")}
                         </div>
                       )}
                       {removals.length > 0 && (
                         <div style={{ fontSize: "11px", color: "var(--color-danger)", marginTop: "1px" }}>
-                          senza {removals.map((o) => o.name).join(", ")}
+                          − {removals.map((o) => o.name).join(", ")}
+                        </div>
+                      )}
+                      {notes_.length > 0 && (
+                        <div style={{ fontSize: "11px", color: "var(--color-gray-500)", fontStyle: "italic", marginTop: "1px" }}>
+                          &gt;&gt; {notes_.map((o) => o.name).join(", ")}
                         </div>
                       )}
                       {item.notes && (

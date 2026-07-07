@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { EventBus } from "@pos/event-bus";
 import type { Payment, CreatePaymentInput } from "@pos/shared-types";
-import { eq, orders } from "@pos/db";
+import { eq, orders, paymentMethods } from "@pos/db";
 import type { PaymentRepository } from "../repository/payment.repository.js";
 import type { DbClient } from "@pos/db";
 
@@ -29,6 +29,14 @@ export class PaymentService {
       throw new PaymentError("Payment amount must be greater than zero");
     }
 
+    const [methodRow] = await this.db.select({ active: paymentMethods.active })
+      .from(paymentMethods)
+      .where(eq(paymentMethods.id, input.method))
+      .limit(1);
+    if (!methodRow || !methodRow.active) {
+      throw new PaymentError(`Payment method "${input.method}" is not valid or not active`);
+    }
+
     // Validate amount matches order total (tolerance ±0.01 for floating point)
     const [orderRow] = await this.db.select({ totalAmount: orders.totalAmount, status: orders.status })
       .from(orders)
@@ -41,7 +49,13 @@ export class PaymentService {
     if (orderRow.status === "completed" || orderRow.status === "cancelled") {
       throw new PaymentError(`Order is already ${orderRow.status}`);
     }
-    if (Math.abs(input.amount - orderRow.totalAmount) > 0.01) {
+
+    // Guard against double-payment: reject if a completed payment already exists for this order.
+    const existingPayments = await this.repo.findByOrderId(input.orderId);
+    if (existingPayments.some((p) => p.status === "completed")) {
+      throw new PaymentError(`Order ${input.orderId} has already been paid`);
+    }
+    if (Math.abs(input.amount - orderRow.totalAmount) >= 0.01) {
       throw new PaymentError(
         `Payment amount €${input.amount.toFixed(2)} does not match order total €${orderRow.totalAmount.toFixed(2)}`
       );

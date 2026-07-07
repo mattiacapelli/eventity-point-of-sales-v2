@@ -5,6 +5,8 @@ import { KitchenOrderCard } from "./KitchenOrderCard.js";
 import { apiClient } from "../../core/api-client.js";
 import { wsClient } from "../../core/ws-client.js";
 import { useStore } from "../../state/global-store.js";
+import { adminApi } from "../../core/admin-api.js";
+import { useToastStore } from "../../components/ui/Toast.js";
 
 const KITCHEN_STATUSES = ["pending", "confirmed", "preparing", "ready"];
 
@@ -32,6 +34,8 @@ export function KitchenScreen() {
   const [muted, setMuted] = useState(() => localStorage.getItem("kitchen_mute") === "true");
   const mutedRef = useRef(muted);
   const upsertOrder = useStore((s) => s.upsertOrder);
+  const [productCenterMap, setProductCenterMap] = useState<Record<string, string>>({});
+  const [, forceTick] = useState(0);
 
   function toggleMute() {
     setMuted((prev) => {
@@ -47,8 +51,8 @@ export function KitchenScreen() {
       const res = await apiClient.kitchen.queue();
       setOrders(res.orders);
       res.orders.forEach((o) => upsertOrder(o));
-    } catch {
-      // silent — keep stale data
+    } catch (err) {
+      useToastStore.getState().show(err instanceof Error ? err.message : "Errore nel caricamento della coda cucina");
     } finally {
       setLoading(false);
     }
@@ -57,6 +61,26 @@ export function KitchenScreen() {
   useEffect(() => {
     void loadQueue();
   }, [loadQueue]);
+
+  // Load product → production center map for grouping the board by station
+  useEffect(() => {
+    Promise.all([adminApi.products.list(), adminApi.productionCenters.list()])
+      .then(([products, centers]) => {
+        const centerNames = Object.fromEntries(centers.map((c) => [c.id, c.name]));
+        const map: Record<string, string> = {};
+        for (const p of products) {
+          if (p.productionCenterId) map[p.id] = centerNames[p.productionCenterId] ?? "Senza centro";
+        }
+        setProductCenterMap(map);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Force periodic re-render so elapsed time / delay colors stay fresh
+  useEffect(() => {
+    const interval = setInterval(() => forceTick((t) => t + 1), 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Subscribe to live updates
   useEffect(() => {
@@ -101,6 +125,24 @@ export function KitchenScreen() {
     const rank: Record<string, number> = { preparing: 0, confirmed: 1, pending: 2, ready: 3 };
     return (rank[a.status] ?? 99) - (rank[b.status] ?? 99);
   });
+
+  // Group by the production center of the order's first resolvable item
+  function centerFor(order: Order): string {
+    for (const item of order.items) {
+      const center = productCenterMap[item.productId];
+      if (center) return center;
+    }
+    return "Senza centro";
+  }
+
+  const ordersByCenter = new Map<string, Order[]>();
+  for (const order of sortedOrders) {
+    const center = centerFor(order);
+    const list = ordersByCenter.get(center) ?? [];
+    list.push(order);
+    ordersByCenter.set(center, list);
+  }
+  const showCenterGroups = ordersByCenter.size > 1;
 
   return (
     <KitchenLayout>
@@ -157,6 +199,31 @@ export function KitchenScreen() {
           <span style={{ fontSize: "64px" }}>✓</span>
           <span style={{ fontSize: "var(--text-xl)", fontWeight: 700 }}>Coda vuota</span>
           <span style={{ fontSize: "var(--text-md)" }}>Nessun ordine in attesa</span>
+        </div>
+      ) : showCenterGroups ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
+          {[...ordersByCenter.entries()].map(([center, centerOrders]) => (
+            <div key={center}>
+              <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "var(--sp-sm)" }}>
+                {center}
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                  gap: "var(--sp-md)",
+                }}
+              >
+                {centerOrders.map((order) => (
+                  <KitchenOrderCard
+                    key={order.id}
+                    order={order}
+                    onUpdated={handleOrderUpdated}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <div

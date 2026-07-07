@@ -1,10 +1,13 @@
 import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
+import { terminals } from "./catalog.js";
 
 export const orders = sqliteTable("orders", {
   id: text("id").primaryKey(),
   tableId: text("table_id"),
+  customerName: text("customer_name"),
   eventId: text("event_id"),
   shiftId: text("shift_id"),
+  terminalId: text("terminal_id").references(() => terminals.id),
   status: text("status", {
     enum: ["pending", "confirmed", "preparing", "ready", "completed", "cancelled"],
   }).notNull().default("pending"),
@@ -14,6 +17,9 @@ export const orders = sqliteTable("orders", {
   notes: text("notes"),
   pax: integer("pax"),
   receiptNumber: integer("receipt_number"),
+  fiscalDocNumber: text("fiscal_doc_number"),
+  fiscalDocDate: text("fiscal_doc_date"),
+  fiscalRtSerial: text("fiscal_rt_serial"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
   syncedAt: integer("synced_at", { mode: "timestamp" }),

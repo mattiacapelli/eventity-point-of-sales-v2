@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useStore } from "../state/global-store.js";
 import {
   Bars3Icon,
   XMarkIcon,
@@ -16,14 +17,16 @@ const NAV_ITEMS = [
   { path: "/history",  label: "Storico",         Icon: ClipboardDocumentListIcon },
   { path: "/stats",    label: "Statistiche",     Icon: ChartBarIcon },
   { path: "/settings", label: "Impostazioni",    Icon: Cog6ToothIcon },
-  { path: "/admin",    label: "Amministrazione", Icon: WrenchScrewdriverIcon },
-  { path: "/audit",    label: "Audit log",       Icon: ShieldCheckIcon },
+  { path: "/admin",    label: "Amministrazione", Icon: WrenchScrewdriverIcon, roles: ["admin"] },
+  { path: "/audit",    label: "Audit log",       Icon: ShieldCheckIcon,       roles: ["admin"] },
 ] as const;
 
 function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const role = useStore((s) => s.session?.role);
   const drawerRef = useRef<HTMLDivElement>(null);
+  const visibleItems = NAV_ITEMS.filter((item) => !("roles" in item) || (item.roles as readonly string[]).includes(role ?? ""));
 
   useEffect(() => {
     if (!open) return;
@@ -82,7 +85,7 @@ function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
           transformOrigin: "bottom left",
         }}
       >
-        {NAV_ITEMS.map(({ path, label, Icon }) => {
+        {visibleItems.map(({ path, label, Icon }) => {
           const active = location.pathname === path;
           return (
             <button

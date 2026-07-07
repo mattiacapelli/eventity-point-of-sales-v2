@@ -237,6 +237,16 @@ CREATE TABLE IF NOT EXISTS kitchen_templates (
   logo_path            TEXT
 );
 
+CREATE TABLE IF NOT EXISTS shift_report_templates (
+  id           TEXT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  active       INTEGER NOT NULL DEFAULT 1,
+  print_mode   TEXT NOT NULL DEFAULT 'image',
+  canvas_width INTEGER NOT NULL DEFAULT 576,
+  blocks       TEXT,
+  logo_path    TEXT
+);
+
 CREATE TABLE IF NOT EXISTS product_grid_layouts (
   id         TEXT PRIMARY KEY,
   scope      TEXT NOT NULL,
@@ -261,6 +271,13 @@ CREATE TABLE IF NOT EXISTS terminal_printers (
   printer_id  TEXT NOT NULL REFERENCES printers(id) ON DELETE CASCADE,
   PRIMARY KEY (terminal_id, printer_id)
 );
+
+CREATE TABLE IF NOT EXISTS terminal_categories (
+  terminal_id TEXT NOT NULL REFERENCES terminals(id) ON DELETE CASCADE,
+  category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (terminal_id, category_id)
+);
 `;
 
 const EXTRA_COLUMNS = `
@@ -277,7 +294,7 @@ ALTER TABLE products ADD COLUMN updated_at INTEGER;
 ALTER TABLE orders ADD COLUMN shift_id TEXT REFERENCES shifts(id);
 CREATE INDEX IF NOT EXISTS idx_orders_shift_id ON orders(shift_id);
 ALTER TABLE orders ADD COLUMN receipt_number INTEGER;
-INSERT OR IGNORE INTO app_settings(key,value) VALUES('receipt_number_mode','default');
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('receipt_number_mode','shift');
 INSERT OR IGNORE INTO app_settings(key,value) VALUES('receipt_number_prefix','');
 INSERT OR IGNORE INTO app_settings(key,value) VALUES('receipt_number_padding','0');
 INSERT OR IGNORE INTO receipt_counters(scope, last_value) VALUES('global', 0);
@@ -316,13 +333,65 @@ ALTER TABLE orders ADD COLUMN pax INTEGER;
 INSERT OR IGNORE INTO app_settings(key,value) VALUES('cart_notes_enabled','true');
 INSERT OR IGNORE INTO app_settings(key,value) VALUES('cart_pax_enabled','true');
 INSERT OR IGNORE INTO app_settings(key,value) VALUES('cart_discount_enabled','true');
+ALTER TABLE options ADD COLUMN prefix TEXT NOT NULL DEFAULT '+';
+ALTER TABLE products ADD COLUMN vat_rate INTEGER NOT NULL DEFAULT 10;
+ALTER TABLE orders ADD COLUMN fiscal_doc_number TEXT;
+ALTER TABLE orders ADD COLUMN fiscal_doc_date TEXT;
+ALTER TABLE orders ADD COLUMN fiscal_rt_serial TEXT;
+ALTER TABLE shifts ADD COLUMN z_report_fiscal TEXT;
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('fiscal_enabled','false');
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('fiscal_rt_type','epson');
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('fiscal_rt_host','192.168.1.100');
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('fiscal_rt_port','8008');
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('fiscal_rt_serial','');
+INSERT OR IGNORE INTO modules(name, enabled, version, created_at, updated_at) VALUES('fiscal', 0, '0.1.0', unixepoch(), unixepoch());
+ALTER TABLE terminals ADD COLUMN default_view_mode TEXT;
+ALTER TABLE orders ADD COLUMN terminal_id TEXT REFERENCES terminals(id);
+ALTER TABLE production_centers ADD COLUMN receipt_print_mode TEXT NOT NULL DEFAULT 'included';
+ALTER TABLE payment_methods ADD COLUMN exclude_from_total INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN customer_name TEXT;
+INSERT OR IGNORE INTO payment_methods(id, name, type, active, sort_order, icon) VALUES('cash', 'Contanti', 'cash', 1, 0, null);
+INSERT OR IGNORE INTO payment_methods(id, name, type, active, sort_order, icon) VALUES('card', 'Carta', 'card', 1, 1, null);
+INSERT OR IGNORE INTO payment_methods(id, name, type, active, sort_order, icon) VALUES('digital_wallet', 'Wallet digitale', 'digital_wallet', 1, 2, null);
+INSERT OR IGNORE INTO payment_methods(id, name, type, active, sort_order, icon) VALUES('tab', 'Conto sospeso', 'tab', 1, 3, null);
+ALTER TABLE products ADD COLUMN receipt_print_mode TEXT NOT NULL DEFAULT 'inherit';
+ALTER TABLE receipt_templates ADD COLUMN show_item_category INTEGER NOT NULL DEFAULT 0;
 `;
+
+// payments.method used to be a CHECK-constrained enum column (cash/card/digital_wallet/tab).
+// SQLite can't drop a CHECK via ALTER TABLE, so widen it via table-rebuild if still present.
+function dropPaymentsMethodCheck(sqlite: Database.Database): void {
+  const row = sqlite.prepare(
+    "SELECT sql FROM sqlite_master WHERE type='table' AND name='payments'"
+  ).get() as { sql?: string } | undefined;
+  if (!row?.sql || !row.sql.includes("CHECK(method IN")) return;
+  sqlite.exec(`
+    ALTER TABLE payments RENAME TO payments_old_check;
+    CREATE TABLE payments (
+      id         TEXT PRIMARY KEY,
+      order_id   TEXT NOT NULL REFERENCES orders(id),
+      method     TEXT NOT NULL,
+      status     TEXT NOT NULL DEFAULT 'pending'
+                  CHECK(status IN ('pending','completed','failed','refunded')),
+      amount     REAL NOT NULL,
+      currency   TEXT NOT NULL DEFAULT 'EUR',
+      reference  TEXT,
+      terminal_id TEXT REFERENCES terminals(id),
+      created_at INTEGER NOT NULL,
+      synced_at  INTEGER
+    );
+    INSERT INTO payments SELECT * FROM payments_old_check;
+    DROP TABLE payments_old_check;
+    CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments(order_id);
+  `);
+}
 
 export function runMigrations(dbPath: string): void {
   const sqlite = new Database(dbPath);
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
   sqlite.exec(DDL);
+  dropPaymentsMethodCheck(sqlite);
   // Add columns idempotently — SQLite throws if column already exists
   for (const stmt of EXTRA_COLUMNS.trim().split("\n")) {
     try { sqlite.exec(stmt); } catch { /* column already exists */ }

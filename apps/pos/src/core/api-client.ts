@@ -28,7 +28,7 @@ async function request<T>(
   return res.json() as Promise<T>;
 }
 
-type OrderFilters = { status?: string; shiftId?: string; from?: number; to?: number; limit?: number; offset?: number };
+type OrderFilters = { status?: string; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number };
 
 type ShiftStats = {
   totalSales: number;
@@ -68,12 +68,39 @@ type PeriodStats = {
   byDay: { date: string; sales: number }[];
 };
 
+export type ShiftFullStats = {
+  shift: {
+    id: string;
+    openedAt: string;
+    closedAt: string | null;
+    openingCash: number;
+    closingCash: number | null;
+    notes: string | null;
+  };
+  summary: {
+    totalSales: number;
+    totalOrders: number;
+    cancelledOrders: number;
+    avgTicket: number;
+    refundTotal: number;
+    netSales: number;
+    totalSalesExcluded: number;
+  };
+  byPaymentMethod: { method: string; count: number; amount: number; excludeFromTotal: boolean }[];
+  byCategory: { categoryName: string; quantity: number; amount: number }[];
+  byProductionCenter: { centerName: string; quantity: number; amount: number }[];
+  byTerminal: { terminalName: string; count: number; amount: number }[];
+  byHour: { hour: number; orders: number; amount: number }[];
+  topProducts: { name: string; quantity: number; amount: number }[];
+};
+
 export const apiClient = {
   orders: {
     list: (filters?: OrderFilters) => {
       const params = new URLSearchParams();
       if (filters?.status) params.set("status", filters.status);
       if (filters?.shiftId) params.set("shiftId", filters.shiftId);
+      if (filters?.terminalId) params.set("terminalId", filters.terminalId);
       if (filters?.from !== undefined) params.set("from", String(filters.from));
       if (filters?.to !== undefined) params.set("to", String(filters.to));
       if (filters?.limit !== undefined) params.set("limit", String(filters.limit));
@@ -83,10 +110,15 @@ export const apiClient = {
     },
     getById: (id: string) =>
       request<Order>("GET", `/orders/${id}`),
-    create: (input: CreateOrderInput) =>
-      request<Order>("POST", "/orders", input),
+    create: (input: CreateOrderInput) => {
+      const terminalId = useTerminalStore.getState().terminalId;
+      const extraHeaders = terminalId ? { "X-Terminal-Id": terminalId } : undefined;
+      return request<Order>("POST", "/orders", input, extraHeaders);
+    },
     updateStatus: (id: string, status: string) =>
       request<Order>("PATCH", `/orders/${id}/status`, { status }),
+    updateDetails: (id: string, data: { tableId?: string | null; customerName?: string | null }) =>
+      request<Order>("PATCH", `/orders/${id}/details`, data),
     cancel: (id: string, reason?: string) =>
       request<Order>("DELETE", `/orders/${id}`, { reason }),
     reprint: (id: string) =>
@@ -118,6 +150,10 @@ export const apiClient = {
       request<PeriodStats>("GET", `/stats/period?from=${from}&to=${to}`),
     zreport: (shiftId: string) =>
       request<ZReport>("GET", `/stats/zreport/${shiftId}`),
+    shiftFull: (shiftId: string) =>
+      request<ShiftFullStats>("GET", `/stats/shift/${shiftId}/full`),
+    printShiftReport: (shiftId: string) =>
+      request<{ ok: boolean; message?: string }>("POST", `/stats/shift/${shiftId}/print`, {}),
   },
   auth: {
     changePin: (currentPin: string, newPin: string) =>

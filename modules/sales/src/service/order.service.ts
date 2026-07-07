@@ -71,7 +71,7 @@ export class OrderService {
     return order;
   }
 
-  async list(filters?: { status?: OrderStatus; shiftId?: string; from?: number; to?: number; limit?: number; offset?: number }): Promise<Order[]> {
+  async list(filters?: { status?: OrderStatus; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number }): Promise<Order[]> {
     return this.repo.findAll(filters);
   }
 
@@ -122,6 +122,13 @@ export class OrderService {
       });
     }
 
+    return updated;
+  }
+
+  async updateDetails(id: string, data: { tableId?: string | null; customerName?: string | null }): Promise<Order> {
+    await this.getById(id); // throws OrderNotFoundError if missing
+    const updated = await this.repo.updateDetails(id, data);
+    if (updated === null) throw new OrderNotFoundError(id);
     return updated;
   }
 

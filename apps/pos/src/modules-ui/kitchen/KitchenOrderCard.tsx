@@ -3,6 +3,7 @@ import type { Order, OrderStatus } from "@pos/shared-types";
 import { Badge } from "../../components/ui/Badge.js";
 import { Button } from "../../components/ui/Button.js";
 import { apiClient } from "../../core/api-client.js";
+import { useToastStore } from "../../components/ui/Toast.js";
 
 const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
   pending:   "confirmed",
@@ -23,12 +24,22 @@ const cardBorder: Partial<Record<OrderStatus, string>> = {
   ready:     "var(--status-ready)",
 };
 
-function elapsedLabel(createdAt: Date | string): string {
+function elapsedMinutes(createdAt: Date | string): number {
   const diff = Date.now() - new Date(createdAt).getTime();
-  const mins = Math.floor(diff / 60_000);
+  return Math.floor(diff / 60_000);
+}
+
+function elapsedLabel(createdAt: Date | string): string {
+  const mins = elapsedMinutes(createdAt);
   if (mins < 1) return "Adesso";
   if (mins === 1) return "1 min fa";
   return `${mins} min fa`;
+}
+
+function delayColor(mins: number): string | null {
+  if (mins >= 20) return "#dc2626"; // red — late
+  if (mins >= 10) return "#f59e0b"; // amber — approaching
+  return null;
 }
 
 interface Props {
@@ -46,20 +57,22 @@ export function KitchenOrderCard({ order, onUpdated }: Props) {
     try {
       const updated = await apiClient.kitchen.transition(order.id, nextStatus);
       onUpdated(updated);
-    } catch {
-      // keep current state; real error handling would show a toast
+    } catch (err) {
+      useToastStore.getState().show(err instanceof Error ? err.message : "Errore nell'aggiornamento dell'ordine");
     } finally {
       setLoading(false);
     }
   };
 
   const isReady = order.status === "ready";
+  const delay = isReady ? null : delayColor(elapsedMinutes(order.createdAt));
 
   return (
     <div
       style={{
         background: isReady ? "rgba(34,197,94,0.06)" : "var(--color-gray-800)",
-        border: `2px solid ${cardBorder[order.status] ?? "var(--color-gray-700)"}`,
+        border: `2px solid ${delay ?? cardBorder[order.status] ?? "var(--color-gray-700)"}`,
+        boxShadow: delay ? `0 0 0 1px ${delay}` : undefined,
         borderRadius: "var(--radius-xl)",
         padding: "var(--sp-lg)",
         display: "flex",
@@ -70,7 +83,7 @@ export function KitchenOrderCard({ order, onUpdated }: Props) {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-xs)", fontWeight: 600 }}>
+          <div style={{ color: delay ?? "var(--color-gray-400)", fontSize: "var(--text-xs)", fontWeight: delay ? 700 : 600 }}>
             {elapsedLabel(order.createdAt)}
           </div>
           <div style={{ color: "var(--color-white)", fontSize: "var(--text-lg)", fontWeight: 700, marginTop: "2px" }}>

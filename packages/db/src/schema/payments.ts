@@ -1,3 +1,7 @@
+// NOTE: a partial unique index should also exist at DB level to prevent double-payment
+// under concurrent writes. Add via migration:
+//   CREATE UNIQUE INDEX IF NOT EXISTS payments_order_completed_idx
+//   ON payments(order_id) WHERE status = 'completed';
 import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { orders } from "./orders.js";
 import { terminals } from "./catalog.js";
@@ -5,9 +9,7 @@ import { terminals } from "./catalog.js";
 export const payments = sqliteTable("payments", {
   id: text("id").primaryKey(),
   orderId: text("order_id").notNull().references(() => orders.id),
-  method: text("method", {
-    enum: ["cash", "card", "digital_wallet", "tab"],
-  }).notNull(),
+  method: text("method").notNull(),
   status: text("status", {
     enum: ["pending", "completed", "failed", "refunded"],
   }).notNull().default("pending"),

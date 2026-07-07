@@ -9,7 +9,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
   },
   "dependencies": {
     "@pos/core": "workspace:*",
@@ -20,6 +21,11 @@
   },
   "devDependencies": {
     "@fastify/swagger": "8",
-    "typescript": "^5.4.0"
+    "@types/better-sqlite3": "^7.6.0",
+    "@vitest/coverage-v8": "^2.1.0",
+    "better-sqlite3": "^9.6.0",
+    "drizzle-orm": "^0.30.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.1.9"
   }
 }

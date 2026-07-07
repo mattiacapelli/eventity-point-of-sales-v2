@@ -12,7 +12,10 @@ export type BlockType =
   | "total"
   | "payment-method"
   | "footer"
-  | "category-name";
+  | "category-name"
+  | "terminal-name"
+  | "table-name"
+  | "customer-name";
 
 export interface ReceiptBlock {
   id: string;
@@ -25,6 +28,7 @@ export interface ReceiptBlock {
   visible: boolean;
   content?: string;
   logoWidth?: number;  // percentage of canvas width for logo blocks (10–100)
+  invertColors?: boolean; // image-mode only: black background, white text for this block's row
 }
 
 export interface ReceiptTemplate {
@@ -36,11 +40,12 @@ export interface ReceiptTemplate {
   showOrderNumber: boolean;
   showTimestamp: boolean;
   showPaymentMethod: boolean;
+  showItemCategory: boolean;
   active: boolean;
   printMode: "text" | "image";
   canvasWidth: number;
   logoPath: string | null;
   blocks: ReceiptBlock[] | null;
-  printMethod: "single" | "by_category" | "by_category_copy" | "per_item" | "per_item_copy";
+  printMethod: "single" | "by_category" | "by_category_copy" | "by_center" | "by_center_copy" | "per_item" | "per_item_copy";
   role: "master" | "sub" | "client_copy";
 }

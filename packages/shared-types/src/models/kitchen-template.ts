@@ -2,6 +2,7 @@ export type KitchenBlockType =
   | "center-name"
   | "order-number"
   | "table-number"
+  | "customer-name"
   | "timestamp"
   | "items"
   | "divider"
@@ -17,6 +18,7 @@ export interface KitchenBlock {
   paddingTop: number;
   visible: boolean;
   content?: string;
+  invertColors?: boolean; // image-mode only: black background, white text for this block's row
 }
 
 export interface KitchenTemplate {

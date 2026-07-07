@@ -33,6 +33,7 @@ export interface SelectedOption {
   readonly optionGroupId: string;
   readonly name: string;
   readonly priceDelta: number;
+  readonly prefix: "+" | "-" | ">>";
   readonly isRemoval: boolean;
 }
 
@@ -85,6 +86,10 @@ interface GlobalState {
   // Offline
   isOffline: boolean;
   setOffline: (offline: boolean) => void;
+
+  // Multi-terminal mode (read from app settings)
+  multiTerminalEnabled: boolean;
+  setMultiTerminalEnabled: (enabled: boolean) => void;
 }
 
 function makeCartKey(productId: string, selectedOptions: SelectedOption[]): string {
@@ -95,7 +100,12 @@ function makeCartKey(productId: string, selectedOptions: SelectedOption[]): stri
 
 export const useStore = create<GlobalState>((set, get) => ({
   session: null,
-  setSession: (session) => set({ session }),
+  setSession: (session) => {
+    // Clear cart on every session change (login or logout) to prevent cart data
+    // from leaking between different users on the same device.
+    persistCart([]);
+    set({ session, cart: [] });
+  },
 
   orders: [],
   setOrders: (orders) => set({ orders }),
@@ -110,7 +120,7 @@ export const useStore = create<GlobalState>((set, get) => ({
   removeOrder: (id) =>
     set((s) => ({ orders: s.orders.filter((o) => o.id !== id) })),
 
-  cart: loadPersistedCart(),
+  cart: [],
   addToCart: (item) =>
     set((s) => {
       const opts = item.selectedOptions ?? [];
@@ -178,4 +188,7 @@ export const useStore = create<GlobalState>((set, get) => ({
 
   isOffline: !navigator.onLine,
   setOffline: (isOffline) => set({ isOffline }),
+
+  multiTerminalEnabled: false,
+  setMultiTerminalEnabled: (multiTerminalEnabled) => set({ multiTerminalEnabled }),
 }));

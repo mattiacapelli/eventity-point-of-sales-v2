@@ -18,15 +18,24 @@ export interface OrderItem {
   readonly name: string;
   readonly quantity: number;
   readonly unitPrice: number;
+  readonly vatRate?: number;
   readonly notes?: string;
   readonly options?: ReadonlyArray<OrderItemOption>;
+}
+
+export interface VatBreakdown {
+  readonly rate: number;
+  readonly taxable: number;
+  readonly tax: number;
 }
 
 export interface Order {
   readonly id: string;
   readonly tableId?: string;
+  readonly customerName?: string;
   readonly eventId?: string;
   readonly shiftId?: string;
+  readonly terminalId?: string;
   readonly status: OrderStatus;
   readonly items: ReadonlyArray<OrderItem>;
   readonly totalAmount: number;
@@ -35,6 +44,10 @@ export interface Order {
   readonly notes?: string;
   readonly pax?: number;
   readonly receiptNumber?: number;
+  readonly fiscalDocNumber?: string;
+  readonly fiscalDocDate?: string;
+  readonly fiscalRtSerial?: string;
+  readonly vatBreakdown?: ReadonlyArray<VatBreakdown>;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly syncedAt?: Date;
@@ -62,6 +75,7 @@ export interface CreateOrderInput {
   readonly tableId?: string;
   readonly eventId?: string;
   readonly shiftId?: string;
+  readonly terminalId?: string;
   readonly notes?: string;
   readonly discountAmount?: number;
   readonly discountType?: string;
@@ -73,4 +87,6 @@ export interface UpdateOrderInput {
   readonly id: string;
   readonly status?: OrderStatus;
   readonly items?: ReadonlyArray<Omit<OrderItem, "id">>;
+  readonly tableId?: string | null;
+  readonly customerName?: string | null;
 }

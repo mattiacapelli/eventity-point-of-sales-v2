@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useStore } from "../state/global-store.js";
 import { useShiftStore } from "../state/shift-store.js";
+import { useTerminalStore } from "../state/terminal-store.js";
 import { authClient } from "../core/auth-client.js";
 import { ArrowRightOnRectangleIcon, ClockIcon, WifiIcon, SignalSlashIcon } from "../components/ui/icons.js";
 import { NavMenuFab } from "../components/NavMenu.js";
@@ -40,8 +41,9 @@ function ShiftBadge({ openedAt }: { openedAt: number }) {
 }
 
 export function PosLayout({ children }: PosLayoutProps) {
-  const { session, isOffline, wsStatus, setSession } = useStore();
+  const { session, isOffline, wsStatus, setSession, multiTerminalEnabled } = useStore();
   const { currentShift, setShiftModalOpen } = useShiftStore();
+  const { terminalName } = useTerminalStore();
 
   const connectionState: "online" | "degraded" | "offline" =
     isOffline ? "offline" :
@@ -91,6 +93,15 @@ export function PosLayout({ children }: PosLayoutProps) {
               }}>
                 {connectionState === "offline" ? "Offline" : "Segnale debole"}
               </span>
+            </div>
+          )}
+          {multiTerminalEnabled && terminalName && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: "5px",
+              background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.18)",
+              borderRadius: "var(--radius-md)", padding: "4px 10px",
+            }}>
+              <span style={{ color: "rgba(255,255,255,0.85)", fontSize: "var(--text-xs)", fontWeight: 600 }}>{terminalName}</span>
             </div>
           )}
           {currentShift && <ShiftBadge openedAt={currentShift.openedAt} />}

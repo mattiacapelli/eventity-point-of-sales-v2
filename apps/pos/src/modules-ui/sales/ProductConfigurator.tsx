@@ -97,7 +97,8 @@ export function ProductConfigurator({ product, onClose }: Props) {
           optionGroupId: g.id,
           name: o.name,
           priceDelta: o.priceDelta,
-          isRemoval: g.type === "removal",
+          prefix: (o.prefix ?? (g.type === "removal" ? "-" : "+")) as "+" | "-" | ">>",
+          isRemoval: (o.prefix ?? (g.type === "removal" ? "-" : "+")) === "-",
         }));
     });
     addToCart({
@@ -248,6 +249,10 @@ export function ProductConfigurator({ product, onClose }: Props) {
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                   {activeOptions.map((option) => {
                     const isSelected = sel.has(option.id);
+                    const prefix = option.prefix ?? (isRemoval ? "-" : "+");
+                    const isNeg = prefix === "-";
+                    const isNote = prefix === ">>";
+                    const activeColor = isNeg ? "var(--color-danger)" : isNote ? "var(--color-gray-500)" : "var(--color-brand)";
                     return (
                       <button
                         key={option.id}
@@ -259,17 +264,15 @@ export function ProductConfigurator({ product, onClose }: Props) {
                           padding: "10px 16px",
                           borderRadius: "999px",
                           border: isSelected
-                            ? `2px solid ${isRemoval ? "var(--color-danger)" : "var(--color-brand)"}`
+                            ? `2px solid ${activeColor}`
                             : "2px solid var(--color-gray-200)",
                           background: isSelected
-                            ? isRemoval ? "rgba(239,68,68,0.08)" : "rgba(48,107,52,0.08)"
+                            ? isNeg ? "rgba(239,68,68,0.08)" : isNote ? "rgba(107,114,128,0.08)" : "rgba(48,107,52,0.08)"
                             : "var(--color-white)",
                           cursor: "pointer",
                           fontSize: "var(--text-sm)",
                           fontWeight: 600,
-                          color: isSelected
-                            ? isRemoval ? "var(--color-danger)" : "var(--color-brand)"
-                            : "var(--color-gray-700)",
+                          color: isSelected ? activeColor : "var(--color-gray-700)",
                           fontFamily: "var(--font)",
                           transition: "all 0.15s ease",
                           whiteSpace: "nowrap",
@@ -278,13 +281,11 @@ export function ProductConfigurator({ product, onClose }: Props) {
                         onPointerUp={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)"; }}
                         onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)"; }}
                       >
-                        {isRemoval && isSelected && (
-                          <span style={{ fontSize: "12px", lineHeight: 1 }}>✕</span>
-                        )}
-                        <span style={{ textDecoration: isRemoval && isSelected ? "line-through" : "none" }}>
+                        <span style={{ fontWeight: 800, opacity: isSelected ? 1 : 0.4 }}>{prefix}</span>
+                        <span style={{ textDecoration: isNeg && isSelected ? "line-through" : "none" }}>
                           {option.name}
                         </span>
-                        {!isRemoval && option.priceDelta !== 0 && (
+                        {prefix !== ">>" && option.priceDelta !== 0 && (
                           <span style={{
                             fontSize: "var(--text-xs)",
                             fontWeight: 700,

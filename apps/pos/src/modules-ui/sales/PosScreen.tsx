@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import type { PaymentMethod } from "@pos/shared-types";
 import { PosLayout } from "../../layout/PosLayout.js";
 import { ProductGrid } from "./ProductGrid.js";
 import { CartPanel } from "./CartPanel.js";
@@ -38,12 +37,16 @@ function CheckoutModal() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paid, setPaid] = useState(false);
+  const [tableId, setTableId] = useState("");
+  const [customerName, setCustomerName] = useState("");
 
   const activeMethods = paymentMethods.filter((m) => m.active);
 
   // Load payment methods when modal is needed; auto-select first
   useEffect(() => {
     if (!checkoutOrder) return;
+    setTableId(checkoutOrder.tableId ?? "");
+    setCustomerName(checkoutOrder.customerName ?? "");
     if (paymentMethods.length === 0) {
       adminApi.paymentMethods.list().then((ms) => {
         setPaymentMethods(ms);
@@ -65,12 +68,15 @@ function CheckoutModal() {
     setLoading(true);
     setError(null);
     try {
-      // Map the dynamic method type to the legacy PaymentMethod enum for the existing payments API
-      const legacyMethod: PaymentMethod =
-        selectedMethod.type === "card" ? "card" :
-        selectedMethod.type === "digital_wallet" ? "digital_wallet" :
-        selectedMethod.type === "tab" ? "tab" : "cash";
-      await apiClient.payments.pay({ orderId: order.id, method: legacyMethod, amount: order.totalAmount });
+      const trimmedTableId = tableId.trim();
+      const trimmedCustomerName = customerName.trim();
+      if (trimmedTableId !== (order.tableId ?? "") || trimmedCustomerName !== (order.customerName ?? "")) {
+        await apiClient.orders.updateDetails(order.id, {
+          tableId: trimmedTableId === "" ? null : trimmedTableId,
+          customerName: trimmedCustomerName === "" ? null : trimmedCustomerName,
+        });
+      }
+      await apiClient.payments.pay({ orderId: order.id, method: selectedMethod.id, amount: order.totalAmount });
       setPaid(true);
       setTimeout(() => {
         setCheckoutOrder(null);
@@ -104,8 +110,34 @@ function CheckoutModal() {
   }
 
   return (
-    <Modal open onClose={() => setCheckoutOrder(null)} title="Pagamento" width="420px">
+    <Modal open onClose={() => setCheckoutOrder(null)} title="Pagamento" width="560px">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
+
+        {/* Table / customer */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+          <div>
+            <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)", display: "block" }}>
+              Tavolo
+            </label>
+            <input
+              value={tableId}
+              onChange={(e) => setTableId(e.target.value)}
+              placeholder="Es. 12"
+              style={{ width: "100%", height: "40px", padding: "0 12px", borderRadius: "var(--radius-md)", border: "2px solid var(--color-gray-200)", fontFamily: "var(--font)", fontSize: "var(--text-md)", boxSizing: "border-box" }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)", display: "block" }}>
+              Nome cliente
+            </label>
+            <input
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              placeholder="Es. Mario Rossi"
+              style={{ width: "100%", height: "40px", padding: "0 12px", borderRadius: "var(--radius-md)", border: "2px solid var(--color-gray-200)", fontFamily: "var(--font)", fontSize: "var(--text-md)", boxSizing: "border-box" }}
+            />
+          </div>
+        </div>
 
         {/* Order summary */}
         <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-lg)", padding: "var(--sp-md)" }}>
@@ -239,17 +271,60 @@ function CloseShiftModal({ onDone }: { onDone: () => void }) {
   const { currentShift, setCurrentShift } = useShiftStore();
   const [closingCash, setClosingCash] = useState(() => String(currentShift?.openingCash ?? 0));
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [needsForce, setNeedsForce] = useState(false);
+  const [closedShiftId, setClosedShiftId] = useState<string | null>(null);
+  const [printing, setPrinting] = useState(false);
+  const [printResult, setPrintResult] = useState<string | null>(null);
 
-  async function handleClose() {
+  async function handleClose(force = false) {
     if (!currentShift) return;
+    const shiftId = currentShift.id;
     setSaving(true);
+    setError(null);
     try {
-      await adminApi.shifts.close(currentShift.id, { closingCash: parseFloat(closingCash) || 0 });
+      await adminApi.shifts.close(shiftId, { closingCash: parseFloat(closingCash) || 0, force });
       setCurrentShift(null);
+      setClosedShiftId(shiftId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Errore durante la chiusura del turno");
+      setNeedsForce(true);
     } finally {
       setSaving(false);
-      onDone();
     }
+  }
+
+  async function handlePrint() {
+    if (!closedShiftId) return;
+    setPrinting(true);
+    setPrintResult(null);
+    try {
+      const res = await apiClient.stats.printShiftReport(closedShiftId);
+      setPrintResult(res.message ?? (res.ok ? "Report stampato" : "Stampa non riuscita"));
+    } catch (err) {
+      setPrintResult(err instanceof Error ? err.message : "Errore durante la stampa");
+    } finally {
+      setPrinting(false);
+    }
+  }
+
+  if (closedShiftId) {
+    return (
+      <Modal open onClose={onDone} title="Turno chiuso">
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: "var(--text-sm)", color: "var(--color-gray-600)" }}>
+            Il turno è stato chiuso correttamente.
+          </div>
+          {printResult && (
+            <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-600)" }}>{printResult}</div>
+          )}
+          <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+            <Button variant="ghost" size="sm" loading={printing} onClick={() => void handlePrint()}>Stampa report</Button>
+            <Button size="sm" onClick={onDone}>Chiudi</Button>
+          </div>
+        </div>
+      </Modal>
+    );
   }
 
   return (
@@ -258,6 +333,11 @@ function CloseShiftModal({ onDone }: { onDone: () => void }) {
         {currentShift && (
           <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: "var(--text-sm)", color: "var(--color-gray-600)" }}>
             Vendite registrate: <strong>€{currentShift.totalSales.toFixed(2)}</strong> · {currentShift.totalOrders} ordini
+          </div>
+        )}
+        {error && (
+          <div style={{ background: "var(--color-red-50, #fef2f2)", color: "var(--color-red-700, #b91c1c)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: "var(--text-sm)" }}>
+            {error}
           </div>
         )}
         <div>
@@ -269,7 +349,10 @@ function CloseShiftModal({ onDone }: { onDone: () => void }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <Button variant="ghost" size="sm" onClick={onDone}>Annulla</Button>
-          <Button variant="danger" size="sm" loading={saving} onClick={() => void handleClose()}>Chiudi turno</Button>
+          {needsForce && (
+            <Button variant="danger" size="sm" loading={saving} onClick={() => void handleClose(true)}>Forza chiusura</Button>
+          )}
+          <Button variant="danger" size="sm" loading={saving} onClick={() => void handleClose(false)}>Chiudi turno</Button>
         </div>
       </div>
     </Modal>

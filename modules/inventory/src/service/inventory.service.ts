@@ -132,8 +132,8 @@ export class InventoryService {
     const now = Math.floor(Date.now() / 1000);
     const traceId = randomUUID();
 
-    // Phase 1: resolve all deltas with async reads (outside transaction)
-    type Delta = { itemId: string; itemName: string; delta: number; currentStock: number; minStock: number };
+    // Phase 1: resolve item IDs and deltas with async reads (no stock snapshot taken here).
+    type Delta = { itemId: string; itemName: string; delta: number };
     const deltas: Delta[] = [];
 
     for (const orderItem of items) {
@@ -147,8 +147,6 @@ export class InventoryService {
             itemId: invItem.id,
             itemName: invItem.name,
             delta: -(orderItem.quantity * ingredient.quantity),
-            currentStock: invItem.currentStock,
-            minStock: invItem.minStock,
           });
         }
       } else {
@@ -160,21 +158,22 @@ export class InventoryService {
           itemId: invItem.id,
           itemName: invItem.name,
           delta: -orderItem.quantity,
-          currentStock: invItem.currentStock,
-          minStock: invItem.minStock,
         });
       }
     }
 
     if (deltas.length === 0) return;
 
-    // Phase 2: apply all writes atomically (better-sqlite3 transaction is sync)
+    // Phase 2: read current stock AND apply writes atomically inside the transaction.
+    // Reading inside the transaction avoids the TOCTOU race where two concurrent orders
+    // could each read the same pre-decrement value and overwrite each other's write.
     const newStocks = this.repo.transaction((txRepo) => {
-      const result: Map<string, number> = new Map();
+      const result: Map<string, { newStock: number; minStock: number }> = new Map();
       for (const d of deltas) {
-        const newStock = d.currentStock + d.delta;
-        result.set(d.itemId, newStock);
-        // These drizzle calls are sync inside a better-sqlite3 transaction
+        const current = txRepo.findItemByIdSync(d.itemId);
+        if (!current) continue;
+        const newStock = current.currentStock + d.delta;
+        result.set(d.itemId, { newStock, minStock: current.minStock });
         void txRepo.updateItem(d.itemId, { currentStock: newStock, updatedAt: now });
         void txRepo.createMovement({
           id: randomUUID(),
@@ -198,14 +197,14 @@ export class InventoryService {
         quantity: d.delta,
         timestamp: new Date(),
       });
-      const newStock = newStocks.get(d.itemId) ?? 0;
-      if (newStock <= d.minStock && d.minStock > 0) {
+      const entry = newStocks.get(d.itemId);
+      if (entry && entry.newStock <= entry.minStock && entry.minStock > 0) {
         this.eventBus.emit("LOW_STOCK_ALERT", {
           traceId,
           itemId: d.itemId,
           itemName: d.itemName,
-          currentStock: newStock,
-          minStock: d.minStock,
+          currentStock: entry.newStock,
+          minStock: entry.minStock,
           timestamp: new Date(),
         });
       }

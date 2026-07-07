@@ -3,9 +3,9 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import type { FastifyPluginAsync } from "fastify";
-import { claimEvent, eq, sql, inArray, and, shifts, printers, receiptTemplates, orders, orderItems, orderItemOptions, products, categories, productionCenters, productionCenterCategories, productionCenterPrinters, kitchenTemplates, appSettings, terminals, terminalPrinters } from "@pos/db";
+import { claimEvent, eq, sql, inArray, and, shifts, printers, receiptTemplates, orders, orderItems, orderItemOptions, products, categories, productionCenters, productionCenterCategories, productionCenterPrinters, kitchenTemplates, appSettings, terminals, terminalPrinters, paymentMethods } from "@pos/db";
 import { formatReceipt, formatKitchenTicket, renderReceiptImage, renderKitchenImage, pngToEscposRaster, type ReceiptLine } from "@pos/core";
-import { formatReceiptNumber } from "@pos/module-sales";
+import { formatReceiptNumber, computeVatBreakdown } from "@pos/module-sales";
 import type { ReceiptBlock, KitchenBlock } from "@pos/shared-types";
 import type { DbClient } from "@pos/db";
 import type { PrinterService, Logger } from "@pos/core";
@@ -48,11 +48,12 @@ async function _printKitchenTickets(
   if (items.length === 0) return;
 
   // Load order-level metadata
-  const [orderRow] = await db.select({ tableId: orders.tableId, notes: orders.notes, pax: orders.pax })
+  const [orderRow] = await db.select({ tableId: orders.tableId, customerName: orders.customerName, notes: orders.notes, pax: orders.pax })
     .from(orders)
     .where(eq(orders.id, orderId))
     .limit(1);
   const tableId = orderRow?.tableId ?? null;
+  const customerName = orderRow?.customerName ?? null;
   const orderNotes = orderRow?.notes ?? null;
   const pax = orderRow?.pax ?? null;
 
@@ -184,6 +185,7 @@ async function _printKitchenTickets(
                 orderId,
                 receiptDisplay,
                 tableId,
+                customerName,
                 orderNotes,
                 pax,
                 timestamp: now,
@@ -208,6 +210,7 @@ async function _printKitchenTickets(
           orderId,
           ...(receiptDisplay !== undefined ? { receiptDisplay } : {}),
           ...(tableId ? { tableId } : {}),
+          ...(customerName ? { customerName } : {}),
           ...(orderNotes ? { orderNotes } : {}),
           ...(pax ? { pax } : {}),
           centerName,
@@ -351,19 +354,53 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
       paidAt: Date;
     };
 
-    // Load order items from DB
-    const items = await db.select().from(orderItems).where(eq(orderItems.orderId, p.orderId));
+    // Load order items from DB with vatRate from products
+    const rawItems = await db.select({
+      id:        orderItems.id,
+      orderId:   orderItems.orderId,
+      productId: orderItems.productId,
+      name:      orderItems.name,
+      quantity:  orderItems.quantity,
+      unitPrice: orderItems.unitPrice,
+      notes:     orderItems.notes,
+      vatRate:   products.vatRate,
+    })
+      .from(orderItems)
+      .leftJoin(products, eq(orderItems.productId, products.id))
+      .where(eq(orderItems.orderId, p.orderId));
+    const items = rawItems as typeof rawItems;
 
     // Load restaurant info + receipt number settings + logo
     const settingKeys = ["restaurant_name", "restaurant_address", "restaurant_city", "restaurant_vat", "restaurant_phone", "receipt_number_prefix", "receipt_number_padding", "restaurant_logo_path"];
     const restaurantRows = await db.select().from(appSettings).where(inArray(appSettings.key, settingKeys));
     const rMap = Object.fromEntries(restaurantRows.map((r) => [r.key, r.value]));
 
-    // Load order receipt number
-    const [orderRow] = await db.select({ receiptNumber: orders.receiptNumber }).from(orders).where(eq(orders.id, p.orderId)).limit(1);
+    // Load order receipt number and fiscal data
+    const [orderRow] = await db.select({
+      receiptNumber:   orders.receiptNumber,
+      discountAmount:  orders.discountAmount,
+      totalAmount:     orders.totalAmount,
+      fiscalDocNumber: orders.fiscalDocNumber,
+      fiscalDocDate:   orders.fiscalDocDate,
+      fiscalRtSerial:  orders.fiscalRtSerial,
+      terminalId:      orders.terminalId,
+      tableId:         orders.tableId,
+      customerName:    orders.customerName,
+    }).from(orders).where(eq(orders.id, p.orderId)).limit(1);
     const numPrefix = rMap["receipt_number_prefix"] ?? "";
     const numPadding = parseInt(rMap["receipt_number_padding"] ?? "0", 10);
     const displayNum = formatReceiptNumber(orderRow?.receiptNumber ?? undefined, p.orderId, numPrefix, numPadding);
+
+    // Resolve the order's terminal name (shown on receipt only when multi-terminal is on)
+    let orderTerminalName: string | undefined;
+    if (multiTerminalEnabled && orderRow?.terminalId) {
+      const [t] = await db.select({ name: terminals.name }).from(terminals).where(eq(terminals.id, orderRow.terminalId)).limit(1);
+      orderTerminalName = t?.name;
+    }
+
+    // Resolve the payment method's display name (payments.method stores the paymentMethods.id)
+    const [paymentMethodRow] = await db.select({ name: paymentMethods.name }).from(paymentMethods).where(eq(paymentMethods.id, p.method)).limit(1);
+    const paymentMethodName = paymentMethodRow?.name ?? p.method;
 
     // Resolve logo path
     const rawLogoPath = rMap["restaurant_logo_path"];
@@ -374,22 +411,52 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
       ? { host: receiptPrinter.host, port: receiptPrinter.port }
       : undefined;
 
-    // Lookup product→category mapping (needed for non-single methods)
+    // Lookup product→category mapping (needed for non-single methods and for the per-center separate-slip filter)
     let productCategoryMap: Record<string, string | null> = {};
     let categoryNameMap: Record<string, string> = {};
-    if (printMethod !== "single" && items.length > 0) {
+    let productPrintModeMap: Record<string, string> = {};
+    // category→ALL productionCenters mapping (a category can belong to more than one center)
+    let categoryCentersMap: Record<string, string[]> = {};
+    let categoryFirstCenterMap: Record<string, string> = {}; // used only for by_center grouping (needs one bucket per category)
+    let centerNameMap: Record<string, string> = {};
+    let centerPrintModeMap: Record<string, string> = {};
+    if (items.length > 0) {
       const productIds = [...new Set(items.map((i) => i.productId))];
       const productRows = await db
-        .select({ id: products.id, categoryId: products.categoryId })
+        .select({ id: products.id, categoryId: products.categoryId, receiptPrintMode: products.receiptPrintMode })
         .from(products)
         .where(inArray(products.id, productIds));
       productCategoryMap = Object.fromEntries(productRows.map((pr) => [pr.id, pr.categoryId ?? null]));
+      productPrintModeMap = Object.fromEntries(productRows.map((pr) => [pr.id, pr.receiptPrintMode]));
       const categoryIds = [...new Set(productRows.map((pr) => pr.categoryId).filter(Boolean))] as string[];
       if (categoryIds.length > 0) {
         const categoryRows = await db.select({ id: categories.id, name: categories.name }).from(categories).where(inArray(categories.id, categoryIds));
         categoryNameMap = Object.fromEntries(categoryRows.map((c) => [c.id, c.name]));
+
+        const pcCatRows = await db
+          .select({ categoryId: productionCenterCategories.categoryId, productionCenterId: productionCenterCategories.productionCenterId })
+          .from(productionCenterCategories)
+          .where(inArray(productionCenterCategories.categoryId, categoryIds));
+        // a category can be linked to multiple production centers — keep all of them
+        for (const r of pcCatRows) {
+          const arr = categoryCentersMap[r.categoryId] ?? [];
+          arr.push(r.productionCenterId);
+          categoryCentersMap[r.categoryId] = arr;
+          if (!categoryFirstCenterMap[r.categoryId]) categoryFirstCenterMap[r.categoryId] = r.productionCenterId;
+        }
+        const centerIds = [...new Set(Object.values(categoryCentersMap).flat())];
+        if (centerIds.length > 0) {
+          const centerRows = await db
+            .select({ id: productionCenters.id, name: productionCenters.name, receiptPrintMode: productionCenters.receiptPrintMode })
+            .from(productionCenters)
+            .where(inArray(productionCenters.id, centerIds));
+          centerNameMap = Object.fromEntries(centerRows.map((c) => [c.id, c.name]));
+          centerPrintModeMap = Object.fromEntries(centerRows.map((c) => [c.id, c.receiptPrintMode]));
+        }
       }
     }
+    // Back-compat alias used by the by_category/by_center grouping below (1 center per category is enough there)
+    const categoryCenterMap = categoryFirstCenterMap;
 
     // Helper: build text-mode lines for a set of items with optional category header
     function buildTextLines(
@@ -418,14 +485,44 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
         lines.push({ type: "divider" });
         if (tmpl?.showOrderNumber ?? true) lines.push({ type: "item", left: "Ordine", right: `#${displayNum}` });
         if (tmpl?.showTimestamp ?? true) lines.push({ type: "item", left: "Data", right: new Date(p.paidAt).toLocaleString("it-IT") });
+        if (orderTerminalName) lines.push({ type: "item", left: "Cassa", right: orderTerminalName });
+        if (orderRow?.tableId) lines.push({ type: "item", left: "Tavolo", right: orderRow.tableId });
+        if (orderRow?.customerName) lines.push({ type: "item", left: "Cliente", right: orderRow.customerName });
         lines.push({ type: "divider" });
       }
       for (const item of jobItems) {
         lines.push({ type: "item", left: `${item.quantity}x ${item.name}`, right: `€${(item.unitPrice * item.quantity).toFixed(2)}` });
+        if (tmpl?.showItemCategory) {
+          const catId = productCategoryMap[item.productId] ?? null;
+          const catName = catId ? categoryNameMap[catId] : undefined;
+          if (catName) lines.push({ type: "text", content: `  ${catName}` });
+        }
       }
       lines.push({ type: "divider" });
       lines.push({ type: "total", left: "TOTALE", right: `€${jobTotal.toFixed(2)}` });
-      if (!categoryName && (tmpl?.showPaymentMethod ?? true)) lines.push({ type: "item", left: "Pagamento", right: p.method });
+      if (!categoryName && (tmpl?.showPaymentMethod ?? true)) lines.push({ type: "item", left: "Pagamento", right: paymentMethodName });
+
+      // VAT breakdown
+      if (!categoryName) {
+        const vatItems = jobItems.map((i) => ({ id: i.id, productId: i.productId, name: i.name, quantity: i.quantity, unitPrice: i.unitPrice, vatRate: (i as { vatRate?: number | null }).vatRate ?? 10 }));
+        const vatBreakdown = computeVatBreakdown(vatItems, orderRow?.discountAmount ?? 0, jobTotal);
+        if (vatBreakdown.length > 0) {
+          lines.push({ type: "divider" });
+          for (const vb of vatBreakdown) {
+            lines.push({ type: "item", left: `IVA ${vb.rate}%`, right: `€${vb.tax.toFixed(2)}` });
+            lines.push({ type: "item", left: `  Imponibile`, right: `€${vb.taxable.toFixed(2)}` });
+          }
+        }
+      }
+
+      // Fiscal footer (doc. commerciale number from RT)
+      if (!categoryName && orderRow?.fiscalDocNumber) {
+        lines.push({ type: "divider" });
+        lines.push({ type: "text", content: `Doc. Comm. n. ${orderRow.fiscalDocNumber}` });
+        if (orderRow.fiscalDocDate) lines.push({ type: "text", content: orderRow.fiscalDocDate });
+        if (orderRow.fiscalRtSerial) lines.push({ type: "text", content: `RT: ${orderRow.fiscalRtSerial}` });
+      }
+
       lines.push({ type: "divider" });
       if (!categoryName && tmpl?.footerText) {
         lines.push({ type: "text", content: "" });
@@ -435,30 +532,49 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
     }
 
     // Helper: print one receipt (image or text mode)
+    // groupName defined → sub-slip: injects category-name block at top, rest identical to preview
+    // groupName undefined → full receipt (master or client copy)
     async function printOneReceipt(
       tmpl: typeof masterTemplate,
       jobItems: typeof items,
       jobTotal: number,
-      categoryName?: string,
+      groupName?: string,
     ): Promise<void> {
+      const isSub = groupName !== undefined;
       const useImageMode = tmpl?.printMode === "image" && !!tmpl?.blocks;
+
       if (useImageMode) {
         let blocks: ReceiptBlock[];
         try {
           blocks = (typeof tmpl!.blocks === "string" ? JSON.parse(tmpl!.blocks!) : tmpl!.blocks) as ReceiptBlock[];
         } catch {
           logger.warn({ jobId: payload.jobId }, "Receipt template blocks JSON invalid — falling back to text mode");
-          return printOneReceipt({ ...tmpl!, printMode: "text" }, jobItems, jobTotal, categoryName);
+          return printOneReceipt({ ...tmpl!, printMode: "text" }, jobItems, jobTotal, groupName);
         }
+
+        // For sub-slips inject category-name block at top; all other blocks unchanged
+        const firstBlock = blocks.find((b) => b.visible);
+        const effectiveBlocks: ReceiptBlock[] = isSub ? [...blocks] : blocks;
+
         const pngBuffer = await renderReceiptImage({
-          blocks,
+          blocks: effectiveBlocks,
           canvasWidth: tmpl!.canvasWidth ?? 576,
           logoPath: resolvedLogoPath,
           orderId: p.orderId,
           receiptDisplay: displayNum,
-          items: jobItems.map((i) => ({ name: i.name, quantity: i.quantity, unitPrice: i.unitPrice })),
+          items: jobItems.map((i) => ({
+            name: i.name,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            ...(() => {
+              const catId = productCategoryMap[i.productId] ?? null;
+              const catName = catId ? categoryNameMap[catId] : undefined;
+              return catName ? { category: catName } : {};
+            })(),
+          })),
+          showItemCategory: tmpl?.showItemCategory ?? false,
           total: jobTotal,
-          paymentMethod: p.method,
+          paymentMethod: paymentMethodName,
           currency: p.currency,
           paidAt: new Date(p.paidAt),
           restaurantName: rMap["restaurant_name"] ?? "",
@@ -466,7 +582,10 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
           restaurantCity: rMap["restaurant_city"] ?? "",
           restaurantVat: rMap["restaurant_vat"] ?? "",
           restaurantPhone: rMap["restaurant_phone"] ?? "",
-          ...(categoryName !== undefined ? { categoryName } : {}),
+          ...(isSub ? { categoryName: groupName } : {}),
+          ...(orderTerminalName ? { terminalName: orderTerminalName } : {}),
+          ...(orderRow?.tableId ? { tableId: orderRow.tableId } : {}),
+          ...(orderRow?.customerName ? { customerName: orderRow.customerName } : {}),
         });
         const rasterBuffer = await pngToEscposRaster(pngBuffer, tmpl!.canvasWidth ?? 576);
         const result = await printerService.printDirect({
@@ -475,9 +594,9 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
           type: "receipt",
           ...(printerConfig ? { printerConfig } : {}),
         });
-        logger.info({ result, printerId: receiptPrinter.id, mode: "image", printMethod }, "Print result");
+        logger.info({ result, printerId: receiptPrinter.id, mode: "image", printMethod, isSub }, "Print result");
       } else {
-        const lines = buildTextLines(tmpl, jobItems, jobTotal, categoryName);
+        const lines = buildTextLines(tmpl, jobItems, jobTotal, groupName);
         const content = formatReceipt(lines);
         const result = await printerService.printDirect({
           printerId: receiptPrinter.id,
@@ -485,17 +604,65 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
           type: "receipt",
           ...(printerConfig ? { printerConfig } : {}),
         });
-        logger.info({ result, printerId: receiptPrinter.id, mode: "text", printMethod }, "Print result");
+        logger.info({ result, printerId: receiptPrinter.id, mode: "text", printMethod, isSub }, "Print result");
       }
     }
 
-    // Build and execute print jobs based on printMethod
+    // Classify items whose product/center is configured as "separate": each such group gets its own
+    // standalone slip on the main receipt printer. Everything else always stays together as a single
+    // block (never re-split by printMethod) and is printed in full as the client copy.
+    // A product override of "included" always wins and never generates a separate slip.
+    const separateGroups = new Map<string, { name: string; items: typeof items }>();
+    for (const item of items) {
+      const productMode = productPrintModeMap[item.productId] ?? "inherit";
+      if (productMode === "included") continue;
+      if (productMode === "separate") {
+        const key = `product:${item.productId}`;
+        const existing = separateGroups.get(key) ?? { name: item.name, items: [] };
+        existing.items.push(item);
+        separateGroups.set(key, existing);
+        continue;
+      }
+      // "inherit" — fall back to the item's production center(s)
+      const catId = productCategoryMap[item.productId] ?? null;
+      const centerIds = catId ? (categoryCentersMap[catId] ?? []) : [];
+      const separateCenterId = centerIds.find((cid) => centerPrintModeMap[cid] === "separate");
+      if (separateCenterId) {
+        const centerName = centerNameMap[separateCenterId] ?? "Centro";
+        const existing = separateGroups.get(separateCenterId) ?? { name: centerName, items: [] };
+        existing.items.push(item);
+        separateGroups.set(separateCenterId, existing);
+      }
+    }
+
     const allTotal = p.amount;
+
+    if (separateGroups.size > 0) {
+      // Selective separation is configured: it takes over completely and ignores printMethod.
+      // Each isolated in its own try/catch so one failing job doesn't block the others.
+      for (const { name, items: sepItems } of separateGroups.values()) {
+        try {
+          const sepTotal = sepItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+          await printOneReceipt(subTemplate ?? masterTemplate, sepItems, sepTotal, name);
+        } catch (err) {
+          logger.error({ err, jobId: payload.jobId, group: name }, "Separate slip print failed — continuing with the rest");
+        }
+      }
+      try {
+        await printOneReceipt(copyTemplate ?? masterTemplate, items, allTotal);
+      } catch (err) {
+        logger.error({ err, jobId: payload.jobId }, "Client copy print failed");
+      }
+      return;
+    }
+
+    // No selective separation configured — fall back to the template's printMethod exactly as before.
+    const mainItems = items;
 
     if (printMethod === "by_category" || printMethod === "by_category_copy") {
       // Group items by category
       const grouped = new Map<string, { name: string; items: typeof items }>();
-      for (const item of items) {
+      for (const item of mainItems) {
         const catId = productCategoryMap[item.productId] ?? "__none__";
         const catName = catId !== "__none__" ? (categoryNameMap[catId] ?? "Senza categoria") : "Senza categoria";
         const existing = grouped.get(catId) ?? { name: catName, items: [] };
@@ -503,23 +670,53 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
         grouped.set(catId, existing);
       }
       for (const { name, items: catItems } of grouped.values()) {
-        const catTotal = catItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
-        await printOneReceipt(subTemplate ?? masterTemplate, catItems, catTotal, name);
+        try {
+          const catTotal = catItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+          await printOneReceipt(subTemplate ?? masterTemplate, catItems, catTotal, name);
+        } catch (err) {
+          logger.error({ err, jobId: payload.jobId, group: name }, "Category slip print failed — continuing with the rest");
+        }
       }
       if (printMethod === "by_category_copy") {
-        await printOneReceipt(copyTemplate ?? masterTemplate, items, allTotal);
+        await printOneReceipt(copyTemplate ?? masterTemplate, mainItems, allTotal);
+      }
+    } else if (printMethod === "by_center" || printMethod === "by_center_copy") {
+      // Group items by production center (products without a center go into "__none__")
+      const grouped = new Map<string, { name: string; items: typeof items }>();
+      for (const item of mainItems) {
+        const catId = productCategoryMap[item.productId] ?? null;
+        const centerId = (catId && categoryCenterMap[catId]) ? categoryCenterMap[catId]! : "__none__";
+        const centerName = centerId !== "__none__" ? (centerNameMap[centerId] ?? "Senza centro") : "Senza centro";
+        const existing = grouped.get(centerId) ?? { name: centerName, items: [] };
+        existing.items.push(item);
+        grouped.set(centerId, existing);
+      }
+      for (const { name, items: centerItems } of grouped.values()) {
+        try {
+          const centerTotal = centerItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+          await printOneReceipt(subTemplate ?? masterTemplate, centerItems, centerTotal, name);
+        } catch (err) {
+          logger.error({ err, jobId: payload.jobId, group: name }, "Center slip print failed — continuing with the rest");
+        }
+      }
+      if (printMethod === "by_center_copy") {
+        await printOneReceipt(copyTemplate ?? masterTemplate, mainItems, allTotal);
       }
     } else if (printMethod === "per_item" || printMethod === "per_item_copy") {
-      for (const item of items) {
-        const itemTotal = item.unitPrice * item.quantity;
-        await printOneReceipt(subTemplate ?? masterTemplate, [item], itemTotal);
+      for (const item of mainItems) {
+        try {
+          const itemTotal = item.unitPrice * item.quantity;
+          await printOneReceipt(subTemplate ?? masterTemplate, [item], itemTotal);
+        } catch (err) {
+          logger.error({ err, jobId: payload.jobId, itemName: item.name }, "Per-item slip print failed — continuing with the rest");
+        }
       }
       if (printMethod === "per_item_copy") {
-        await printOneReceipt(copyTemplate ?? masterTemplate, items, allTotal);
+        await printOneReceipt(copyTemplate ?? masterTemplate, mainItems, allTotal);
       }
     } else {
       // "single" — default
-      await printOneReceipt(masterTemplate, items, allTotal);
+      await printOneReceipt(masterTemplate, mainItems, allTotal);
     }
   });
 };

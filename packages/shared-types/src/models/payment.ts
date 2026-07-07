@@ -1,4 +1,4 @@
-export type PaymentMethod = "cash" | "card" | "digital_wallet" | "tab";
+export type PaymentMethod = string;
 export type PaymentStatus = "pending" | "completed" | "failed" | "refunded";
 
 export interface Payment {

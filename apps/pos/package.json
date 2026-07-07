@@ -19,6 +19,7 @@
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-router-dom": "6",
+    "recharts": "^3.9.2",
     "zustand": "^4.5.0"
   },
   "devDependencies": {

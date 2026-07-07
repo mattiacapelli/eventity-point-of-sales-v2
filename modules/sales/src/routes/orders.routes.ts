@@ -4,11 +4,22 @@ import { OrderNotFoundError, OrderValidationError } from "../service/order.servi
 import type { Order, OrderStatus } from "@pos/shared-types";
 import type { CoreContext } from "@pos/core";
 import { formatReceipt, formatKitchenTicket, renderKitchenImage, pngToEscposRaster, type ReceiptLine } from "@pos/core";
-import { eq, inArray, and, printers, receiptTemplates, orderItems, orderItemOptions, payments, orders, products, productionCenters, productionCenterCategories, productionCenterPrinters, kitchenTemplates, appSettings } from "@pos/db";
+import { eq, inArray, and, printers, receiptTemplates, orderItems, orderItemOptions, payments, orders, products, productionCenters, productionCenterCategories, productionCenterPrinters, kitchenTemplates, appSettings, terminals, paymentMethods } from "@pos/db";
 import { formatReceiptNumber } from "../repository/order.repository.js";
 import type { KitchenBlock } from "@pos/shared-types";
 
-const orderItemSchema = {
+const orderItemOptionSchema = {
+  type: "object",
+  properties: {
+    optionId: { type: "string" },
+    optionName: { type: "string" },
+    priceDelta: { type: "number" },
+  },
+} as const;
+
+// Input shape for creating/updating an order: the client only picks products,
+// prices are resolved server-side from the catalog.
+const orderItemInputSchema = {
   type: "object",
   required: ["productId", "name", "quantity"],
   properties: {
@@ -20,12 +31,31 @@ const orderItemSchema = {
   },
 } as const;
 
+// Output shape for an order item as persisted/returned by the server.
+const orderItemSchema = {
+  type: "object",
+  required: ["productId", "name", "quantity", "unitPrice"],
+  properties: {
+    id: { type: "string" },
+    productId: { type: "string" },
+    name: { type: "string" },
+    quantity: { type: "integer", minimum: 1 },
+    unitPrice: { type: "number" },
+    vatRate: { type: "number" },
+    selectedOptionIds: { type: "array", items: { type: "string" } },
+    options: { type: "array", items: orderItemOptionSchema },
+    notes: { type: "string" },
+  },
+} as const;
+
 const orderSchema = {
   type: "object",
   properties: {
     id: { type: "string" },
     tableId: { type: "string", nullable: true },
+    customerName: { type: "string", nullable: true },
     eventId: { type: "string", nullable: true },
+    terminalId: { type: "string", nullable: true },
     status: { type: "string" },
     totalAmount: { type: "number" },
     discountAmount: { type: "number" },
@@ -51,21 +81,23 @@ export function registerOrderRoutes(
       querystring: {
         type: "object",
         properties: {
-          status:  { type: "string", enum: ["pending","confirmed","preparing","ready","completed","cancelled"] },
-          shiftId: { type: "string" },
-          from:    { type: "number" },
-          to:      { type: "number" },
-          limit:   { type: "integer", minimum: 1, maximum: 500, default: 100 },
-          offset:  { type: "integer", minimum: 0, default: 0 },
+          status:     { type: "string", enum: ["pending","confirmed","preparing","ready","completed","cancelled"] },
+          shiftId:    { type: "string" },
+          terminalId: { type: "string" },
+          from:       { type: "number" },
+          to:         { type: "number" },
+          limit:      { type: "integer", minimum: 1, maximum: 500, default: 100 },
+          offset:     { type: "integer", minimum: 0, default: 0 },
         },
       },
       response: { 200: { type: "array", items: orderSchema } },
     },
   }, async (request, reply) => {
-    const q = request.query as { status?: string; shiftId?: string; from?: number; to?: number; limit?: number; offset?: number };
-    const filters: { status?: OrderStatus; shiftId?: string; from?: number; to?: number; limit?: number; offset?: number } = {};
+    const q = request.query as { status?: string; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number };
+    const filters: { status?: OrderStatus; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number } = {};
     if (q.status !== undefined) filters.status = q.status as OrderStatus;
     if (q.shiftId !== undefined) filters.shiftId = q.shiftId;
+    if (q.terminalId !== undefined) filters.terminalId = q.terminalId;
     if (q.from !== undefined) filters.from = q.from;
     if (q.to !== undefined) filters.to = q.to;
     if (q.limit !== undefined) filters.limit = q.limit;
@@ -112,7 +144,7 @@ export function registerOrderRoutes(
           discountAmount: { type: "number", minimum: 0 },
           discountType:   { type: "string" },
           pax:            { type: "integer", minimum: 1 },
-          items:          { type: "array", items: orderItemSchema, minItems: 1 },
+          items:          { type: "array", items: orderItemInputSchema, minItems: 1 },
         },
       },
       response: {
@@ -121,8 +153,13 @@ export function registerOrderRoutes(
       },
     },
   }, async (request, reply) => {
+    const terminalId = (request.headers["x-terminal-id"] as string | undefined) ?? undefined;
     try {
-      const order = await service.create(request.body as Parameters<typeof service.create>[0]);
+      const input = request.body as Parameters<typeof service.create>[0];
+      const order = await service.create({
+        ...input,
+        ...(terminalId !== undefined ? { terminalId } : {}),
+      });
       return reply.status(201).send(serializeOrder(order));
     } catch (err) {
       if (err instanceof OrderValidationError) return reply.status(400).send({ error: err.message });
@@ -158,6 +195,36 @@ export function registerOrderRoutes(
     } catch (err) {
       if (err instanceof OrderNotFoundError) return reply.status(404).send({ error: err.message });
       if (err instanceof OrderValidationError) return reply.status(400).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  // PATCH /orders/:id/details
+  fastify.patch("/orders/:id/details", {
+    schema: {
+      tags: ["orders"],
+      summary: "Update table number / customer name on an order",
+      params: { type: "object", properties: { id: { type: "string" } } },
+      body: {
+        type: "object",
+        properties: {
+          tableId: { type: "string", nullable: true },
+          customerName: { type: "string", nullable: true },
+        },
+      },
+      response: {
+        200: orderSchema,
+        404: { type: "object", properties: { error: { type: "string" } } },
+      },
+    },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as { tableId?: string | null; customerName?: string | null };
+    try {
+      const order = await service.updateDetails(id, body);
+      return reply.send(serializeOrder(order));
+    } catch (err) {
+      if (err instanceof OrderNotFoundError) return reply.status(404).send({ error: err.message });
       throw err;
     }
   });
@@ -208,8 +275,9 @@ export function registerOrderRoutes(
     if (!ctx) return reply.status(503).send({ error: "Printer service unavailable" });
     const { id } = request.params as { id: string };
 
+    let order: Order;
     try {
-      await service.getById(id);
+      order = await service.getById(id);
     } catch (err) {
       if (err instanceof OrderNotFoundError) return reply.status(404).send({ error: err.message });
       throw err;
@@ -228,10 +296,21 @@ export function registerOrderRoutes(
     const pmts = await db.select().from(payments).where(eq(payments.orderId, id));
     const payment = pmts[0];
 
+    const [multiTerminalRow] = await db.select().from(appSettings).where(eq(appSettings.key, "multi_terminal_enabled")).limit(1);
+    const multiTerminalEnabled = multiTerminalRow?.value === "true";
+    let terminalName: string | undefined;
+    if (multiTerminalEnabled && order.terminalId) {
+      const [t] = await db.select({ name: terminals.name }).from(terminals).where(eq(terminals.id, order.terminalId)).limit(1);
+      terminalName = t?.name;
+    }
+
     const lines: ReceiptLine[] = [];
     lines.push({ type: "header", content: template?.headerText ?? "Ristampa scontrino" });
     lines.push({ type: "divider" });
     lines.push({ type: "item", left: "Ordine", right: `#${id.slice(-6).toUpperCase()}` });
+    if (terminalName) lines.push({ type: "item", left: "Cassa", right: terminalName });
+    if (order.tableId) lines.push({ type: "item", left: "Tavolo", right: order.tableId });
+    if (order.customerName) lines.push({ type: "item", left: "Cliente", right: order.customerName });
     lines.push({ type: "divider" });
     for (const item of items) {
       lines.push({ type: "item", left: `${item.quantity}x ${item.name}`, right: `€${(item.unitPrice * item.quantity).toFixed(2)}` });
@@ -239,7 +318,10 @@ export function registerOrderRoutes(
     lines.push({ type: "divider" });
     const total = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
     lines.push({ type: "total", left: "TOTALE", right: `€${total.toFixed(2)}` });
-    if (payment) lines.push({ type: "item", left: "Pagamento", right: payment.method });
+    if (payment) {
+      const [methodRow] = await db.select({ name: paymentMethods.name }).from(paymentMethods).where(eq(paymentMethods.id, payment.method)).limit(1);
+      lines.push({ type: "item", left: "Pagamento", right: methodRow?.name ?? payment.method });
+    }
     lines.push({ type: "divider" });
     if (template?.footerText) {
       lines.push({ type: "text", content: "" });
@@ -362,6 +444,7 @@ export function registerOrderRoutes(
 
     const now = new Date();
     const tableId = orderRow.tableId ?? null;
+    const customerName = orderRow.customerName ?? null;
 
     for (const [centerId, { centerName, items: centerGroupItems }] of centerItems) {
       let targetPrinters: typeof allKitchenPrinters;
@@ -403,6 +486,7 @@ export function registerOrderRoutes(
                 orderId: id,
                 receiptDisplay,
                 tableId,
+                customerName,
                 timestamp: now,
                 items: ticketItems,
               });
@@ -411,7 +495,7 @@ export function registerOrderRoutes(
               continue;
             }
           }
-          const content = formatKitchenTicket({ orderId: id, receiptDisplay, tableId, centerName, timestamp: now, orderNotes: orderRow.notes, pax: orderRow.pax, items: ticketItems });
+          const content = formatKitchenTicket({ orderId: id, receiptDisplay, tableId, customerName, centerName, timestamp: now, orderNotes: orderRow.notes, pax: orderRow.pax, items: ticketItems });
           await printerService.printDirect({ printerId: printer.id, content, type: "kitchen", printerConfig });
         } catch (err) {
           logger.error({ err, printerId: printer.id, orderId: id }, "Reprint kitchen ticket failed");

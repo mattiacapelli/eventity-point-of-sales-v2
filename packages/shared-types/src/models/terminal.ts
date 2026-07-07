@@ -4,4 +4,5 @@ export interface Terminal {
   active: boolean;
   createdAt: number;
   lastSeenAt: number | null;
+  defaultViewMode: string | null;
 }

@@ -1,5 +1,5 @@
 import "@fastify/swagger";
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
 import { eq, asc, and, like } from "@pos/db";
 import { products, categories } from "@pos/db";
 import { randomUUID } from "node:crypto";
@@ -7,6 +7,15 @@ import { requireRole, AuthError } from "@pos/core";
 import { mkdirSync, unlinkSync, existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { join, extname, resolve } from "node:path";
+
+async function adminOnly(request: FastifyRequest, reply: FastifyReply) {
+  try {
+    requireRole(request.session!, "admin");
+  } catch (err) {
+    if (err instanceof AuthError) return reply.status(403).send({ error: err.message });
+    throw err;
+  }
+}
 
 const productImagesDir = (dataDir: string) => `${dataDir}/images/products`;
 
@@ -28,23 +37,18 @@ const PRODUCT_SELECT = {
   description:        products.description,
   imageData:          products.imageData,
   sortOrder:          products.sortOrder,
+  vatRate:            products.vatRate,
+  receiptPrintMode:   products.receiptPrintMode,
   createdAt:          products.createdAt,
   updatedAt:          products.updatedAt,
 } as const;
 
 const productsRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.addHook("onRequest", async (request, reply) => {
+  fastify.addHook("onRequest", async (request) => {
     await fastify.authenticate(request);
-    try {
-      requireRole(request.session!, "admin");
-    } catch (err) {
-      if (err instanceof AuthError) {
-        return reply.status(403).send({ error: err.message });
-      }
-      throw err;
-    }
   });
 
+  // GET /products — readable by any authenticated user (needed by the sales screen)
   fastify.get("/products", {
     schema: { tags: ["products"], summary: "List all products" },
   }, async (request, reply) => {
@@ -84,6 +88,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post("/products", {
     schema: { tags: ["products"], summary: "Create a product" },
+    preHandler: adminOnly,
   }, async (request, reply) => {
     const body = request.body as {
       name: string;
@@ -95,6 +100,8 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       description?: string;
       imageData?: string;
       sortOrder?: number;
+      vatRate?: number;
+      receiptPrintMode?: "inherit" | "included" | "separate";
     };
     const id = randomUUID();
     const now = Date.now();
@@ -109,6 +116,8 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       description:        body.description ?? null,
       imageData:          body.imageData ?? null,
       sortOrder:          body.sortOrder ?? 0,
+      vatRate:            body.vatRate ?? 10,
+      receiptPrintMode:   body.receiptPrintMode ?? "inherit",
       createdAt:          now,
       updatedAt:          now,
     });
@@ -122,6 +131,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.patch("/products/:id", {
     schema: { tags: ["products"], summary: "Update a product" },
+    preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = request.body as Partial<{
@@ -134,6 +144,8 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       description: string | null;
       imageData: string | null;
       sortOrder: number;
+      vatRate: number;
+      receiptPrintMode: "inherit" | "included" | "separate";
     }>;
 
     const [existing] = await fastify.ctx.db.select().from(products).where(eq(products.id, id));
@@ -149,6 +161,8 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       description?: string | null;
       imageData?: string | null;
       sortOrder?: number;
+      vatRate?: number;
+      receiptPrintMode?: "inherit" | "included" | "separate";
       updatedAt?: number;
     } = {};
     if (body.name !== undefined) update.name = body.name;
@@ -160,6 +174,8 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     if ("description" in body) update.description = body.description ?? null;
     if ("imageData" in body) update.imageData = body.imageData ?? null;
     if (body.sortOrder !== undefined) update.sortOrder = body.sortOrder;
+    if (body.vatRate !== undefined) update.vatRate = body.vatRate;
+    if (body.receiptPrintMode !== undefined) update.receiptPrintMode = body.receiptPrintMode;
 
     if (Object.keys(update).length > 0) {
       update.updatedAt = Date.now();
@@ -176,6 +192,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.delete("/products/:id", {
     schema: { tags: ["products"], summary: "Delete a product" },
+    preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const [existing] = await fastify.ctx.db.select({ imageData: products.imageData }).from(products).where(eq(products.id, id));
@@ -190,6 +207,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /products/:id/image — upload product image
   fastify.post("/products/:id/image", {
     schema: { tags: ["products"], summary: "Upload product image" },
+    preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
@@ -234,6 +252,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
   // DELETE /products/:id/image — remove product image
   fastify.delete("/products/:id/image", {
     schema: { tags: ["products"], summary: "Remove product image" },
+    preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
 

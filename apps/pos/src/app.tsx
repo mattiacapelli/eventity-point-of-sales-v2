@@ -11,6 +11,7 @@ import { adminApi } from "./core/admin-api.js";
 import { LoginScreen } from "./modules-ui/auth/LoginScreen.js";
 import { SetupScreen } from "./modules-ui/setup/SetupScreen.js";
 import { TerminalSelectModal } from "./components/TerminalSelectModal.js";
+import { ToastHost } from "./components/ui/Toast.js";
 import "./styles/globals.css";
 
 // Apply persisted theme + font scale at boot
@@ -29,6 +30,12 @@ const AuditLogScreen  = lazy(() => import("./modules-ui/audit/AuditLogScreen.js"
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
 });
+
+function RequireRole({ role, children }: { role: string; children: React.ReactNode }) {
+  const session = useStore((s) => s.session);
+  if (session?.role !== role) return <Navigate to="/pos" replace />;
+  return <>{children}</>;
+}
 
 function LoadingScreen() {
   return (
@@ -51,10 +58,11 @@ function LoadingScreen() {
 function AppInner() {
   const [booted, setBooted] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
-  const [multiTerminalEnabled, setMultiTerminalEnabled] = useState(false);
   const [terminalModalDismissed, setTerminalModalDismissed] = useState(false);
   const session = useStore((s) => s.session);
-  const { setCurrentShift } = useShiftStore();
+  const multiTerminalEnabled = useStore((s) => s.multiTerminalEnabled);
+  const setMultiTerminalEnabled = useStore((s) => s.setMultiTerminalEnabled);
+  const { setCurrentShift, loadForTerminal } = useShiftStore();
   const { terminalId } = useTerminalStore();
   const prevSessionRef = useRef<string | null>(null);
 
@@ -104,13 +112,17 @@ function AppInner() {
     prevSessionRef.current = currentUserId;
 
     if (currentUserId && currentUserId !== prevUserId) {
-      // Just logged in — fetch current shift from server (overrides localStorage cache)
+      // Just logged in — load terminal-scoped shift from localStorage while waiting for server,
+      // then overwrite with the authoritative server value.
+      const tid = useTerminalStore.getState().terminalId;
+      if (tid) loadForTerminal(tid);
       adminApi.shifts.current()
-        .then((shift) => setCurrentShift(shift))
-        .catch(() => setCurrentShift(null));
+        .then((shift) => setCurrentShift(shift, tid))
+        .catch(() => setCurrentShift(null, tid));
     } else if (!currentUserId && prevUserId) {
       // Just logged out — clear shift
-      setCurrentShift(null);
+      const tid = useTerminalStore.getState().terminalId;
+      setCurrentShift(null, tid);
     }
   }, [session?.userId]);
 
@@ -141,8 +153,8 @@ function AppInner() {
         <Route path="/history"   element={<HistoryScreen />} />
         <Route path="/stats"     element={<StatsScreen />} />
         <Route path="/settings"  element={<SettingsScreen />} />
-        <Route path="/admin"     element={<AdminScreen />} />
-        <Route path="/audit"     element={<AuditLogScreen />} />
+        <Route path="/admin"     element={<RequireRole role="admin"><AdminScreen /></RequireRole>} />
+        <Route path="/audit"     element={<RequireRole role="admin"><AuditLogScreen /></RequireRole>} />
         <Route path="*"          element={<Navigate to="/pos" replace />} />
       </Routes>
     </Suspense>
@@ -155,6 +167,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AppInner />
+        <ToastHost />
       </BrowserRouter>
     </QueryClientProvider>
   );

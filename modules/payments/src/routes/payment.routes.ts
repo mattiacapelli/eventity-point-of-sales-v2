@@ -29,7 +29,7 @@ export function registerPaymentRoutes(
         required: ["orderId", "method", "amount"],
         properties: {
           orderId:   { type: "string" },
-          method:    { type: "string", enum: ["cash", "card", "digital_wallet", "tab"] },
+          method:    { type: "string", minLength: 1 },
           amount:    { type: "number", minimum: 0.01 },
           currency:  { type: "string" },
           reference: { type: "string" },
@@ -39,7 +39,7 @@ export function registerPaymentRoutes(
     handler: async (req, reply) => {
       const body = req.body as {
         orderId: string;
-        method: "cash" | "card" | "digital_wallet" | "tab";
+        method: string;
         amount: number;
         currency?: string;
         reference?: string;

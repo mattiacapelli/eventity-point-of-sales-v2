@@ -8,4 +8,6 @@ export * from "./printer.js";
 export * from "./receipt-template.js";
 export * from "./shift.js";
 export * from "./kitchen-template.js";
+export * from "./shift-report-template.js";
 export * from "./terminal.js";
+export * from "./fiscal.js";

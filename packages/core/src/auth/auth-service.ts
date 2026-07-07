@@ -50,21 +50,31 @@ export class AuthService {
       .from(users)
       .where(and(eq(users.active, true)));
 
-    for (const user of activeUsers) {
-      if (user.pin === null || user.pin === undefined) continue;
-      const valid = await argon2.verify(user.pin, pin);
-      if (valid) {
-        return this.createSession(user as { id: string; role: string; username: string });
-      }
-    }
+    // Verify all hashes in parallel to avoid timing oracle (no early exit).
+    // A dummy verify runs if no users have a PIN, so response time is always O(1 argon2).
+    const usersWithPin = activeUsers.filter((u) => u.pin !== null && u.pin !== undefined);
+    const dummyHash = "$argon2id$v=19$m=65536,t=3,p=4$dummy$dummyhashfordummypurposesonly00000";
 
-    throw new AuthError("Invalid credentials");
+    const results = await Promise.all(
+      usersWithPin.length > 0
+        ? usersWithPin.map((u) => argon2.verify(u.pin!, pin).then((ok) => ok ? u : null).catch(() => null))
+        : [argon2.verify(dummyHash, pin).then(() => null).catch(() => null)]
+    );
+
+    const matched = results.find((r) => r !== null);
+    if (!matched) throw new AuthError("Invalid credentials");
+
+    return this.createSession(matched as { id: string; role: string; username: string });
   }
 
   private async createSession(user: { id: string; role: string; username: string }): Promise<LoginResult> {
     const token = randomUUID();
     const now = new Date();
     const expiresAt = new Date(now.getTime() + this.sessionTtlSeconds * 1000);
+
+    // Invalidate all prior sessions for this user before creating a new one.
+    // This ensures a deactivated or compromised account cannot keep old tokens alive.
+    await this.db.delete(sessions).where(eq(sessions.userId, user.id));
 
     await this.db.insert(sessions).values({
       id: randomUUID(),
@@ -164,6 +174,28 @@ export class AuthService {
     });
 
     return id;
+  }
+
+  async listUsers(): Promise<Array<{ id: string; name: string; username: string; role: UserRole; active: boolean; createdAt: Date }>> {
+    const rows = await this.db.select().from(users);
+    return rows.map((u) => ({
+      id: u.id,
+      name: u.name,
+      username: u.username,
+      role: u.role as UserRole,
+      active: u.active,
+      createdAt: u.createdAt,
+    }));
+  }
+
+  async updateUser(id: string, patch: Partial<{ name: string; username: string; role: UserRole; active: boolean }>): Promise<void> {
+    if (Object.keys(patch).length === 0) return;
+    await this.db.update(users).set(patch).where(eq(users.id, id));
+  }
+
+  async resetPin(id: string, newPin: string): Promise<void> {
+    const hashedPin = await argon2.hash(newPin);
+    await this.db.update(users).set({ pin: hashedPin }).where(eq(users.id, id));
   }
 }
 

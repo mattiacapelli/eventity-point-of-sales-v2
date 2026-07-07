@@ -5,7 +5,7 @@ import { OrderRepository } from "./repository/order.repository.js";
 import { OrderService } from "./service/order.service.js";
 import { registerOrderRoutes } from "./routes/orders.routes.js";
 
-export { OrderRepository, formatReceiptNumber } from "./repository/order.repository.js";
+export { OrderRepository, formatReceiptNumber, computeVatBreakdown } from "./repository/order.repository.js";
 export { OrderService, OrderNotFoundError, OrderValidationError } from "./service/order.service.js";
 
 let _service: OrderService | null = null;
@@ -38,9 +38,17 @@ export const salesModule: PosModule = {
 
   async register(ctx: CoreContext) {
     if (_service === null) throw new Error("Sales module not initialized");
-    const fastify = ctx.fastify as FastifyInstance;
+    const fastify = ctx.fastify as FastifyInstance & {
+      authenticate: (req: import("fastify").FastifyRequest) => Promise<void>;
+      moduleGuard?: (n: string) => (req: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) => Promise<void>;
+    };
     const svc = _service;
-    await fastify.register(async (f) => { registerOrderRoutes(f, svc, ctx); }, { prefix: "/api" });
+    const guard = fastify.moduleGuard?.("sales");
+    await fastify.register(async (f) => {
+      f.addHook("preHandler", fastify.authenticate);
+      if (guard) f.addHook("preHandler", guard);
+      registerOrderRoutes(f, svc, ctx);
+    }, { prefix: "/api" });
   },
 
   async start() {},

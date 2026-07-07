@@ -50,6 +50,14 @@ export class InventoryRepository {
     return row as InventoryItem | undefined;
   }
 
+  // Synchronous variant for use inside better-sqlite3 transaction callbacks.
+  // drizzle/better-sqlite3 is synchronous: queries resolve immediately.
+  // We use the sync .all() method on the prepared statement via the raw session.
+  findItemByIdSync(id: string): InventoryItem | undefined {
+    const result = this.db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1) as unknown as { all: () => InventoryItem[] };
+    return result.all()[0];
+  }
+
   async findItemByName(name: string): Promise<InventoryItem | undefined> {
     const [row] = await this.db.select().from(inventoryItems).where(eq(inventoryItems.name, name)).limit(1);
     return row as InventoryItem | undefined;

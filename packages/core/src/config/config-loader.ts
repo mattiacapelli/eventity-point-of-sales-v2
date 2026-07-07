@@ -1,11 +1,13 @@
 import { z } from "zod";
 
+const INSECURE_JWT_DEFAULT = "change-me-in-production-minimum-32-chars!";
+
 const ConfigSchema = z.object({
   host: z.string().default("0.0.0.0"),
   port: z.coerce.number().int().positive().default(3000),
   databaseUrl: z.string().default("./pos.db"),
   sessionTtlSeconds: z.coerce.number().int().positive().default(28800), // 8 hours
-  jwtSecret: z.string().min(32).default("change-me-in-production-minimum-32-chars!"),
+  jwtSecret: z.string().min(32).default(INSECURE_JWT_DEFAULT),
   logLevel: z.enum(["debug", "info", "warn", "error"]).default("info"),
   env: z.enum(["development", "production", "test"]).default("development"),
   // Comma-separated list of allowed CORS origins. Empty = allow all (development only).
@@ -17,6 +19,8 @@ const ConfigSchema = z.object({
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
+
+export { INSECURE_JWT_DEFAULT };
 
 export function loadConfig(overrides: Partial<Record<string, string>> = {}): AppConfig {
   const raw = {
@@ -37,5 +41,14 @@ export function loadConfig(overrides: Partial<Record<string, string>> = {}): App
     throw new Error(`Invalid configuration:\n${result.error.toString()}`);
   }
 
-  return Object.freeze(result.data);
+  const config = result.data;
+
+  if (config.env === "production" && config.jwtSecret === INSECURE_JWT_DEFAULT) {
+    throw new Error(
+      "JWT_SECRET must be set to a strong secret in production. " +
+      "The default value is publicly known and must not be used."
+    );
+  }
+
+  return Object.freeze(config);
 }

@@ -17,6 +17,7 @@ import { salesModule } from "@pos/module-sales";
 import { kitchenModule } from "@pos/module-kitchen";
 import { paymentsModule } from "@pos/module-payments";
 import { inventoryModule } from "@pos/module-inventory";
+import { fiscalModule } from "@pos/module-fiscal";
 import type { AppConfig } from "@pos/core";
 import categoriesRoutes from "./routes/admin/categories.js";
 import productsRoutes from "./routes/admin/products.js";
@@ -33,9 +34,11 @@ import modulesRoutes from "./routes/admin/modules.js";
 import restaurantRoutes from "./routes/admin/restaurant.js";
 import statsRoutes from "./routes/stats.js";
 import kitchenTemplatesRoutes from "./routes/admin/kitchen-templates.js";
+import shiftReportTemplatesRoutes from "./routes/admin/shift-report-templates.js";
 import gridLayoutsRoutes from "./routes/admin/grid-layouts.js";
 import auditLogRoutes from "./routes/admin/audit-log.js";
 import terminalsRoutes from "./routes/admin/terminals.js";
+import usersRoutes from "./routes/admin/users.js";
 
 export async function buildServer(config: AppConfig) {
   const fastify = Fastify({
@@ -63,7 +66,7 @@ export async function buildServer(config: AppConfig) {
   await fastify.register(coreContextPlugin, { config });
   await fastify.register(authPlugin);
   await fastify.register(moduleLoaderPlugin, {
-    modules: [salesModule, kitchenModule, paymentsModule, inventoryModule],
+    modules: [salesModule, kitchenModule, paymentsModule, inventoryModule, fiscalModule],
   });
   await fastify.register(printerTriggerPlugin);
   await fastify.register(wsGateway);
@@ -87,9 +90,11 @@ export async function buildServer(config: AppConfig) {
   await fastify.register(restaurantRoutes, { prefix: "/api" });
   await fastify.register(statsRoutes, { prefix: "/api" });
   await fastify.register(kitchenTemplatesRoutes, { prefix: "/api" });
+  await fastify.register(shiftReportTemplatesRoutes, { prefix: "/api" });
   await fastify.register(gridLayoutsRoutes, { prefix: "/api" });
   await fastify.register(auditLogRoutes, { prefix: "/api" });
   await fastify.register(terminalsRoutes, { prefix: "/api" });
+  await fastify.register(usersRoutes, { prefix: "/api" });
 
   return fastify;
 }

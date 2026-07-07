@@ -136,6 +136,33 @@ const kitchenTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
       orderId: "preview-order-id",
       receiptDisplay: "0001",
       tableId: "5",
+      customerName: "Mario Rossi",
+      timestamp: new Date(),
+      items: [
+        { name: "Hamburger", quantity: 2, options: [{ optionName: "Senza cipolla", priceDelta: 0 }] },
+        { name: "Patatine fritte", quantity: 1, notes: "Croccanti" },
+      ],
+    });
+
+    return reply
+      .header("Content-Type", "image/png")
+      .header("Content-Length", pngBuffer.length)
+      .send(pngBuffer);
+  });
+
+  // POST /kitchen-templates/preview — live preview of unsaved blocks (frontend sends current editor state)
+  fastify.post("/kitchen-templates/preview", async (request, reply) => {
+    const body = request.body as { blocks: KitchenBlock[]; canvasWidth: number; logoPath?: string | null };
+
+    const pngBuffer = await renderKitchenImage({
+      blocks: body.blocks,
+      canvasWidth: body.canvasWidth ?? 576,
+      logoPath: body.logoPath ?? null,
+      centerName: "Cucina",
+      orderId: "preview-order-id",
+      receiptDisplay: "0001",
+      tableId: "5",
+      customerName: "Mario Rossi",
       timestamp: new Date(),
       items: [
         { name: "Hamburger", quantity: 2, options: [{ optionName: "Senza cipolla", priceDelta: 0 }] },

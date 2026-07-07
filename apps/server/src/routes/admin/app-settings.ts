@@ -9,19 +9,11 @@ const TERMINAL_KEYS = ["multi_terminal_enabled"] as const;
 const CART_KEYS = ["cart_notes_enabled", "cart_pax_enabled", "cart_discount_enabled"] as const;
 
 const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.addHook("onRequest", async (request, reply) => {
+  fastify.addHook("onRequest", async (request) => {
     await fastify.authenticate(request);
-    try {
-      requireRole(request.session!, "admin");
-    } catch (err) {
-      if (err instanceof AuthError) {
-        return reply.status(403).send({ error: err.message });
-      }
-      throw err;
-    }
   });
 
-  // GET /admin/settings
+  // GET /admin/settings — readable by any authenticated user (needed e.g. to know if multi-terminal is on)
   fastify.get("/admin/settings", {
     schema: { tags: ["admin"], summary: "Get app settings" },
   }, async (_request, reply) => {
@@ -32,7 +24,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
 
     return reply.send({
       expressMode: m["express_mode"] === "true",
-      receiptNumberMode: (m["receipt_number_mode"] ?? "default") as "default" | "global" | "shift",
+      receiptNumberMode: (m["receipt_number_mode"] ?? "shift") as "default" | "global" | "shift",
       receiptNumberPrefix: m["receipt_number_prefix"] ?? "",
       receiptNumberPadding: parseInt(m["receipt_number_padding"] ?? "0", 10),
       gridViewMode: (m["grid_view_mode"] ?? "category") as "category" | "all" | "grouped_category" | "grouped_center" | "grouped_color",
@@ -50,6 +42,14 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
   // PATCH /admin/settings
   fastify.patch("/admin/settings", {
     schema: { tags: ["admin"], summary: "Update app settings" },
+    preHandler: async (request, reply) => {
+      try {
+        requireRole(request.session!, "admin");
+      } catch (err) {
+        if (err instanceof AuthError) return reply.status(403).send({ error: err.message });
+        throw err;
+      }
+    },
   }, async (request, reply) => {
     const body = request.body as Partial<{
       expressMode: boolean;
@@ -94,7 +94,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
 
     return reply.send({
       expressMode: m["express_mode"] === "true",
-      receiptNumberMode: (m["receipt_number_mode"] ?? "default") as "default" | "global" | "shift",
+      receiptNumberMode: (m["receipt_number_mode"] ?? "shift") as "default" | "global" | "shift",
       receiptNumberPrefix: m["receipt_number_prefix"] ?? "",
       receiptNumberPadding: parseInt(m["receipt_number_padding"] ?? "0", 10),
       gridViewMode: (m["grid_view_mode"] ?? "category") as "category" | "all" | "grouped_category" | "grouped_center" | "grouped_color",
@@ -109,9 +109,56 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
+  // GET /admin/settings/raw?keys=key1,key2 — raw key/value access for misc settings (may include sensitive config)
+  fastify.get("/admin/settings/raw", {
+    schema: { tags: ["admin"], summary: "Get raw app_settings values by key list" },
+    preHandler: async (request, reply) => {
+      try {
+        requireRole(request.session!, "admin");
+      } catch (err) {
+        if (err instanceof AuthError) return reply.status(403).send({ error: err.message });
+        throw err;
+      }
+    },
+  }, async (request, reply) => {
+    const { keys: keysParam } = request.query as { keys?: string };
+    if (!keysParam) return reply.send({});
+    const keys = keysParam.split(",").map((k) => k.trim()).filter(Boolean);
+    const rows = await fastify.ctx.db.select().from(appSettings).where(inArray(appSettings.key, keys));
+    return reply.send(Object.fromEntries(rows.map((r) => [r.key, r.value])));
+  });
+
+  // PUT /admin/settings/raw/:key — upsert a single raw key
+  fastify.put("/admin/settings/raw/:key", {
+    schema: { tags: ["admin"], summary: "Upsert a single raw app_settings value" },
+    preHandler: async (request, reply) => {
+      try {
+        requireRole(request.session!, "admin");
+      } catch (err) {
+        if (err instanceof AuthError) return reply.status(403).send({ error: err.message });
+        throw err;
+      }
+    },
+  }, async (request, reply) => {
+    const { key } = request.params as { key: string };
+    const { value } = request.body as { value: string };
+    if (typeof value !== "string") return reply.status(400).send({ error: "value must be a string" });
+    await fastify.ctx.db.insert(appSettings).values({ key, value })
+      .onConflictDoUpdate({ target: appSettings.key, set: { value } });
+    return reply.send({ key, value });
+  });
+
   // POST /admin/settings/reset-receipt-counter
   fastify.post("/admin/settings/reset-receipt-counter", {
     schema: { tags: ["admin"], summary: "Reset receipt counter to 0 (or custom start value)" },
+    preHandler: async (request, reply) => {
+      try {
+        requireRole(request.session!, "admin");
+      } catch (err) {
+        if (err instanceof AuthError) return reply.status(403).send({ error: err.message });
+        throw err;
+      }
+    },
   }, async (request, reply) => {
     const body = request.body as { scope?: string; startFrom?: number } | undefined;
     const scope = (body as { scope?: string } | undefined)?.scope ?? "global";

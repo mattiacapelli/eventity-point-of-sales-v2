@@ -18,6 +18,7 @@ export interface KitchenRenderData {
   orderId: string;
   receiptDisplay?: string | undefined;
   tableId?: string | null;
+  customerName?: string | null;
   orderNotes?: string | null;
   pax?: number | null;
   timestamp: Date;
@@ -88,6 +89,9 @@ export async function renderKitchenImage(data: KitchenRenderData): Promise<Buffe
       case "table-number":
         h += data.tableId ? lineH : 0;
         break;
+      case "customer-name":
+        h += data.customerName ? lineH : 0;
+        break;
       case "timestamp":
         h += lineH;
         break;
@@ -119,11 +123,18 @@ export async function renderKitchenImage(data: KitchenRenderData): Promise<Buffe
 
   let y = PADDING;
 
-  for (const block of visibleBlocks) {
+  for (let i = 0; i < visibleBlocks.length; i++) {
+    const block = visibleBlocks[i]!;
     y += block.paddingTop;
 
+    if (block.invertColors) {
+      const blockHeight = heights[i]! - block.paddingTop;
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, y, width, blockHeight);
+    }
+
     ctx.font = resolveFont(block);
-    ctx.fillStyle = "#000000";
+    ctx.fillStyle = block.invertColors ? "#ffffff" : "#000000";
     ctx.textAlign = ctxAlign(block.align);
     ctx.textBaseline = "top";
     const x = xForAlign(block.align, width, PADDING);
@@ -144,6 +155,12 @@ export async function renderKitchenImage(data: KitchenRenderData): Promise<Buffe
           y += lineH;
         }
         break;
+      case "customer-name":
+        if (data.customerName) {
+          ctx.fillText(`Cliente: ${data.customerName}`, x, y);
+          y += lineH;
+        }
+        break;
       case "timestamp":
         ctx.fillText(new Date(data.timestamp).toLocaleString("it-IT"), x, y);
         y += lineH;
@@ -153,7 +170,7 @@ export async function renderKitchenImage(data: KitchenRenderData): Promise<Buffe
         ctx.beginPath();
         ctx.moveTo(PADDING, dy);
         ctx.lineTo(width - PADDING, dy);
-        ctx.strokeStyle = "#000000";
+        ctx.strokeStyle = block.invertColors ? "#ffffff" : "#000000";
         ctx.lineWidth = 1;
         ctx.stroke();
         y += 12;
@@ -165,15 +182,15 @@ export async function renderKitchenImage(data: KitchenRenderData): Promise<Buffe
           ctx.fillText(`${item.quantity}x  ${item.name}`, PADDING, y);
           y += lineH;
           for (const opt of item.options ?? []) {
-            ctx.fillStyle = "#333333";
+            ctx.fillStyle = block.invertColors ? "#cccccc" : "#333333";
             ctx.fillText(`+ ${opt.optionName}`, PADDING + OPTION_INDENT, y);
-            ctx.fillStyle = "#000000";
+            ctx.fillStyle = block.invertColors ? "#ffffff" : "#000000";
             y += lineH;
           }
           if (item.notes) {
-            ctx.fillStyle = "#555555";
+            ctx.fillStyle = block.invertColors ? "#dddddd" : "#555555";
             ctx.fillText(`>> ${item.notes}`, PADDING + OPTION_INDENT, y);
-            ctx.fillStyle = "#000000";
+            ctx.fillStyle = block.invertColors ? "#ffffff" : "#000000";
             y += lineH;
           }
         }

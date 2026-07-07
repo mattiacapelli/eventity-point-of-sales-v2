@@ -5,4 +5,5 @@ export interface PaymentMethodRecord {
   active: boolean;
   sortOrder: number;
   icon: string | null;
+  excludeFromTotal: boolean;
 }

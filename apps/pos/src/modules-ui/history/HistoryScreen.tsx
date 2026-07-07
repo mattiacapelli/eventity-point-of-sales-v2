@@ -5,8 +5,9 @@ import { Modal } from "../../components/ui/Modal.js";
 import { useStore } from "../../state/global-store.js";
 import { apiClient } from "../../core/api-client.js";
 import { adminApi } from "../../core/admin-api.js";
+import { downloadCsv } from "../../core/csv-export.js";
 import type { Order, OrderStatus } from "@pos/shared-types";
-import type { Shift } from "@pos/shared-types";
+import type { Shift, Terminal } from "@pos/shared-types";
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
@@ -151,6 +152,7 @@ function OrderRow({
   onRefund,
   receiptPrefix,
   receiptPadding,
+  terminalName,
 }: {
   order: Order;
   isAdmin: boolean;
@@ -160,6 +162,7 @@ function OrderRow({
   onRefund: (order: Order) => void;
   receiptPrefix: string;
   receiptPadding: number;
+  terminalName?: string;
 }) {
   const canCancel = isAdmin && order.status !== "completed" && order.status !== "cancelled";
   const canRefund = isAdmin && order.status === "completed";
@@ -184,6 +187,7 @@ function OrderRow({
           </div>
           <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginTop: "2px" }}>
             {new Date(order.createdAt).toLocaleString("it-IT")}
+            {terminalName && ` · ${terminalName}`}
           </div>
         </div>
         <StatusBadge status={order.status} />
@@ -264,6 +268,8 @@ export function HistoryScreen() {
   const [filterTo, setFilterTo] = useState("");
   const [filterShiftId, setFilterShiftId] = useState("");
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [filterTerminalId, setFilterTerminalId] = useState("");
+  const [terminals, setTerminals] = useState<Terminal[]>([]);
 
   // Modals
   const [cancelOrder, setCancelOrder] = useState<Order | null>(null);
@@ -276,6 +282,7 @@ export function HistoryScreen() {
 
   useEffect(() => {
     adminApi.shifts.history().then(setShifts).catch(() => {});
+    adminApi.terminals.list().then(setTerminals).catch(() => {});
     adminApi.settings.get().then((s) => {
       setReceiptPrefix(s.receiptNumberPrefix);
       setReceiptPadding(s.receiptNumberPadding);
@@ -285,12 +292,13 @@ export function HistoryScreen() {
   const load = useCallback((currentOffset = 0, append = false) => {
     setLoading(true);
     setError(null);
-    const filters: { status?: string; shiftId?: string; from?: number; to?: number; limit?: number; offset?: number } = {
+    const filters: { status?: string; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number } = {
       limit: PAGE_SIZE,
       offset: currentOffset,
     };
     if (filterStatus) filters.status = filterStatus;
     if (filterShiftId) filters.shiftId = filterShiftId;
+    if (filterTerminalId) filters.terminalId = filterTerminalId;
     if (filterFrom) filters.from = new Date(filterFrom).getTime();
     if (filterTo) filters.to = new Date(filterTo + "T23:59:59").getTime();
     apiClient.orders.list(filters)
@@ -301,9 +309,25 @@ export function HistoryScreen() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [filterStatus, filterShiftId, filterFrom, filterTo]);
+  }, [filterStatus, filterShiftId, filterTerminalId, filterFrom, filterTo]);
 
   useEffect(() => { load(0, false); }, [load]);
+
+  function handleExportCsv() {
+    downloadCsv(
+      `ordini-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["Data", "Numero scontrino", "Cassa", "Stato", "Totale", "Sconto", "Prodotti"],
+      orders.map((o) => [
+        new Date(o.createdAt).toLocaleString("it-IT"),
+        o.receiptNumber ?? "",
+        terminals.find((t) => t.id === o.terminalId)?.name ?? "",
+        o.status,
+        o.totalAmount.toFixed(2),
+        o.discountAmount.toFixed(2),
+        o.items.map((i) => `${i.quantity}x ${i.name}`).join("; "),
+      ]),
+    );
+  }
 
   async function handleReprint(id: string) {
     try {
@@ -381,7 +405,12 @@ export function HistoryScreen() {
           <h1 style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-gray-900)", margin: 0 }}>
             Storico ordini
           </h1>
-          <Button size="sm" variant="ghost" onClick={() => load(0, false)}>Aggiorna</Button>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <Button size="sm" variant="ghost" onClick={handleExportCsv} disabled={orders.length === 0} title="Esporta solo gli ordini attualmente caricati">
+              Esporta CSV
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => load(0, false)}>Aggiorna</Button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -403,12 +432,21 @@ export function HistoryScreen() {
             </select>
           )}
 
+          {terminals.length > 1 && (
+            <select value={filterTerminalId} onChange={(e) => setFilterTerminalId(e.target.value)} style={selectStyle}>
+              <option value="">Tutte le casse</option>
+              {terminals.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          )}
+
           <input type="date" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)} style={dateInputStyle} placeholder="Da" />
           <input type="date" value={filterTo} onChange={(e) => setFilterTo(e.target.value)} style={dateInputStyle} placeholder="A" />
 
-          {(filterStatus || filterShiftId || filterFrom || filterTo) && (
+          {(filterStatus || filterShiftId || filterTerminalId || filterFrom || filterTo) && (
             <Button size="sm" variant="ghost" onClick={() => {
-              setFilterStatus(""); setFilterShiftId(""); setFilterFrom(""); setFilterTo("");
+              setFilterStatus(""); setFilterShiftId(""); setFilterTerminalId(""); setFilterFrom(""); setFilterTo("");
             }}>
               Cancella filtri
             </Button>
@@ -434,19 +472,23 @@ export function HistoryScreen() {
           </div>
         )}
 
-        {!loading && orders.map((order) => (
-          <OrderRow
-            key={order.id}
-            order={order}
-            isAdmin={isAdmin}
-            onReprint={handleReprint}
-            onReprintKitchen={handleReprintKitchen}
-            onCancel={setCancelOrder}
-            onRefund={handleRefundClick}
-            receiptPrefix={receiptPrefix}
-            receiptPadding={receiptPadding}
-          />
-        ))}
+        {!loading && orders.map((order) => {
+          const terminalName = terminals.length > 1 ? terminals.find((t) => t.id === order.terminalId)?.name : undefined;
+          return (
+            <OrderRow
+              key={order.id}
+              order={order}
+              isAdmin={isAdmin}
+              onReprint={handleReprint}
+              onReprintKitchen={handleReprintKitchen}
+              onCancel={setCancelOrder}
+              onRefund={handleRefundClick}
+              receiptPrefix={receiptPrefix}
+              receiptPadding={receiptPadding}
+              {...(terminalName ? { terminalName } : {})}
+            />
+          );
+        })}
 
         {hasMore && !loading && (
           <div style={{ textAlign: "center", paddingBottom: "var(--sp-md)" }}>

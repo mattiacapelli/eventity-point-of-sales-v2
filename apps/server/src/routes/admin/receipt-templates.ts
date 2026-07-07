@@ -59,6 +59,7 @@ const receiptTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
       showOrderNumber?: boolean;
       showTimestamp?: boolean;
       showPaymentMethod?: boolean;
+      showItemCategory?: boolean;
       active?: boolean;
       printMode?: "text" | "image";
       canvasWidth?: number;
@@ -76,6 +77,7 @@ const receiptTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
       showOrderNumber:   body.showOrderNumber ?? true,
       showTimestamp:     body.showTimestamp ?? true,
       showPaymentMethod: body.showPaymentMethod ?? true,
+      showItemCategory:  body.showItemCategory ?? false,
       active:            body.active ?? false,
       printMode:         body.printMode ?? "text",
       canvasWidth:       body.canvasWidth ?? 576,
@@ -100,6 +102,7 @@ const receiptTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
       showOrderNumber: boolean;
       showTimestamp: boolean;
       showPaymentMethod: boolean;
+      showItemCategory: boolean;
       active: boolean;
       printMode: "text" | "image";
       canvasWidth: number;
@@ -119,6 +122,7 @@ const receiptTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
       showOrderNumber?: boolean;
       showTimestamp?: boolean;
       showPaymentMethod?: boolean;
+      showItemCategory?: boolean;
       active?: boolean;
       printMode?: string;
       canvasWidth?: number;
@@ -133,6 +137,7 @@ const receiptTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.showOrderNumber !== undefined) update.showOrderNumber = body.showOrderNumber;
     if (body.showTimestamp !== undefined) update.showTimestamp = body.showTimestamp;
     if (body.showPaymentMethod !== undefined) update.showPaymentMethod = body.showPaymentMethod;
+    if (body.showItemCategory !== undefined) update.showItemCategory = body.showItemCategory;
     if (body.active !== undefined) update.active = body.active;
     if (body.printMode !== undefined) update.printMode = body.printMode;
     if (body.canvasWidth !== undefined) update.canvasWidth = body.canvasWidth;
@@ -149,7 +154,7 @@ const receiptTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
 
   // --- Preview (POST so the frontend sends current blocks without saving first) ---
   fastify.post("/receipt-templates/preview", async (request, reply) => {
-    const body = request.body as { blocks: ReceiptBlock[]; canvasWidth: number };
+    const body = request.body as { blocks: ReceiptBlock[]; canvasWidth: number; showItemCategory?: boolean };
 
     const restRows = await fastify.ctx.db.select().from(appSettings).where(inArray(appSettings.key, [...RESTAURANT_KEYS]));
     const rMap = Object.fromEntries(restRows.map((r) => [r.key, r.value]));
@@ -164,9 +169,10 @@ const receiptTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
       logoPath,
       orderId: "PREVIEW123",
       items: [
-        { name: "Esempio prodotto 1", quantity: 2, unitPrice: 5.50 },
-        { name: "Esempio prodotto 2", quantity: 1, unitPrice: 12.00 },
+        { name: "Esempio prodotto 1", quantity: 2, unitPrice: 5.50, category: "Bevande" },
+        { name: "Esempio prodotto 2", quantity: 1, unitPrice: 12.00, category: "Primi Piatti" },
       ],
+      showItemCategory: body.showItemCategory ?? false,
       total: 23.00,
       paymentMethod: "Contanti",
       currency: "EUR",
@@ -176,6 +182,9 @@ const receiptTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
       restaurantCity: rMap["restaurant_city"] ?? "Milano",
       restaurantVat: rMap["restaurant_vat"] ?? "IT12345678901",
       restaurantPhone: rMap["restaurant_phone"] ?? "+39 02 1234567",
+      terminalName: "Cassa 1",
+      tableId: "12",
+      customerName: "Mario Rossi",
     });
 
     return reply.type("image/png").send(pngBuffer);
