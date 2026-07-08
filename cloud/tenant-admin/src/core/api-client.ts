@@ -1,4 +1,4 @@
-import type { Tenant, TenantStats } from "./types.js";
+import type { AuditLogEntry, CurrentUser, Paginated, Tenant, TenantStats, TenantUser, TenantUserRole } from "./types.js";
 
 const API_BASE = import.meta.env["VITE_API_BASE"] ?? "http://localhost:4000";
 const TOKEN_KEY = "epos-admin-token";
@@ -15,6 +15,17 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+export class SessionExpiredError extends Error {
+  constructor() {
+    super("Sessione scaduta");
+  }
+}
+
+let onSessionExpired: (() => void) | null = null;
+export function setOnSessionExpired(handler: () => void): void {
+  onSessionExpired = handler;
+}
+
 async function authedFetch(path: string, init?: RequestInit): Promise<Response> {
   const token = getToken();
   const res = await fetch(`${API_BASE}${path}`, {
@@ -27,57 +38,103 @@ async function authedFetch(path: string, init?: RequestInit): Promise<Response> 
   });
   if (res.status === 401) {
     clearToken();
-    window.location.reload();
-    throw new Error("Sessione scaduta");
+    onSessionExpired?.();
+    throw new SessionExpiredError();
   }
   return res;
 }
 
-export async function login(username: string, password: string): Promise<string> {
+async function throwIfNotOk(res: Response, fallbackMessage: string): Promise<void> {
+  if (res.ok) return;
+  if (res.status === 429) throw new Error("Troppi tentativi, riprova tra qualche minuto");
+  const body = await res.json().catch(() => ({})) as { error?: string };
+  throw new Error(body.error ?? fallbackMessage);
+}
+
+export async function login(email: string, password: string): Promise<string> {
   const res = await fetch(`${API_BASE}/admin/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ email, password }),
   });
-  if (!res.ok) throw new Error("Credenziali non valide");
+  await throwIfNotOk(res, "Credenziali non valide");
   const data = await res.json() as { token: string };
   return data.token;
 }
 
-export async function listTenants(): Promise<Tenant[]> {
-  const res = await authedFetch("/admin/tenants");
-  if (!res.ok) throw new Error("Impossibile caricare i tenant");
-  return res.json() as Promise<Tenant[]>;
+export async function getMe(): Promise<CurrentUser> {
+  const res = await authedFetch("/admin/me");
+  await throwIfNotOk(res, "Impossibile caricare l'utente");
+  return res.json() as Promise<CurrentUser>;
+}
+
+export async function listTenants(params: { search?: string; page?: number; pageSize?: number } = {}): Promise<Paginated<Tenant>> {
+  const query = new URLSearchParams();
+  if (params.search) query.set("search", params.search);
+  if (params.page) query.set("page", String(params.page));
+  if (params.pageSize) query.set("pageSize", String(params.pageSize));
+  const res = await authedFetch(`/admin/tenants?${query.toString()}`);
+  await throwIfNotOk(res, "Impossibile caricare i tenant");
+  return res.json() as Promise<Paginated<Tenant>>;
 }
 
 export async function createTenant(name: string): Promise<Tenant> {
   const res = await authedFetch("/admin/tenants", { method: "POST", body: JSON.stringify({ name }) });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as { error?: string };
-    throw new Error(body.error ?? "Impossibile creare il tenant");
-  }
+  await throwIfNotOk(res, "Impossibile creare il tenant");
   return res.json() as Promise<Tenant>;
 }
 
 export async function updateTenant(id: string, data: Partial<{ name: string; active: boolean }>): Promise<Tenant> {
   const res = await authedFetch(`/admin/tenants/${id}`, { method: "PATCH", body: JSON.stringify(data) });
-  if (!res.ok) throw new Error("Impossibile aggiornare il tenant");
+  await throwIfNotOk(res, "Impossibile aggiornare il tenant");
   return res.json() as Promise<Tenant>;
 }
 
 export async function rotateTenantKey(id: string): Promise<{ apiKey: string }> {
   const res = await authedFetch(`/admin/tenants/${id}/rotate-key`, { method: "POST" });
-  if (!res.ok) throw new Error("Impossibile rigenerare la chiave");
+  await throwIfNotOk(res, "Impossibile rigenerare la chiave");
   return res.json() as Promise<{ apiKey: string }>;
 }
 
 export async function deleteTenant(id: string): Promise<void> {
   const res = await authedFetch(`/admin/tenants/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Impossibile eliminare il tenant");
+  await throwIfNotOk(res, "Impossibile eliminare il tenant");
 }
 
 export async function fetchTenantStats(id: string): Promise<TenantStats> {
   const res = await authedFetch(`/admin/tenants/${id}/stats`);
-  if (!res.ok) throw new Error("Impossibile caricare le statistiche");
+  await throwIfNotOk(res, "Impossibile caricare le statistiche");
   return res.json() as Promise<TenantStats>;
+}
+
+export async function listTenantUsers(tenantId: string): Promise<TenantUser[]> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/users`);
+  await throwIfNotOk(res, "Impossibile caricare gli utenti");
+  return res.json() as Promise<TenantUser[]>;
+}
+
+export async function inviteTenantUser(tenantId: string, email: string, role: TenantUserRole): Promise<{ userId: string; email: string; role: TenantUserRole; tempPassword?: string }> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/users/invite`, {
+    method: "POST",
+    body: JSON.stringify({ email, role }),
+  });
+  await throwIfNotOk(res, "Impossibile invitare l'utente");
+  return res.json();
+}
+
+export async function removeTenantUser(tenantId: string, userId: string): Promise<void> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/users/${userId}`, { method: "DELETE" });
+  await throwIfNotOk(res, "Impossibile rimuovere l'utente");
+}
+
+export async function fetchAuditLog(tenantId: string, page = 1, pageSize = 20): Promise<Paginated<AuditLogEntry>> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/audit-log?page=${page}&pageSize=${pageSize}`);
+  await throwIfNotOk(res, "Impossibile caricare l'audit log");
+  return res.json() as Promise<Paginated<AuditLogEntry>>;
+}
+
+export async function downloadOrdersCsv(tenantId: string): Promise<Blob> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/orders/export.csv`);
+  if (!res.ok) throw new Error("Impossibile esportare gli ordini");
+  return res.blob();
 }

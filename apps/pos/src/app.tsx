@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { bootstrap } from "./core/bootstrap.js";
 import { bootstrapApi } from "./core/bootstrap-api.js";
 import { useWsEvents } from "./core/useWsEvents.js";
+import { useCatalogWsEvents } from "./core/useCatalogWsEvents.js";
 import { useStore } from "./state/global-store.js";
 import { useShiftStore } from "./state/shift-store.js";
 import { useTerminalStore } from "./state/terminal-store.js";
@@ -67,6 +68,7 @@ function AppInner() {
   const prevSessionRef = useRef<string | null>(null);
 
   useWsEvents();
+  useCatalogWsEvents();
 
   useEffect(() => {
     bootstrap()

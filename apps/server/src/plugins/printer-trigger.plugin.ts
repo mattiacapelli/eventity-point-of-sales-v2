@@ -9,6 +9,7 @@ import { formatReceiptNumber, computeVatBreakdown } from "@pos/module-sales";
 import type { ReceiptBlock, KitchenBlock } from "@pos/shared-types";
 import type { DbClient } from "@pos/db";
 import type { PrinterService, Logger } from "@pos/core";
+import type { EventBus } from "@pos/event-bus";
 
 async function _loadReceiptNumSettings(db: DbClient): Promise<{ prefix: string; padding: number }> {
   const keys = ["receipt_number_prefix", "receipt_number_padding"];
@@ -44,6 +45,7 @@ async function _printKitchenTickets(
   items: OrderItemRow[],
   receiptDisplay?: string,
   dataDir = "/data",
+  eventBus?: EventBus,
 ): Promise<void> {
   if (items.length === 0) return;
 
@@ -192,12 +194,21 @@ async function _printKitchenTickets(
                 items: ticketItems,
               });
               const rasterBuffer = await pngToEscposRaster(pngBuffer, template.canvasWidth ?? 576);
-              await printerService.printDirect({
+              const imageResult = await printerService.printDirect({
                 printerId: printer.id,
                 contentBuffer: rasterBuffer,
                 type: "kitchen",
                 printerConfig,
               });
+              if (!imageResult.success) {
+                eventBus?.emit("PRINTER_OFFLINE", {
+                  traceId: randomUUID(),
+                  printerId: printer.id,
+                  printerName: printer.name,
+                  reason: imageResult.message,
+                  timestamp: new Date(),
+                });
+              }
               logger.info({ printerId: printer.id, orderId, centerName, mode: "image" }, "Kitchen ticket printed");
               continue;
             }
@@ -217,15 +228,31 @@ async function _printKitchenTickets(
           timestamp: now,
           items: ticketItems,
         });
-        await printerService.printDirect({
+        const textResult = await printerService.printDirect({
           printerId: printer.id,
           content,
           type: "kitchen",
           printerConfig,
         });
+        if (!textResult.success) {
+          eventBus?.emit("PRINTER_OFFLINE", {
+            traceId: randomUUID(),
+            printerId: printer.id,
+            printerName: printer.name,
+            reason: textResult.message,
+            timestamp: new Date(),
+          });
+        }
         logger.info({ printerId: printer.id, orderId, centerName, mode: "text" }, "Kitchen ticket printed");
       } catch (err) {
         logger.error({ err, printerId: printer.id, orderId, centerName }, "Kitchen ticket print failed");
+        eventBus?.emit("PRINTER_OFFLINE", {
+          traceId: randomUUID(),
+          printerId: printer.id,
+          printerName: printer.name,
+          reason: err instanceof Error ? err.message : "Print failed",
+          timestamp: new Date(),
+        });
       }
     }
   }
@@ -233,6 +260,17 @@ async function _printKitchenTickets(
 
 const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
   const { eventBus, logger, db, printerService } = fastify.ctx;
+
+  // Notify only the terminal(s) assigned to the affected printer, not everyone
+  eventBus.on("PRINTER_OFFLINE", async (payload) => {
+    const assignedTerminals = await db
+      .select({ terminalId: terminalPrinters.terminalId })
+      .from(terminalPrinters)
+      .where(eq(terminalPrinters.printerId, payload.printerId));
+    for (const { terminalId } of assignedTerminals) {
+      fastify.wsBroadcaster.sendToTerminal(terminalId, "PRINTER_OFFLINE", payload);
+    }
+  });
 
   // Update shift totals when an order is completed
   eventBus.on("ORDER_UPDATED", async (payload) => {
@@ -266,7 +304,7 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
     const items = await db.select().from(orderItems).where(eq(orderItems.orderId, payload.order.id));
     const numSettings = await _loadReceiptNumSettings(db);
     const receiptDisplay = formatReceiptNumber(payload.order.receiptNumber, payload.order.id, numSettings.prefix, numSettings.padding);
-    await _printKitchenTickets(db, printerService, logger, payload.order.id, items as unknown as OrderItemRow[], receiptDisplay, fastify.ctx.config.dataDir);
+    await _printKitchenTickets(db, printerService, logger, payload.order.id, items as unknown as OrderItemRow[], receiptDisplay, fastify.ctx.config.dataDir, eventBus);
   });
 
   eventBus.on("PAYMENT_COMPLETED", async (payload) => {
@@ -283,7 +321,7 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
         const [orderRow] = await db.select({ receiptNumber: orders.receiptNumber }).from(orders).where(eq(orders.id, payload.payment.orderId)).limit(1);
         const numSettings = await _loadReceiptNumSettings(db);
         const receiptDisplay = formatReceiptNumber(orderRow?.receiptNumber ?? undefined, payload.payment.orderId, numSettings.prefix, numSettings.padding);
-        await _printKitchenTickets(db, printerService, logger, payload.payment.orderId, items as unknown as OrderItemRow[], receiptDisplay, fastify.ctx.config.dataDir);
+        await _printKitchenTickets(db, printerService, logger, payload.payment.orderId, items as unknown as OrderItemRow[], receiptDisplay, fastify.ctx.config.dataDir, eventBus);
       }
     }
 
@@ -540,6 +578,36 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
       jobTotal: number,
       groupName?: string,
     ): Promise<void> {
+      let result: { success: boolean; message: string } | undefined;
+      try {
+        result = await _printOneReceiptInner(tmpl, jobItems, jobTotal, groupName);
+      } catch (err) {
+        eventBus.emit("PRINTER_OFFLINE", {
+          traceId: randomUUID(),
+          printerId: receiptPrinter.id,
+          printerName: receiptPrinter.name,
+          reason: err instanceof Error ? err.message : "Print failed",
+          timestamp: new Date(),
+        });
+        throw err;
+      }
+      if (result && !result.success) {
+        eventBus.emit("PRINTER_OFFLINE", {
+          traceId: randomUUID(),
+          printerId: receiptPrinter.id,
+          printerName: receiptPrinter.name,
+          reason: result.message,
+          timestamp: new Date(),
+        });
+      }
+    }
+
+    async function _printOneReceiptInner(
+      tmpl: typeof masterTemplate,
+      jobItems: typeof items,
+      jobTotal: number,
+      groupName?: string,
+    ): Promise<{ success: boolean; message: string } | undefined> {
       const isSub = groupName !== undefined;
       const useImageMode = tmpl?.printMode === "image" && !!tmpl?.blocks;
 
@@ -549,7 +617,8 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
           blocks = (typeof tmpl!.blocks === "string" ? JSON.parse(tmpl!.blocks!) : tmpl!.blocks) as ReceiptBlock[];
         } catch {
           logger.warn({ jobId: payload.jobId }, "Receipt template blocks JSON invalid — falling back to text mode");
-          return printOneReceipt({ ...tmpl!, printMode: "text" }, jobItems, jobTotal, groupName);
+          await printOneReceipt({ ...tmpl!, printMode: "text" }, jobItems, jobTotal, groupName);
+          return undefined;
         }
 
         // For sub-slips inject category-name block at top; all other blocks unchanged
@@ -595,6 +664,7 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
           ...(printerConfig ? { printerConfig } : {}),
         });
         logger.info({ result, printerId: receiptPrinter.id, mode: "image", printMethod, isSub }, "Print result");
+        return result;
       } else {
         const lines = buildTextLines(tmpl, jobItems, jobTotal, groupName);
         const content = formatReceipt(lines);
@@ -605,6 +675,7 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
           ...(printerConfig ? { printerConfig } : {}),
         });
         logger.info({ result, printerId: receiptPrinter.id, mode: "text", printMethod, isSub }, "Print result");
+        return result;
       }
     }
 

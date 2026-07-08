@@ -127,6 +127,56 @@ export interface PlatformEventMap {
     readonly minStock: number;
     readonly timestamp: Date;
   };
+
+  // Catalog — category
+  CATEGORY_CREATED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+  CATEGORY_UPDATED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+  CATEGORY_DELETED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+
+  // Catalog — product
+  PRODUCT_CREATED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+  PRODUCT_UPDATED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+  PRODUCT_DELETED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+
+  // Catalog — production center
+  PRODUCTION_CENTER_CREATED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+  PRODUCTION_CENTER_UPDATED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+  PRODUCTION_CENTER_DELETED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+
+  // Catalog — option groups / options
+  OPTION_GROUP_CREATED: { readonly traceId: string; readonly id: string; readonly productId: string; readonly timestamp: Date };
+  OPTION_GROUP_UPDATED: { readonly traceId: string; readonly id: string; readonly productId: string; readonly timestamp: Date };
+  OPTION_GROUP_DELETED: { readonly traceId: string; readonly id: string; readonly productId: string; readonly timestamp: Date };
+  OPTION_CREATED: { readonly traceId: string; readonly id: string; readonly optionGroupId: string; readonly timestamp: Date };
+  OPTION_UPDATED: { readonly traceId: string; readonly id: string; readonly optionGroupId: string; readonly timestamp: Date };
+  OPTION_DELETED: { readonly traceId: string; readonly id: string; readonly optionGroupId: string; readonly timestamp: Date };
+
+  // Payment methods
+  PAYMENT_METHOD_CREATED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+  PAYMENT_METHOD_UPDATED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+  PAYMENT_METHOD_DELETED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+
+  // Printers
+  PRINTER_CREATED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+  PRINTER_UPDATED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+  PRINTER_DELETED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+  PRINTER_OFFLINE: {
+    readonly traceId: string;
+    readonly printerId: string;
+    readonly printerName: string;
+    readonly reason: string;
+    readonly timestamp: Date;
+  };
+
+  // Terminals
+  TERMINAL_CREATED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+  TERMINAL_UPDATED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+  TERMINAL_DELETED: { readonly traceId: string; readonly id: string; readonly timestamp: Date };
+
+  // Shifts
+  SHIFT_OPENED: { readonly traceId: string; readonly shiftId: string; readonly userId: string; readonly timestamp: Date };
+  SHIFT_CLOSED: { readonly traceId: string; readonly shiftId: string; readonly timestamp: Date };
+  SHIFT_UPDATED: { readonly traceId: string; readonly shiftId: string; readonly timestamp: Date };
 }
 
 export type PlatformEventName = keyof PlatformEventMap;

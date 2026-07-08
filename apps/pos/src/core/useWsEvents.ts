@@ -3,6 +3,7 @@ import { wsClient } from "./ws-client.js";
 import { useStore } from "../state/global-store.js";
 import { useShiftStore } from "../state/shift-store.js";
 import { adminApi } from "./admin-api.js";
+import { useToastStore } from "../components/ui/Toast.js";
 
 export function useWsEvents() {
   const upsertOrder       = useStore((s) => s.upsertOrder);
@@ -25,7 +26,10 @@ export function useWsEvents() {
       // Refresh shift totals from server — they are updated server-side on ORDER_UPDATED completed
       adminApi.shifts.current().then(setCurrentShift).catch(() => {});
     });
+    const unsub5 = wsClient.on("PRINTER_OFFLINE", (p) => {
+      useToastStore.getState().show(`Stampante "${p.printerName}" non raggiungibile`, "error");
+    });
 
-    return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
+    return () => { unsub1(); unsub2(); unsub3(); unsub4(); unsub5(); };
   }, [upsertOrder, removeOrder, checkoutOrder, setCheckoutOrder, clearCart, setCurrentShift]);
 }

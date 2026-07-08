@@ -45,6 +45,7 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
       .select({ id: productionCenters.id, name: productionCenters.name, color: productionCenters.color, receiptPrintMode: productionCenters.receiptPrintMode })
       .from(productionCenters)
       .where(eq(productionCenters.id, id));
+    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_CREATED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.status(201).send(row);
   });
 
@@ -71,6 +72,7 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
       .select({ id: productionCenters.id, name: productionCenters.name, color: productionCenters.color, receiptPrintMode: productionCenters.receiptPrintMode })
       .from(productionCenters)
       .where(eq(productionCenters.id, id));
+    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.send(row);
   });
 
@@ -80,6 +82,7 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
     await fastify.ctx.db.delete(productionCenters).where(eq(productionCenters.id, id));
+    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_DELETED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.status(204).send();
   });
 
@@ -104,6 +107,7 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     await fastify.ctx.db
       .insert(productionCenterCategories)
       .values({ productionCenterId: id, categoryId: body.categoryId });
+    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.status(201).send();
   });
 
@@ -120,6 +124,7 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
           eq(productionCenterCategories.categoryId, categoryId),
         ),
       );
+    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.status(204).send();
   });
 
@@ -144,6 +149,7 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
       .insert(productionCenterPrinters)
       .values({ productionCenterId: id, printerId })
       .onConflictDoNothing();
+    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.status(201).send();
   });
 
@@ -160,6 +166,7 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
           eq(productionCenterPrinters.printerId, printerId),
         ),
       );
+    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.status(204).send();
   });
 };

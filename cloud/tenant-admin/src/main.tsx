@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app.js";
+import { ToastProvider } from "./components/Toast.js";
 import "./styles/globals.css";
 
 const rootEl = document.getElementById("root");
@@ -10,6 +11,8 @@ if (rootEl === null) {
 
 createRoot(rootEl).render(
   <StrictMode>
-    <App />
+    <ToastProvider>
+      <App />
+    </ToastProvider>
   </StrictMode>
 );

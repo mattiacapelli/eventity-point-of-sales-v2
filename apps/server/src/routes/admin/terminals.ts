@@ -49,6 +49,7 @@ const terminalsRoutes: FastifyPluginAsync = async (fastify) => {
     const now = Date.now();
     await fastify.ctx.db.insert(terminals).values({ id, name: body.name.trim(), active: true, createdAt: now, lastSeenAt: null });
     const [row] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, id));
+    fastify.ctx.eventBus.emit("TERMINAL_CREATED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.status(201).send(toTerminal(row!));
   });
 
@@ -71,6 +72,7 @@ const terminalsRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.ctx.db.update(terminals).set(update).where(eq(terminals.id, id));
     }
     const [row] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, id));
+    fastify.ctx.eventBus.emit("TERMINAL_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.send(toTerminal(row!));
   });
 
@@ -82,6 +84,7 @@ const terminalsRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = request.params as { id: string };
     await fastify.ctx.db.delete(terminalPrinters).where(eq(terminalPrinters.terminalId, id));
     await fastify.ctx.db.delete(terminals).where(eq(terminals.id, id));
+    fastify.ctx.eventBus.emit("TERMINAL_DELETED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.status(204).send();
   });
 

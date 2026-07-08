@@ -1,17 +1,11 @@
 import { useState } from "react";
-import { login, setToken } from "../core/api-client.js";
+import { getMe, login, setToken } from "../core/api-client.js";
+import type { CurrentUser } from "../core/types.js";
+import { Input } from "../components/Input.js";
+import { Button } from "../components/Button.js";
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  height: "44px",
-  padding: "0 14px",
-  borderRadius: "var(--radius-md)",
-  border: "1.5px solid var(--color-gray-200)",
-  fontSize: "var(--text-md)",
-};
-
-export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
-  const [username, setUsername] = useState("");
+export function LoginScreen({ onLoggedIn }: { onLoggedIn: (user: CurrentUser) => void }) {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -21,9 +15,10 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
     setLoading(true);
     setError(null);
     try {
-      const token = await login(username, password);
+      const token = await login(email, password);
       setToken(token);
-      onLoggedIn();
+      const user = await getMe();
+      onLoggedIn(user);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore di accesso");
     } finally {
@@ -51,36 +46,23 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
         <div style={{ fontSize: "var(--text-lg)", fontWeight: 700, color: "var(--color-gray-900)" }}>
           Accedi alla dashboard
         </div>
-        <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Username"
-          style={inputStyle}
+        <Input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email"
+          type="email"
           autoFocus
         />
-        <input
+        <Input
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
           type="password"
-          style={inputStyle}
         />
         {error && <div style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)", fontWeight: 600 }}>{error}</div>}
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            height: "44px",
-            borderRadius: "var(--radius-md)",
-            background: "var(--color-brand)",
-            color: "var(--color-white)",
-            fontWeight: 700,
-            fontSize: "var(--text-md)",
-            opacity: loading ? 0.6 : 1,
-          }}
-        >
-          {loading ? "Accesso..." : "Accedi"}
-        </button>
+        <Button type="submit" loading={loading} style={{ height: "44px", width: "100%" }}>
+          Accedi
+        </Button>
       </form>
     </div>
   );

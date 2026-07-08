@@ -6,6 +6,7 @@ import { Button } from "../../components/ui/Button.js";
 import type { Terminal, Printer, Category } from "@pos/shared-types";
 import { PlusIcon, TrashIcon } from "../../components/ui/icons.js";
 import { inputStyle } from "./shared.js";
+import { wsClient } from "../../core/ws-client.js";
 
 const VIEW_MODE_LABELS: Record<string, string> = {
   "": "Nessuna preferenza",
@@ -32,6 +33,10 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
   const now = Date.now();
   const isOnline = (t: Terminal) => t.lastSeenAt !== null && now - t.lastSeenAt < 5 * 60 * 1000;
 
+  function refetchTerminals() {
+    adminApi.terminals.list().then(setTerminals).catch(() => {});
+  }
+
   useEffect(() => {
     Promise.all([
       adminApi.terminals.list(),
@@ -40,6 +45,15 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
       setTerminals(tList);
       setPrinters(pList);
     }).catch(() => {}).finally(() => setLoading_(false));
+  }, []);
+
+  useEffect(() => {
+    const unsubs = [
+      wsClient.on("TERMINAL_CREATED", refetchTerminals),
+      wsClient.on("TERMINAL_UPDATED", refetchTerminals),
+      wsClient.on("TERMINAL_DELETED", refetchTerminals),
+    ];
+    return () => { for (const unsub of unsubs) unsub(); };
   }, []);
 
   async function loadTerminalPrinters(terminalId: string) {

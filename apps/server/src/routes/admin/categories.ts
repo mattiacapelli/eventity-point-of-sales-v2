@@ -49,6 +49,7 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
       active:    body.active ?? true,
     });
     const [row] = await fastify.ctx.db.select().from(categories).where(eq(categories.id, id));
+    fastify.ctx.eventBus.emit("CATEGORY_CREATED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.status(201).send(row);
   });
 
@@ -79,6 +80,7 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
     }
     const [row] = await fastify.ctx.db.select().from(categories).where(eq(categories.id, id));
     if (!row) return reply.status(404).send({ error: "Not found" });
+    fastify.ctx.eventBus.emit("CATEGORY_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.send(row);
   });
 
@@ -88,6 +90,7 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
     await fastify.ctx.db.delete(categories).where(eq(categories.id, id));
+    fastify.ctx.eventBus.emit("CATEGORY_DELETED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.status(204).send();
   });
 };

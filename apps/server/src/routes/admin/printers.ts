@@ -67,6 +67,7 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       printMode:      body.printMode ?? "text",
     });
     const [row] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, id));
+    fastify.ctx.eventBus.emit("PRINTER_CREATED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.status(201).send(row);
   });
 
@@ -114,6 +115,7 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.ctx.db.update(printers).set(update).where(eq(printers.id, id));
     }
     const [row] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, id));
+    fastify.ctx.eventBus.emit("PRINTER_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.send(row);
   });
 
@@ -156,6 +158,7 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
     await fastify.ctx.db.delete(printers).where(eq(printers.id, id));
+    fastify.ctx.eventBus.emit("PRINTER_DELETED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.status(204).send();
   });
 

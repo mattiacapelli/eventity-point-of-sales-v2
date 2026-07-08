@@ -8,6 +8,7 @@ import { useStore } from "../../state/global-store.js";
 import { Button } from "../../components/ui/Button.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { inputStyle, labelStyle, tableHeaderStyle, tableCellStyle } from "./shared.js";
+import { wsClient } from "../../core/ws-client.js";
 
 function ZReportModal({ shiftId, onClose }: { shiftId: string | null; onClose: () => void }) {
   const [report, setReport] = useState<ZReport | null>(null);
@@ -155,6 +156,15 @@ export function ShiftsTab() {
   }
 
   useEffect(() => { void loadShifts(); }, []);
+
+  useEffect(() => {
+    const unsubs = [
+      wsClient.on("SHIFT_OPENED", () => void loadShifts()),
+      wsClient.on("SHIFT_CLOSED", () => void loadShifts()),
+      wsClient.on("SHIFT_UPDATED", () => void loadShifts()),
+    ];
+    return () => { for (const unsub of unsubs) unsub(); };
+  }, []);
 
   async function handleOpen() {
     setSaving(true);

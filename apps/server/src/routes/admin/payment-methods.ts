@@ -53,6 +53,7 @@ const paymentMethodsRoutes: FastifyPluginAsync = async (fastify) => {
       excludeFromTotal: body.excludeFromTotal ?? false,
     });
     const [row] = await fastify.ctx.db.select().from(paymentMethods).where(eq(paymentMethods.id, id));
+    fastify.ctx.eventBus.emit("PAYMENT_METHOD_CREATED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.status(201).send(row);
   });
 
@@ -92,6 +93,7 @@ const paymentMethodsRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.ctx.db.update(paymentMethods).set(update).where(eq(paymentMethods.id, id));
     }
     const [row] = await fastify.ctx.db.select().from(paymentMethods).where(eq(paymentMethods.id, id));
+    fastify.ctx.eventBus.emit("PAYMENT_METHOD_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.send(row);
   });
 
@@ -101,6 +103,7 @@ const paymentMethodsRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
     await fastify.ctx.db.delete(paymentMethods).where(eq(paymentMethods.id, id));
+    fastify.ctx.eventBus.emit("PAYMENT_METHOD_DELETED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.status(204).send();
   });
 };

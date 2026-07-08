@@ -126,6 +126,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       .from(products)
       .leftJoin(categories, eq(products.categoryId, categories.id))
       .where(eq(products.id, id));
+    fastify.ctx.eventBus.emit("PRODUCT_CREATED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.status(201).send(row);
   });
 
@@ -187,6 +188,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       .from(products)
       .leftJoin(categories, eq(products.categoryId, categories.id))
       .where(eq(products.id, id));
+    fastify.ctx.eventBus.emit("PRODUCT_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.send(row);
   });
 
@@ -201,6 +203,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       if (existsSync(absPath)) { try { unlinkSync(absPath); } catch { /* ok */ } }
     }
     await fastify.ctx.db.delete(products).where(eq(products.id, id));
+    fastify.ctx.eventBus.emit("PRODUCT_DELETED", { traceId: randomUUID(), id, timestamp: new Date() });
     return reply.status(204).send();
   });
 
@@ -245,6 +248,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     await fastify.ctx.db.update(products)
       .set({ imageData: relPath, updatedAt: Date.now() })
       .where(eq(products.id, id));
+    fastify.ctx.eventBus.emit("PRODUCT_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
 
     return reply.send({ imagePath: `/api/static/${relPath}` });
   });
@@ -267,6 +271,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     await fastify.ctx.db.update(products)
       .set({ imageData: null, updatedAt: Date.now() })
       .where(eq(products.id, id));
+    fastify.ctx.eventBus.emit("PRODUCT_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
 
     return reply.status(204).send();
   });

@@ -1,19 +1,21 @@
 export interface Config {
   port: number;
   dbPath: string;
-  adminUsername: string;
-  adminPassword: string;
+  superAdminEmail: string | undefined;
+  superAdminPassword: string | undefined;
   jwtSecret: string;
   corsOrigin: string;
+  logLevel: string;
 }
 
 export function loadConfig(): Config {
   return {
     port: Number(process.env["PORT"] ?? 4000),
     dbPath: process.env["DB_PATH"] ?? "./data/web-ui.db",
-    adminUsername: process.env["ADMIN_USERNAME"] ?? "admin",
-    adminPassword: process.env["ADMIN_PASSWORD"] ?? "changeme",
+    superAdminEmail: process.env["SUPERADMIN_EMAIL"],
+    superAdminPassword: process.env["SUPERADMIN_PASSWORD"],
     jwtSecret: process.env["JWT_SECRET"] ?? "dev-secret-change-in-production",
     corsOrigin: process.env["CORS_ORIGIN"] ?? "*",
+    logLevel: process.env["LOG_LEVEL"] ?? "info",
   };
 }

@@ -63,3 +63,33 @@ export const orders = sqliteTable("orders", {
 }, (t) => ({
   codeUniq: uniqueIndex("orders_code_uniq").on(t.tenantId, t.orderCode),
 }));
+
+export const users = sqliteTable("users", {
+  id:            text("id").primaryKey(),
+  email:         text("email").notNull(),
+  passwordHash:  text("password_hash").notNull(),
+  isSuperAdmin:  integer("is_super_admin", { mode: "boolean" }).notNull().default(false),
+  active:        integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt:     integer("created_at").notNull(),
+}, (t) => ({
+  emailUniq: uniqueIndex("users_email_uniq").on(t.email),
+}));
+
+export const tenantUsers = sqliteTable("tenant_users", {
+  id:        text("id").primaryKey(),
+  tenantId:  text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  userId:    text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role:      text("role").notNull(), // "owner" | "operator"
+  createdAt: integer("created_at").notNull(),
+}, (t) => ({
+  tenantUserUniq: uniqueIndex("tenant_users_tenant_user_uniq").on(t.tenantId, t.userId),
+}));
+
+export const auditLog = sqliteTable("audit_log", {
+  id:           text("id").primaryKey(),
+  userId:       text("user_id").notNull().references(() => users.id),
+  tenantId:     text("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+  action:       text("action").notNull(),
+  metadataJson: text("metadata_json"),
+  createdAt:    integer("created_at").notNull(),
+});

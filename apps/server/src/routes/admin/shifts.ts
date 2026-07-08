@@ -68,6 +68,7 @@ const shiftsRoutes: FastifyPluginAsync = async (fastify) => {
       notes:       body.notes ?? null,
     });
     const [row] = await fastify.ctx.db.select().from(shifts).where(eq(shifts.id, id));
+    fastify.ctx.eventBus.emit("SHIFT_OPENED", { traceId: randomUUID(), shiftId: id, userId: body.userId, timestamp: new Date() });
     return reply.status(201).send(row);
   });
 
@@ -104,6 +105,7 @@ const shiftsRoutes: FastifyPluginAsync = async (fastify) => {
     }).where(eq(shifts.id, id));
 
     const [row] = await fastify.ctx.db.select().from(shifts).where(eq(shifts.id, id));
+    fastify.ctx.eventBus.emit("SHIFT_CLOSED", { traceId: randomUUID(), shiftId: id, timestamp: new Date() });
     return reply.send(row);
   });
 
@@ -125,6 +127,7 @@ const shiftsRoutes: FastifyPluginAsync = async (fastify) => {
 
     if (Object.keys(update).length > 0) {
       await fastify.ctx.db.update(shifts).set(update).where(eq(shifts.id, id));
+      fastify.ctx.eventBus.emit("SHIFT_UPDATED", { traceId: randomUUID(), shiftId: id, timestamp: new Date() });
     }
     const [row] = await fastify.ctx.db.select().from(shifts).where(eq(shifts.id, id));
     return reply.send(row);

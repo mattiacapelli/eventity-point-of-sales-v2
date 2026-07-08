@@ -126,9 +126,18 @@ export class OrderService {
   }
 
   async updateDetails(id: string, data: { tableId?: string | null; customerName?: string | null }): Promise<Order> {
-    await this.getById(id); // throws OrderNotFoundError if missing
+    const current = await this.getById(id); // throws OrderNotFoundError if missing
     const updated = await this.repo.updateDetails(id, data);
     if (updated === null) throw new OrderNotFoundError(id);
+
+    this.eventBus.emit("ORDER_UPDATED", {
+      traceId: randomUUID(),
+      order: updated,
+      input: { id, ...data },
+      previousStatus: current.status,
+      timestamp: new Date(),
+    });
+
     return updated;
   }
 

@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { adminApi } from "../../core/admin-api.js";
 import { useAdminStore } from "../../state/admin-store.js";
@@ -16,6 +17,8 @@ import {
   CircleStackIcon,
   ListBulletIcon,
   UserGroupIcon,
+  ShieldCheckIcon,
+  ChevronDownIcon,
 } from "../../components/ui/icons.js";
 import { BackupTab } from "./BackupTab.js";
 import { RestaurantTab } from "./RestaurantTab.js";
@@ -33,30 +36,69 @@ import { InventoryTab } from "./InventoryTab.js";
 import { MovementsTab } from "./MovementsTab.js";
 import { TerminalsTab } from "./TerminalsTab.js";
 import { UsersTab } from "./UsersTab.js";
+import { LicenseTab } from "./LicenseTab.js";
 import { NavMenuFab } from "../../components/NavMenu.js";
 
 // ─── Tab types ───────────────────────────────────────────────────────────────
 
-type Tab = "restaurant" | "products" | "categories" | "production-centers" | "payment-methods" | "printers" | "receipt-template" | "kitchen-template" | "shift-report-template" | "shifts" | "backup" | "advanced" | "inventory" | "movements" | "terminals" | "users";
+type Tab = "restaurant" | "products" | "categories" | "production-centers" | "payment-methods" | "printers" | "receipt-template" | "kitchen-template" | "shift-report-template" | "shifts" | "backup" | "advanced" | "inventory" | "movements" | "terminals" | "users" | "license";
 
-const TABS: { key: Tab; label: string; Icon: React.ComponentType<React.SVGProps<SVGSVGElement>> }[] = [
-  { key: "restaurant", label: "Ristorante", Icon: BuildingStorefrontIcon },
-  { key: "products", label: "Prodotti", Icon: CubeIcon },
-  { key: "categories", label: "Categorie", Icon: TagIcon },
-  { key: "production-centers", label: "Centri di produzione", Icon: BuildingStorefrontIcon },
-  { key: "payment-methods", label: "Metodi pagamento", Icon: BanknotesIcon },
-  { key: "printers", label: "Stampanti", Icon: PrinterIcon },
-  { key: "receipt-template", label: "Scontrino", Icon: DocumentTextIcon },
-  { key: "kitchen-template", label: "Comanda", Icon: PrinterIcon },
-  { key: "shift-report-template", label: "Report Turno", Icon: DocumentTextIcon },
-  { key: "shifts", label: "Turni", Icon: ClockIcon },
-  { key: "backup", label: "Backup", Icon: ArrowDownTrayIcon },
-  { key: "advanced", label: "Avanzate", Icon: WrenchScrewdriverIcon },
-  { key: "inventory", label: "Inventario", Icon: CircleStackIcon },
-  { key: "movements", label: "Movimenti", Icon: ListBulletIcon },
-  { key: "terminals", label: "Terminali", Icon: WrenchScrewdriverIcon },
-  { key: "users", label: "Utenti", Icon: UserGroupIcon },
+type TabDef = { key: Tab; label: string; Icon: React.ComponentType<React.SVGProps<SVGSVGElement>> };
+
+// Single-entry groups (e.g. "Ristorante") render as a plain button, no dropdown.
+type Group = { key: string; label: string; Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; tabs: TabDef[] };
+
+const GROUPS: Group[] = [
+  {
+    key: "restaurant", label: "Ristorante", Icon: BuildingStorefrontIcon,
+    tabs: [
+      { key: "restaurant", label: "Ristorante", Icon: BuildingStorefrontIcon },
+    ],
+  },
+  {
+    key: "catalog", label: "Catalogo", Icon: CubeIcon,
+    tabs: [
+      { key: "categories", label: "Categorie", Icon: TagIcon },
+      { key: "products", label: "Prodotti", Icon: CubeIcon },
+      { key: "production-centers", label: "Centri di produzione", Icon: BuildingStorefrontIcon },
+    ],
+  },
+  {
+    key: "sales", label: "Vendita", Icon: BanknotesIcon,
+    tabs: [
+      { key: "payment-methods", label: "Metodi pagamento", Icon: BanknotesIcon },
+      { key: "printers", label: "Stampanti", Icon: PrinterIcon },
+      { key: "receipt-template", label: "Scontrino", Icon: DocumentTextIcon },
+      { key: "kitchen-template", label: "Comanda", Icon: PrinterIcon },
+      { key: "shift-report-template", label: "Report Turno", Icon: DocumentTextIcon },
+    ],
+  },
+  {
+    key: "operations", label: "Operatività", Icon: ClockIcon,
+    tabs: [
+      { key: "shifts", label: "Turni", Icon: ClockIcon },
+      { key: "terminals", label: "Terminali", Icon: WrenchScrewdriverIcon },
+      { key: "users", label: "Utenti", Icon: UserGroupIcon },
+    ],
+  },
+  {
+    key: "inventory-group", label: "Magazzino", Icon: CircleStackIcon,
+    tabs: [
+      { key: "inventory", label: "Inventario", Icon: CircleStackIcon },
+      { key: "movements", label: "Movimenti", Icon: ListBulletIcon },
+    ],
+  },
+  {
+    key: "system", label: "Sistema", Icon: WrenchScrewdriverIcon,
+    tabs: [
+      { key: "backup", label: "Backup", Icon: ArrowDownTrayIcon },
+      { key: "advanced", label: "Avanzate", Icon: WrenchScrewdriverIcon },
+      { key: "license", label: "Licenza", Icon: ShieldCheckIcon },
+    ],
+  },
 ];
+
+const ALL_TABS: TabDef[] = GROUPS.flatMap((g) => g.tabs);
 
 // ─── AdminScreen ──────────────────────────────────────────────────────────────
 
@@ -64,6 +106,158 @@ const TABS: { key: Tab; label: string; Icon: React.ComponentType<React.SVGProps<
 const MODULE_TAB_MAP: Record<string, Tab[]> = {
   inventory: ["inventory", "movements"],
 };
+
+function GroupMenu({ group, activeTab, isTabVisible, onSelect }: {
+  group: Group;
+  activeTab: Tab;
+  isTabVisible: (key: Tab) => boolean;
+  onSelect: (key: Tab) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const visibleTabs = group.tabs.filter((t) => isTabVisible(t.key));
+  const isActiveGroup = visibleTabs.some((t) => t.key === activeTab);
+  const singleTab = visibleTabs.length === 1 ? visibleTabs[0] : null;
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as Node;
+      if (buttonRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function handleScrollOrResize() {
+      setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("scroll", handleScrollOrResize, true);
+    window.addEventListener("resize", handleScrollOrResize);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleScrollOrResize);
+    };
+  }, [open]);
+
+  function handleToggle() {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 6, left: rect.left });
+    }
+    setOpen((v) => !v);
+  }
+
+  if (visibleTabs.length === 0) return null;
+
+  if (singleTab) {
+    const active = activeTab === singleTab.key;
+    return (
+      <button
+        onClick={() => onSelect(singleTab.key)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "7px",
+          padding: "8px 16px",
+          borderRadius: "999px",
+          flexShrink: 0,
+          border: active ? "none" : "1.5px solid var(--color-gray-200)",
+          background: active ? "var(--color-brand)" : "var(--color-white)",
+          cursor: "pointer",
+          fontSize: "var(--text-sm)",
+          fontWeight: 600,
+          color: active ? "var(--color-white)" : "var(--color-gray-500)",
+          fontFamily: "var(--font)",
+        }}
+      >
+        <group.Icon style={{ width: "15px", height: "15px" }} />
+        {group.label}
+      </button>
+    );
+  }
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        onClick={handleToggle}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "7px",
+          padding: "8px 14px",
+          borderRadius: "999px",
+          flexShrink: 0,
+          border: isActiveGroup ? "none" : "1.5px solid var(--color-gray-200)",
+          background: isActiveGroup ? "var(--color-brand)" : "var(--color-white)",
+          cursor: "pointer",
+          fontSize: "var(--text-sm)",
+          fontWeight: 600,
+          color: isActiveGroup ? "var(--color-white)" : "var(--color-gray-500)",
+          fontFamily: "var(--font)",
+        }}
+      >
+        <group.Icon style={{ width: "15px", height: "15px" }} />
+        {group.label}
+        <ChevronDownIcon style={{ width: "13px", height: "13px", transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+      </button>
+
+      {open && menuPos && createPortal(
+        <div
+          ref={menuRef}
+          style={{
+            position: "fixed",
+            top: `${menuPos.top}px`,
+            left: `${menuPos.left}px`,
+            minWidth: "220px",
+            background: "var(--color-white)",
+            border: "1px solid var(--color-gray-200)",
+            borderRadius: "var(--radius-lg)",
+            boxShadow: "var(--shadow-lg)",
+            padding: "6px",
+            zIndex: 1000,
+            display: "flex",
+            flexDirection: "column",
+            gap: "2px",
+          }}
+        >
+          {visibleTabs.map(({ key, label, Icon }) => {
+            const active = activeTab === key;
+            return (
+              <button
+                key={key}
+                onClick={() => { onSelect(key); setOpen(false); }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "9px 12px",
+                  borderRadius: "var(--radius-md)",
+                  border: "none",
+                  background: active ? "var(--color-gray-100)" : "transparent",
+                  cursor: "pointer",
+                  fontSize: "var(--text-sm)",
+                  fontWeight: active ? 700 : 500,
+                  color: active ? "var(--color-brand)" : "var(--color-gray-700)",
+                  fontFamily: "var(--font)",
+                  textAlign: "left",
+                  width: "100%",
+                }}
+              >
+                <Icon style={{ width: "16px", height: "16px", flexShrink: 0 }} />
+                {label}
+              </button>
+            );
+          })}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
 
 export function AdminScreen() {
   const [activeTab, setActiveTab] = useState<Tab>("restaurant");
@@ -110,7 +304,7 @@ export function AdminScreen() {
     return true;
   }
 
-  const visibleTabs = TABS.filter((t) => isTabVisible(t.key));
+  const visibleTabs = ALL_TABS.filter((t) => isTabVisible(t.key));
 
   // If current tab became hidden (module disabled), fall back to first visible tab
   const resolvedActiveTab = isTabVisible(activeTab) ? activeTab : (visibleTabs[0]?.key ?? "restaurant");
@@ -172,7 +366,7 @@ export function AdminScreen() {
           )}
         </div>
 
-        {/* Nav pills */}
+        {/* Group nav */}
         <div style={{
           display: "flex",
           gap: "6px",
@@ -180,35 +374,15 @@ export function AdminScreen() {
           overflowX: "auto",
           scrollbarWidth: "none",
         }}>
-          {visibleTabs.map(({ key, label, Icon }) => {
-            const active = resolvedActiveTab === key;
-            return (
-              <button
-                key={key}
-                onClick={() => setActiveTab(key)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "7px",
-                  padding: "8px 16px",
-                  borderRadius: "999px",
-                  flexShrink: 0,
-                  border: active ? "none" : "1.5px solid var(--color-gray-200)",
-                  background: active ? "var(--color-brand)" : "var(--color-white)",
-                  cursor: "pointer",
-                  fontSize: "var(--text-sm)",
-                  fontWeight: 600,
-                  color: active ? "var(--color-white)" : "var(--color-gray-500)",
-                  fontFamily: "var(--font)",
-                  transition: "background var(--transition), color var(--transition), border-color var(--transition)",
-                  boxShadow: active ? "0 2px 8px rgba(48,107,52,0.25)" : "none",
-                }}
-              >
-                <Icon style={{ width: "15px", height: "15px" }} />
-                {label}
-              </button>
-            );
-          })}
+          {GROUPS.map((group) => (
+            <GroupMenu
+              key={group.key}
+              group={group}
+              activeTab={resolvedActiveTab}
+              isTabVisible={isTabVisible}
+              onSelect={setActiveTab}
+            />
+          ))}
         </div>
       </div>
 
@@ -236,6 +410,7 @@ export function AdminScreen() {
             {resolvedActiveTab === "movements" && <MovementsTab />}
             {resolvedActiveTab === "terminals" && <TerminalsTab onMultiTerminalChange={setMultiTerminalEnabled} />}
             {resolvedActiveTab === "users" && <UsersTab />}
+            {resolvedActiveTab === "license" && <LicenseTab />}
           </div>
         )}
       </div>

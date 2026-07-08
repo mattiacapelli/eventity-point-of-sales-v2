@@ -89,6 +89,7 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
       sortOrder: body.sortOrder ?? 0,
     });
     const [row] = await fastify.ctx.db.select().from(optionGroups).where(eq(optionGroups.id, id));
+    fastify.ctx.eventBus.emit("OPTION_GROUP_CREATED", { traceId: randomUUID(), id, productId: body.productId, timestamp: new Date() });
     return reply.status(201).send({ ...row, options: [] });
   });
 
@@ -135,6 +136,7 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
       .where(eq(options.optionGroupId, id))
       .orderBy(asc(options.sortOrder));
 
+    fastify.ctx.eventBus.emit("OPTION_GROUP_UPDATED", { traceId: randomUUID(), id, productId: existing.productId, timestamp: new Date() });
     return reply.send({ ...row, options: groupOptions });
   });
 
@@ -143,7 +145,11 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const [existing] = await fastify.ctx.db.select().from(optionGroups).where(eq(optionGroups.id, id));
     await fastify.ctx.db.delete(optionGroups).where(eq(optionGroups.id, id));
+    if (existing) {
+      fastify.ctx.eventBus.emit("OPTION_GROUP_DELETED", { traceId: randomUUID(), id, productId: existing.productId, timestamp: new Date() });
+    }
     return reply.status(204).send();
   });
 
@@ -172,6 +178,7 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
     });
     const [row] = await fastify.ctx.db.select().from(options).where(eq(options.id, id));
     if (!row) return reply.status(500).send({ error: "Insert failed" });
+    fastify.ctx.eventBus.emit("OPTION_CREATED", { traceId: randomUUID(), id, optionGroupId: groupId, timestamp: new Date() });
     return reply.status(201).send({ ...row, prefix: row.prefix ?? "+" });
   });
 
@@ -210,6 +217,7 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
 
     const [row] = await fastify.ctx.db.select().from(options).where(eq(options.id, optionId));
     if (!row) return reply.status(404).send({ error: "Not found" });
+    fastify.ctx.eventBus.emit("OPTION_UPDATED", { traceId: randomUUID(), id: optionId, optionGroupId: existing.optionGroupId, timestamp: new Date() });
     return reply.send({ ...row, prefix: row.prefix ?? "+" });
   });
 
@@ -218,7 +226,11 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { optionId } = request.params as { optionId: string };
+    const [existing] = await fastify.ctx.db.select().from(options).where(eq(options.id, optionId));
     await fastify.ctx.db.delete(options).where(eq(options.id, optionId));
+    if (existing) {
+      fastify.ctx.eventBus.emit("OPTION_DELETED", { traceId: randomUUID(), id: optionId, optionGroupId: existing.optionGroupId, timestamp: new Date() });
+    }
     return reply.status(204).send();
   });
 };
