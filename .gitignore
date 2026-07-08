@@ -145,3 +145,6 @@ dist
 
 # macOS
 .DS_Store
+
+# Internal-only docs (not for the public repo)
+/BRAND_IDENTITY.md
