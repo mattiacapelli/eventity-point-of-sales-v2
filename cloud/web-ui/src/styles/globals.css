@@ -1,0 +1,117 @@
+/* ── epos Web Order — Global Styles (mobile-first) ── */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  /* Brand */
+  --color-brand:        #306B34;
+  --color-brand-dark:   #234E26;
+  --color-brand-light:  #3D8A42;
+  --color-accent:       #C2E812;
+
+  /* Neutrals */
+  --color-white:        #FFFFFF;
+  --color-gray-50:      #F9FAFB;
+  --color-gray-100:     #F3F4F6;
+  --color-gray-200:     #E5E7EB;
+  --color-gray-300:     #D1D5DB;
+  --color-gray-400:     #9CA3AF;
+  --color-gray-500:     #6B7280;
+  --color-gray-600:     #4B5563;
+  --color-gray-700:     #374151;
+  --color-gray-800:     #1F2937;
+  --color-gray-900:     #111827;
+
+  --color-danger:       #EF4444;
+
+  /* Radius */
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   20px;
+  --radius-xl:   28px;
+  --radius-pill: 999px;
+
+  /* Spacing */
+  --sp-xs:  4px;
+  --sp-sm:  8px;
+  --sp-md:  16px;
+  --sp-lg:  24px;
+  --sp-xl:  32px;
+  --sp-xxl: 48px;
+
+  /* Typography */
+  --font:      'Lexend', sans-serif;
+  --text-xs:   12px;
+  --text-sm:   14px;
+  --text-md:   16px;
+  --text-lg:   19px;
+  --text-xl:   23px;
+  --text-xxl:  28px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.14);
+
+  --transition: 150ms ease;
+
+  /* Safe-area (notch) support */
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html, body {
+  height: 100%;
+  overscroll-behavior-y: none;
+}
+
+body {
+  font-family: var(--font);
+  color: var(--color-gray-900);
+  background: var(--color-gray-50);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+}
+
+button {
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+input, select, textarea {
+  font-size: 16px; /* prevents iOS auto-zoom on focus */
+}
+
+img { max-width: 100%; display: block; }
+
+.scrollable {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.scrollable::-webkit-scrollbar { width: 4px; }
+.scrollable::-webkit-scrollbar-thumb { background: var(--color-gray-300); border-radius: 4px; }
+
+.scrollable-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;      /* Firefox */
+  -ms-overflow-style: none;   /* old Edge/IE */
+}
+
+.scrollable-x::-webkit-scrollbar { display: none; } /* Chrome/Safari */

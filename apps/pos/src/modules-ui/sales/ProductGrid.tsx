@@ -314,8 +314,13 @@ function GridArea({ products, slots, scope, baseCols, editMode, locked, showPric
 export function ProductGrid() {
   const { categories, products, productionCenters, optionGroupsByProduct, setOptionGroups } = useAdminStore();
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
-  const [configuratorProduct, setConfiguratorProduct] = useState<Product | null>(null);
+  const [configuratorProduct, setConfiguratorProductRaw] = useState<Product | null>(null);
   const addToCart = useStore((s) => s.addToCart);
+  const setProductConfiguratorOpen = useStore((s) => s.setProductConfiguratorOpen);
+  function setConfiguratorProduct(product: Product | null) {
+    setConfiguratorProductRaw(product);
+    setProductConfiguratorOpen(product !== null);
+  }
   const { currentShift, setShiftModalOpen } = useShiftStore();
   const navigate = useNavigate();
   const location = useLocation();

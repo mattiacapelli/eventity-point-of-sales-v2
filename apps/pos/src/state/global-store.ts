@@ -79,6 +79,17 @@ interface GlobalState {
   checkoutOrder: Order | null;
   setCheckoutOrder: (order: Order | null) => void;
 
+  // Table/customer name prefilled by a QR scan, read as a fallback by CheckoutModal
+  // until an actual order exists (cleared whenever the cart is cleared).
+  pendingTableId: string | null;
+  pendingCustomerName: string | null;
+  setPendingOrderInfo: (info: { tableId: string | null; customerName: string | null }) => void;
+
+  // True while a product configurator (variant/option picker) is open — the QR scanner
+  // ignores scans in this state to avoid silently contaminating the cart mid-configuration.
+  productConfiguratorOpen: boolean;
+  setProductConfiguratorOpen: (open: boolean) => void;
+
   // WS
   wsStatus: WsStatus;
   setWsStatus: (status: WsStatus) => void;
@@ -176,12 +187,19 @@ export const useStore = create<GlobalState>((set, get) => ({
       persistCart(nextCart);
       return { cart: nextCart };
     }),
-  clearCart: () => { persistCart([]); set({ cart: [] }); },
+  clearCart: () => { persistCart([]); set({ cart: [], pendingTableId: null, pendingCustomerName: null }); },
   cartTotal: () =>
     get().cart.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0),
 
   checkoutOrder: null,
   setCheckoutOrder: (checkoutOrder) => set({ checkoutOrder }),
+
+  pendingTableId: null,
+  pendingCustomerName: null,
+  setPendingOrderInfo: ({ tableId, customerName }) => set({ pendingTableId: tableId, pendingCustomerName: customerName }),
+
+  productConfiguratorOpen: false,
+  setProductConfiguratorOpen: (productConfiguratorOpen) => set({ productConfiguratorOpen }),
 
   wsStatus: "disconnected",
   setWsStatus: (wsStatus) => set({ wsStatus }),

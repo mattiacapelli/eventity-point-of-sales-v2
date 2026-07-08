@@ -9,6 +9,9 @@ import { useAdminStore } from "../../state/admin-store.js";
 import { useShiftStore } from "../../state/shift-store.js";
 import { apiClient } from "../../core/api-client.js";
 import { adminApi } from "../../core/admin-api.js";
+import { useScannerListener } from "../../core/useScannerListener.js";
+import { decodeQrPayload } from "../../core/qr-payload.js";
+import { useToastStore } from "../../components/ui/Toast.js";
 import {
   BanknotesIcon,
   CreditCardIcon,
@@ -31,7 +34,7 @@ function formatEur(n: number) {
 }
 
 function CheckoutModal() {
-  const { checkoutOrder, setCheckoutOrder, clearCart } = useStore();
+  const { checkoutOrder, setCheckoutOrder, clearCart, pendingTableId, pendingCustomerName } = useStore();
   const { paymentMethods, setPaymentMethods } = useAdminStore();
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -45,8 +48,9 @@ function CheckoutModal() {
   // Load payment methods when modal is needed; auto-select first
   useEffect(() => {
     if (!checkoutOrder) return;
-    setTableId(checkoutOrder.tableId ?? "");
-    setCustomerName(checkoutOrder.customerName ?? "");
+    // Fall back to values prefilled by a QR scan when the order itself doesn't have them yet.
+    setTableId(checkoutOrder.tableId ?? pendingTableId ?? "");
+    setCustomerName(checkoutOrder.customerName ?? pendingCustomerName ?? "");
     if (paymentMethods.length === 0) {
       adminApi.paymentMethods.list().then((ms) => {
         setPaymentMethods(ms);
@@ -360,20 +364,102 @@ function CloseShiftModal({ onDone }: { onDone: () => void }) {
 }
 
 export function PosScreen() {
-  const { setCategories, setProducts, categories, products } = useAdminStore();
+  const { setCategories, setProducts, categories, products, optionGroupsByProduct, setOptionGroups } = useAdminStore();
   const { currentShift, shiftModalOpen, setShiftModalOpen } = useShiftStore();
+  const addToCart = useStore((s) => s.addToCart);
+  const setPendingOrderInfo = useStore((s) => s.setPendingOrderInfo);
+  const checkoutOrder = useStore((s) => s.checkoutOrder);
+  const productConfiguratorOpen = useStore((s) => s.productConfiguratorOpen);
+  const [catalogueReady, setCatalogueReady] = useState(false);
 
   // Load catalogue from API on mount (only if not already loaded by AdminScreen)
   useEffect(() => {
-    if (categories.length > 0 && products.length > 0) return;
+    if (categories.length > 0 && products.length > 0) { setCatalogueReady(true); return; }
     void Promise.all([
       adminApi.categories.list(),
       adminApi.products.list(),
     ]).then(([cats, prods]) => {
       setCategories(cats);
       setProducts(prods);
+      setCatalogueReady(true);
     });
   }, []);
+
+  // QR scan from a paired barcode scanner (HID keyboard-wedge): decode the compressed
+  // web-order payload and load its items into the cart, prefilling table/customer name.
+  // Ignored while the catalogue isn't loaded yet, or while the checkout/configurator modal
+  // is already open — scanning mid-flow would otherwise silently contaminate that other order.
+  useScannerListener((raw) => {
+    if (!catalogueReady) {
+      useToastStore.getState().show("Catalogo non ancora caricato: riprova tra un istante", "error");
+      return;
+    }
+    if (checkoutOrder || productConfiguratorOpen) {
+      useToastStore.getState().show("Completa l'operazione in corso prima di scansionare un nuovo ordine", "error");
+      return;
+    }
+
+    let payload;
+    try {
+      payload = decodeQrPayload(raw);
+    } catch {
+      return; // not a recognizable payload — ignore silently (could be an unrelated barcode)
+    }
+
+    void (async () => {
+      let missingCount = 0;
+      let needsConfigCount = 0;
+
+      for (const item of payload.items) {
+        const product = products.find((p) => p.id === item.productId);
+        if (!product) { missingCount += 1; continue; }
+
+        let groups = optionGroupsByProduct[product.id];
+        if (!groups) {
+          groups = await adminApi.optionGroups.list(product.id);
+          setOptionGroups(product.id, groups);
+        }
+
+        const requiredGroups = groups.filter((g) => g.required);
+        const scannedOptionIds = new Set(item.selectedOptionIds ?? []);
+        const missingRequired = requiredGroups.some(
+          (g) => !g.options.some((o) => scannedOptionIds.has(o.id))
+        );
+        if (missingRequired) { needsConfigCount += 1; continue; }
+
+        const selectedOptions = groups
+          .flatMap((g) => g.options.map((o) => ({ ...o, groupType: g.type })))
+          .filter((o) => scannedOptionIds.has(o.id))
+          .map((o) => ({
+            optionId: o.id,
+            optionGroupId: o.optionGroupId,
+            name: o.name,
+            priceDelta: o.priceDelta,
+            prefix: o.prefix,
+            isRemoval: o.prefix === "-",
+          }));
+
+        addToCart({
+          productId: product.id,
+          name: product.name,
+          unitPrice: product.price,
+          quantity: item.quantity,
+          ...(selectedOptions.length > 0 ? { selectedOptions } : {}),
+        });
+      }
+
+      setPendingOrderInfo({ tableId: payload.tableId || null, customerName: payload.customerName });
+
+      if (missingCount > 0 || needsConfigCount > 0) {
+        const parts = [];
+        if (missingCount > 0) parts.push(`${missingCount} non disponibile/i`);
+        if (needsConfigCount > 0) parts.push(`${needsConfigCount} da configurare manualmente`);
+        useToastStore.getState().show(`Attenzione: ${parts.join(", ")}`, "error");
+      } else {
+        useToastStore.getState().show(`Ordine dal tavolo ${payload.tableId} caricato nel carrello`, "success");
+      }
+    })();
+  });
 
   return (
     <PosLayout>
