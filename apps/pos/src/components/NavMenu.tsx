@@ -16,7 +16,6 @@ const NAV_ITEMS = [
   { path: "/pos",      label: "Home",            Icon: HomeIcon },
   { path: "/history",  label: "Storico",         Icon: ClipboardDocumentListIcon },
   { path: "/stats",    label: "Statistiche",     Icon: ChartBarIcon },
-  { path: "/settings", label: "Impostazioni",    Icon: Cog6ToothIcon },
   { path: "/admin",    label: "Amministrazione", Icon: WrenchScrewdriverIcon, roles: ["admin"] },
   { path: "/audit",    label: "Audit log",       Icon: ShieldCheckIcon,       roles: ["admin"] },
 ] as const;

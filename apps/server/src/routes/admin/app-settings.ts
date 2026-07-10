@@ -4,9 +4,9 @@ import { eq, inArray, appSettings, receiptCounters } from "@pos/db";
 import { requireRole, AuthError } from "@pos/core";
 
 const RECEIPT_NUM_KEYS = ["receipt_number_mode", "receipt_number_prefix", "receipt_number_padding"] as const;
-const GRID_KEYS = ["grid_view_mode", "grid_show_price", "grid_show_description", "grid_sort_by", "grid_base_cols"] as const;
+const GRID_KEYS = ["grid_view_mode", "grid_show_price", "grid_show_description", "grid_sort_by", "grid_base_cols", "grid_show_category", "grid_show_image", "grid_card_text_size", "grid_card_row_height"] as const;
 const TERMINAL_KEYS = ["multi_terminal_enabled"] as const;
-const CART_KEYS = ["cart_notes_enabled", "cart_pax_enabled", "cart_discount_enabled"] as const;
+const CART_KEYS = ["cart_notes_enabled", "cart_pax_enabled", "cart_discount_enabled", "cart_text_size"] as const;
 
 const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("onRequest", async (request) => {
@@ -32,10 +32,15 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       gridShowDescription: m["grid_show_description"] !== "false",
       gridSortBy: (m["grid_sort_by"] ?? "custom") as "custom" | "name" | "price" | "color" | "category",
       gridBaseCols: parseInt(m["grid_base_cols"] ?? "5", 10),
+      gridShowCategory: m["grid_show_category"] === "true",
+      gridShowImage: m["grid_show_image"] !== "false",
+      gridCardTextSize: parseInt(m["grid_card_text_size"] ?? "14", 10),
+      gridCardRowHeight: parseInt(m["grid_card_row_height"] ?? "120", 10),
       multiTerminalEnabled: m["multi_terminal_enabled"] === "true",
       cartNotesEnabled: m["cart_notes_enabled"] !== "false",
       cartPaxEnabled: m["cart_pax_enabled"] !== "false",
       cartDiscountEnabled: m["cart_discount_enabled"] !== "false",
+      cartTextSize: parseInt(m["cart_text_size"] ?? "14", 10),
     });
   });
 
@@ -61,10 +66,15 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       gridShowDescription: boolean;
       gridSortBy: "custom" | "name" | "price" | "color" | "category";
       gridBaseCols: number;
+      gridShowCategory: boolean;
+      gridShowImage: boolean;
+      gridCardTextSize: number;
+      gridCardRowHeight: number;
       multiTerminalEnabled: boolean;
       cartNotesEnabled: boolean;
       cartPaxEnabled: boolean;
       cartDiscountEnabled: boolean;
+      cartTextSize: number;
     }>;
     const db = fastify.ctx.db;
 
@@ -78,10 +88,15 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.gridShowDescription !== undefined) upserts.push({ key: "grid_show_description", value: String(body.gridShowDescription) });
     if (body.gridSortBy !== undefined) upserts.push({ key: "grid_sort_by", value: body.gridSortBy });
     if (body.gridBaseCols !== undefined) upserts.push({ key: "grid_base_cols", value: String(body.gridBaseCols) });
+    if (body.gridShowCategory !== undefined) upserts.push({ key: "grid_show_category", value: String(body.gridShowCategory) });
+    if (body.gridShowImage !== undefined) upserts.push({ key: "grid_show_image", value: String(body.gridShowImage) });
+    if (body.gridCardTextSize !== undefined) upserts.push({ key: "grid_card_text_size", value: String(body.gridCardTextSize) });
+    if (body.gridCardRowHeight !== undefined) upserts.push({ key: "grid_card_row_height", value: String(body.gridCardRowHeight) });
     if (body.multiTerminalEnabled !== undefined) upserts.push({ key: "multi_terminal_enabled", value: String(body.multiTerminalEnabled) });
     if (body.cartNotesEnabled !== undefined) upserts.push({ key: "cart_notes_enabled", value: String(body.cartNotesEnabled) });
     if (body.cartPaxEnabled !== undefined) upserts.push({ key: "cart_pax_enabled", value: String(body.cartPaxEnabled) });
     if (body.cartDiscountEnabled !== undefined) upserts.push({ key: "cart_discount_enabled", value: String(body.cartDiscountEnabled) });
+    if (body.cartTextSize !== undefined) upserts.push({ key: "cart_text_size", value: String(body.cartTextSize) });
 
     for (const { key, value } of upserts) {
       await db.insert(appSettings).values({ key, value }).onConflictDoUpdate({ target: appSettings.key, set: { value } });
@@ -102,10 +117,15 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       gridShowDescription: m["grid_show_description"] !== "false",
       gridSortBy: (m["grid_sort_by"] ?? "custom") as "custom" | "name" | "price" | "color" | "category",
       gridBaseCols: parseInt(m["grid_base_cols"] ?? "5", 10),
+      gridShowCategory: m["grid_show_category"] === "true",
+      gridShowImage: m["grid_show_image"] !== "false",
+      gridCardTextSize: parseInt(m["grid_card_text_size"] ?? "14", 10),
+      gridCardRowHeight: parseInt(m["grid_card_row_height"] ?? "120", 10),
       multiTerminalEnabled: m["multi_terminal_enabled"] === "true",
       cartNotesEnabled: m["cart_notes_enabled"] !== "false",
       cartPaxEnabled: m["cart_pax_enabled"] !== "false",
       cartDiscountEnabled: m["cart_discount_enabled"] !== "false",
+      cartTextSize: parseInt(m["cart_text_size"] ?? "14", 10),
     });
   });
 

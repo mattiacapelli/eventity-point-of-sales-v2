@@ -14,4 +14,5 @@ export interface SessionContext {
   readonly userId: string;
   readonly role: UserRole;
   readonly username: string;
+  readonly name: string;
 }

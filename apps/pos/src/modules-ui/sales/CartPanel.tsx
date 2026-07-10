@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import type { OptionGroupWithOptions } from "@pos/shared-types";
 import { useStore } from "../../state/global-store.js";
 import { useShiftStore } from "../../state/shift-store.js";
@@ -176,9 +177,9 @@ function ExtrasPopover(props: ExtrasPopoverProps) {
   );
 }
 
-// ─── Variant popover (per-item option groups) ─────────────────────────────────
+// ─── Variant dialog (per-item option groups) ──────────────────────────────────
 
-interface VariantPopoverProps {
+interface VariantDialogProps {
   cartKey: string;
   productId: string;
   productName: string;
@@ -187,21 +188,26 @@ interface VariantPopoverProps {
   onClose: () => void;
 }
 
-function VariantPopover({ cartKey, productId, productName, unitPrice, existingNotes, onClose }: VariantPopoverProps) {
-  const ref = useRef<HTMLDivElement>(null);
+function VariantDialog({ cartKey, productId, productName, unitPrice, existingNotes, onClose }: VariantDialogProps) {
   const addToCart = useStore((s) => s.addToCart);
   const updateItemNotes = useStore((s) => s.updateItemNotes);
   const [groups, setGroups] = useState<OptionGroupWithOptions[] | null>(null);
   const [loadErr, setLoadErr] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [freeNote, setFreeNote] = useState(existingNotes ?? "");
-  useClickOutside(ref, onClose);
 
   useEffect(() => {
     adminApi.optionGroups.list(productId)
       .then((g) => setGroups(g))
       .catch(() => setLoadErr(true));
   }, [productId]);
+
+  // Close on backdrop click or Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   function toggle(optId: string, groupType: string, maxSel: number) {
     setSelected((prev) => {
@@ -210,7 +216,6 @@ function VariantPopover({ cartKey, productId, productName, unitPrice, existingNo
         next.delete(optId);
       } else {
         if (groupType === "single") {
-          // deselect others in same group first
           const groupOpts = groups?.find((g) => g.options.some((o) => o.id === optId))?.options ?? [];
           groupOpts.forEach((o) => next.delete(o.id));
         }
@@ -220,159 +225,199 @@ function VariantPopover({ cartKey, productId, productName, unitPrice, existingNo
     });
   }
 
-  function handleAdd() {
+  function handleSave() {
     if (!groups) return;
     const allOptions = groups.flatMap((g) => g.options.map((o) => ({ ...o, optionGroupId: g.id, groupType: g.type })));
     const opts = allOptions
       .filter((o) => selected.has(o.id))
       .map((o) => ({ optionId: o.id, optionGroupId: o.optionGroupId, name: o.name, priceDelta: o.priceDelta, prefix: o.prefix ?? (o.groupType === "removal" ? "-" : "+"), isRemoval: o.prefix === "-" || o.groupType === "removal" }));
     const trimmedNote = freeNote.trim();
-    addToCart({ productId, name: productName, unitPrice, selectedOptions: opts, ...(trimmedNote ? { notes: trimmedNote } : {}) });
+    if (opts.length > 0) {
+      addToCart({ productId, name: productName, unitPrice, selectedOptions: opts, ...(trimmedNote ? { notes: trimmedNote } : {}) });
+    } else {
+      updateItemNotes(cartKey, trimmedNote);
+    }
     onClose();
   }
 
-  function handleSaveNote() {
-    updateItemNotes(cartKey, freeNote.trim());
-    onClose();
-  }
+  const hasSelection = selected.size > 0 || freeNote.trim().length > 0;
 
-  return (
-    <div ref={ref} style={{
-      position: "absolute", bottom: "calc(100% + 6px)", left: 0, right: 0,
-      background: "var(--color-white)",
-      border: "1.5px solid var(--color-gray-200)",
-      borderRadius: "var(--radius-lg)",
-      boxShadow: "0 8px 24px rgba(0,0,0,0.13)",
-      padding: "var(--sp-md)", zIndex: 200,
-      maxHeight: "340px", overflowY: "auto",
-    }}>
-      <div style={{ fontWeight: 700, fontSize: "var(--text-sm)", marginBottom: "12px", color: "var(--color-gray-900)" }}>
-        Variante — {productName}
-      </div>
-
-      {!groups && !loadErr && (
-        <div style={{ textAlign: "center", color: "var(--color-gray-400)", fontSize: "var(--text-xs)", padding: "12px" }}>
-          <span style={{ display: "inline-block", width: "16px", height: "16px", border: "2px solid var(--color-gray-200)", borderTopColor: "var(--color-brand)", borderRadius: "50%", animation: "spin 0.6s linear infinite" }} />
-        </div>
-      )}
-
-      {loadErr && (
-        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-danger)" }}>
-          Impossibile caricare le opzioni
-        </div>
-      )}
-
-      {/* Free-text note — always shown regardless of option groups */}
-      {groups !== null && (
-        <div style={{ marginBottom: "12px" }}>
-          <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--color-gray-500)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
-            Nota libera
+  return createPortal(
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 1000,
+        background: "rgba(0,0,0,0.45)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "16px",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "var(--color-white)",
+          borderRadius: "var(--radius-xl)",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+          width: "100%", maxWidth: "480px",
+          maxHeight: "80vh",
+          display: "flex", flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "16px 20px",
+          borderBottom: "1px solid var(--color-gray-100)",
+          flexShrink: 0,
+        }}>
+          <div>
+            <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", fontWeight: 500, marginBottom: "2px" }}>
+              Modifica variante
+            </div>
+            <div style={{ fontSize: "var(--text-base)", fontWeight: 700, color: "var(--color-gray-900)" }}>
+              {productName}
+            </div>
           </div>
-          <textarea
-            rows={2}
-            placeholder="Es. senza cipolla, ben cotto…"
-            value={freeNote}
-            onChange={(e) => setFreeNote(e.target.value)}
-            style={{
-              width: "100%", padding: "7px 10px",
-              border: "1.5px solid var(--color-gray-200)", borderRadius: "var(--radius-md)",
-              fontFamily: "var(--font)", fontSize: "var(--text-xs)",
-              resize: "none", boxSizing: "border-box", outline: "none",
-            }}
-          />
-        </div>
-      )}
-
-      {groups && groups.length === 0 && (
-        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginBottom: "8px" }}>
-          Nessun gruppo opzioni per questo prodotto.
-        </div>
-      )}
-
-      {groups && groups.map((group) => (
-        <div key={group.id} style={{ marginBottom: "12px" }}>
-          <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--color-gray-500)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
-            {group.name}
-            {group.type === "single" && <span style={{ fontWeight: 400, marginLeft: "4px" }}>(scegli 1)</span>}
-            {group.type === "multi" && <span style={{ fontWeight: 400, marginLeft: "4px" }}>(max {group.maxSel})</span>}
-            {group.type === "removal" && <span style={{ fontWeight: 400, marginLeft: "4px" }}>(rimozioni)</span>}
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-            {group.options.filter((o) => o.active).map((opt) => {
-              const on = selected.has(opt.id);
-              const prefix = opt.prefix ?? (group.type === "removal" ? "-" : "+");
-              const isNeg = prefix === "-";
-              const isNote = prefix === ">>";
-              const activeColor = isNeg ? "var(--color-danger)" : isNote ? "var(--color-gray-500)" : "var(--color-brand)";
-              return (
-                <button
-                  key={opt.id}
-                  onClick={() => toggle(opt.id, group.type, group.maxSel)}
-                  style={{
-                    padding: "5px 12px",
-                    borderRadius: "999px",
-                    border: `1.5px solid ${on ? activeColor : "var(--color-gray-200)"}`,
-                    background: on ? (isNeg ? "rgba(239,68,68,0.08)" : isNote ? "rgba(107,114,128,0.08)" : "rgba(48,107,52,0.08)") : "white",
-                    fontFamily: "var(--font)",
-                    fontSize: "12px",
-                    fontWeight: on ? 700 : 500,
-                    color: on ? activeColor : "var(--color-gray-700)",
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "4px",
-                  }}
-                >
-                  <span style={{ fontWeight: 800, opacity: on ? 1 : 0.4 }}>{prefix}</span>
-                  <span style={{ textDecoration: isNeg && on ? "line-through" : "none" }}>{opt.name}</span>
-                  {prefix !== ">>" && opt.priceDelta !== 0 && (
-                    <span style={{ fontSize: "11px", color: on ? activeColor : "var(--color-gray-400)" }}>
-                      {opt.priceDelta > 0 ? `+€${opt.priceDelta.toFixed(2)}` : `-€${Math.abs(opt.priceDelta).toFixed(2)}`}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-
-      {/* Action buttons */}
-      {groups !== null && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "4px" }}>
-          {groups.length > 0 && (
-            <button
-              onClick={handleAdd}
-              disabled={selected.size === 0}
-              style={{
-                width: "100%", padding: "10px",
-                borderRadius: "var(--radius-md)", border: "none",
-                background: selected.size > 0 ? "var(--color-brand)" : "var(--color-gray-200)",
-                color: selected.size > 0 ? "white" : "var(--color-gray-400)",
-                fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 700,
-                cursor: selected.size > 0 ? "pointer" : "not-allowed",
-              }}
-            >
-              Aggiungi variante al carrello
-            </button>
-          )}
           <button
-            onClick={handleSaveNote}
+            onClick={onClose}
             style={{
-              width: "100%", padding: "9px",
-              borderRadius: "var(--radius-md)",
-              border: "1.5px solid var(--color-gray-200)",
-              background: "white",
-              color: "var(--color-gray-700)",
-              fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 600,
-              cursor: "pointer",
+              width: "32px", height: "32px", borderRadius: "50%",
+              background: "var(--color-gray-100)", border: "none", cursor: "pointer",
+              color: "var(--color-gray-500)", fontSize: "16px", fontWeight: 700,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
             }}
-          >
-            {freeNote.trim() ? "Salva nota" : "Chiudi"}
-          </button>
+          >✕</button>
         </div>
-      )}
-    </div>
+
+        {/* Body — scrollable */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+          {!groups && !loadErr && (
+            <div style={{ textAlign: "center", padding: "32px", color: "var(--color-gray-400)" }}>
+              <span style={{ display: "inline-block", width: "20px", height: "20px", border: "2px solid var(--color-gray-200)", borderTopColor: "var(--color-brand)", borderRadius: "50%", animation: "spin 0.6s linear infinite" }} />
+            </div>
+          )}
+
+          {loadErr && (
+            <div style={{ fontSize: "var(--text-sm)", color: "var(--color-danger)", textAlign: "center", padding: "16px" }}>
+              Impossibile caricare le opzioni
+            </div>
+          )}
+
+          {groups && groups.map((group) => (
+            <div key={group.id} style={{ marginBottom: "20px" }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "6px", marginBottom: "10px" }}>
+                <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--color-gray-800)" }}>
+                  {group.name}
+                </span>
+                <span style={{ fontSize: "11px", color: "var(--color-gray-400)" }}>
+                  {group.type === "single" && "· scegli 1"}
+                  {group.type === "multi" && `· max ${group.maxSel}`}
+                  {group.type === "removal" && "· rimozioni"}
+                </span>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {group.options.filter((o) => o.active).map((opt) => {
+                  const on = selected.has(opt.id);
+                  const prefix = opt.prefix ?? (group.type === "removal" ? "-" : "+");
+                  const isNeg = prefix === "-";
+                  const isNote = prefix === ">>";
+                  const activeColor = isNeg ? "var(--color-danger)" : isNote ? "var(--color-gray-500)" : "var(--color-brand)";
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => toggle(opt.id, group.type, group.maxSel)}
+                      style={{
+                        padding: "8px 16px",
+                        borderRadius: "999px",
+                        border: `2px solid ${on ? activeColor : "var(--color-gray-200)"}`,
+                        background: on ? (isNeg ? "rgba(239,68,68,0.08)" : isNote ? "rgba(107,114,128,0.08)" : "rgba(48,107,52,0.08)") : "var(--color-white)",
+                        fontFamily: "var(--font)", fontSize: "var(--text-sm)",
+                        fontWeight: on ? 700 : 500,
+                        color: on ? activeColor : "var(--color-gray-700)",
+                        cursor: "pointer",
+                        display: "inline-flex", alignItems: "center", gap: "5px",
+                        transition: "border-color 0.1s, background 0.1s",
+                      }}
+                    >
+                      <span style={{ fontWeight: 800, opacity: on ? 1 : 0.35 }}>{prefix}</span>
+                      <span style={{ textDecoration: isNeg && on ? "line-through" : "none" }}>{opt.name}</span>
+                      {prefix !== ">>" && opt.priceDelta !== 0 && (
+                        <span style={{ fontSize: "12px", color: on ? activeColor : "var(--color-gray-400)" }}>
+                          {opt.priceDelta > 0 ? `+€${opt.priceDelta.toFixed(2)}` : `-€${Math.abs(opt.priceDelta).toFixed(2)}`}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+          {/* Free note — always visible */}
+          {groups !== null && (
+            <div style={{ borderTop: groups.length > 0 ? "1px solid var(--color-gray-100)" : "none", paddingTop: groups.length > 0 ? "16px" : 0 }}>
+              <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--color-gray-800)", marginBottom: "8px" }}>
+                Nota libera
+              </div>
+              <textarea
+                rows={3}
+                autoFocus={groups.length === 0}
+                placeholder="Es. senza cipolla, ben cotto, allergie…"
+                value={freeNote}
+                onChange={(e) => setFreeNote(e.target.value)}
+                style={{
+                  width: "100%", padding: "10px 12px",
+                  border: "2px solid var(--color-gray-200)", borderRadius: "var(--radius-md)",
+                  fontFamily: "var(--font)", fontSize: "var(--text-sm)",
+                  resize: "none", boxSizing: "border-box", outline: "none",
+                  transition: "border-color 0.1s",
+                }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-brand)"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-gray-200)"; }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {groups !== null && (
+          <div style={{
+            padding: "12px 20px 16px",
+            borderTop: "1px solid var(--color-gray-100)",
+            display: "flex", gap: "8px", flexShrink: 0,
+          }}>
+            <button
+              onClick={onClose}
+              style={{
+                flex: 1, padding: "11px",
+                borderRadius: "var(--radius-md)",
+                border: "1.5px solid var(--color-gray-200)",
+                background: "var(--color-white)",
+                color: "var(--color-gray-600)",
+                fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >Annulla</button>
+            <button
+              onClick={handleSave}
+              disabled={!hasSelection}
+              style={{
+                flex: 2, padding: "11px",
+                borderRadius: "var(--radius-md)", border: "none",
+                background: hasSelection ? "var(--color-brand)" : "var(--color-gray-200)",
+                color: hasSelection ? "white" : "var(--color-gray-400)",
+                fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 700,
+                cursor: hasSelection ? "pointer" : "not-allowed",
+                transition: "background 0.1s",
+              }}
+            >Salva</button>
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -381,16 +426,22 @@ function VariantPopover({ cartKey, productId, productName, unitPrice, existingNo
 export function CartPanel() {
   const { cart, updateCartQty, clearCart, cartTotal, setCheckoutOrder } = useStore();
   const addToCart = useStore((s) => s.addToCart);
+  const editingOrderId = useStore((s) => s.editingOrderId);
+  const setEditingOrderId = useStore((s) => s.setEditingOrderId);
   const { currentShift } = useShiftStore();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Feature flags (loaded once)
+  // Feature flags + text size (loaded once)
   const [features, setFeatures] = useState<CartFeatures>({ notes: true, pax: true, discount: true });
+  const [cartTextSize, setCartTextSize] = useState(14);
   useEffect(() => {
     adminApi.settings.get()
-      .then((s) => setFeatures({ notes: s.cartNotesEnabled, pax: s.cartPaxEnabled, discount: s.cartDiscountEnabled }))
+      .then((s) => {
+        setFeatures({ notes: s.cartNotesEnabled, pax: s.cartPaxEnabled, discount: s.cartDiscountEnabled });
+        setCartTextSize(s.cartTextSize ?? 14);
+      })
       .catch(() => { /* keep defaults */ });
   }, []);
 
@@ -404,7 +455,6 @@ export function CartPanel() {
 
   // Variant popover
   const [variantTarget, setVariantTarget] = useState<{ cartKey: string; productId: string; name: string; unitPrice: number } | null>(null);
-  const variantRef = useRef<HTMLDivElement>(null);
 
   const subtotal = cartTotal();
   const discountNum = parseFloat(discountInput) || 0;
@@ -424,6 +474,37 @@ export function CartPanel() {
     setOpenExtras(null);
     setVariantTarget((prev) => prev?.cartKey === item.cartKey ? null : item);
   }
+
+  const handleSaveEdit = async () => {
+    if (cart.length === 0 || !editingOrderId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await apiClient.orders.updateItems(editingOrderId, cart.map((c) => ({
+        productId: c.productId,
+        name: c.name,
+        quantity: c.quantity,
+        ...(c.selectedOptions.length > 0
+          ? {
+              selectedOptionIds: c.selectedOptions.map((o) => o.optionId),
+              notes: c.selectedOptions.map((o) => {
+                const p = o.prefix ?? (o.isRemoval ? "-" : "+");
+                if (p === "-") return `senza ${o.name}`;
+                if (p === ">>") return `>> ${o.name}`;
+                return o.name;
+              }).join(", "),
+            }
+          : c.notes !== undefined ? { notes: c.notes } : {}),
+      })));
+      setEditingOrderId(null);
+      clearCart();
+      setOrderNotes(""); setPax(null); setDiscountInput(""); setOpenExtras(null); setVariantTarget(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Errore salvataggio modifiche");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
@@ -469,6 +550,27 @@ export function CartPanel() {
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--color-white)", borderLeft: "1px solid var(--color-gray-200)" }}>
 
+      {/* Edit order banner */}
+      {editingOrderId && (
+        <div style={{
+          padding: "7px var(--sp-md)",
+          background: "#fef3c7",
+          borderBottom: "1px solid #fcd34d",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px",
+          flexShrink: 0,
+        }}>
+          <span style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "#92400e" }}>
+            ✏️ Modifica ordine #{editingOrderId.slice(-6).toUpperCase()}
+          </span>
+          <button
+            onClick={() => { setEditingOrderId(null); clearCart(); }}
+            style={{ fontSize: "11px", fontWeight: 600, color: "#b45309", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font)" }}
+          >
+            Annulla
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{
         padding: "11px var(--sp-md)",
@@ -497,146 +599,139 @@ export function CartPanel() {
         )}
       </div>
 
-      {/* Item list */}
-      <div className="scrollable" style={{ flex: 1, overflowY: "auto" }}>
+      {/* Item list — newest first */}
+      <div className="scrollable" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
         {!hasItems ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: "var(--sp-sm)", color: "var(--color-gray-300)" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: "var(--sp-sm)", color: "var(--color-gray-300)" }}>
             <ShoppingCartIcon style={{ width: "36px", height: "36px" }} />
             <span style={{ fontSize: "var(--text-sm)", fontWeight: 500 }}>Nessun prodotto</span>
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-            <colgroup>
-              <col style={{ width: "36px" }} />
-              <col />
-              <col style={{ width: "60px" }} />
-              <col style={{ width: "24px" }} />
-            </colgroup>
-            <tbody>
-              {cart.map((item) => {
-                const extras = item.selectedOptions.filter((o) => (o.prefix ?? "+") !== "-" && (o.prefix ?? "+") !== ">>" && o.priceDelta !== 0);
-                const removals = item.selectedOptions.filter((o) => (o.prefix ?? (o.isRemoval ? "-" : "+")) === "-");
-                const notes_ = item.selectedOptions.filter((o) => (o.prefix ?? "+") === ">>");
-                const modifiers = item.selectedOptions.filter((o) => (o.prefix ?? "+") === "+" && o.priceDelta === 0);
-                const isVariantOpen = variantTarget?.cartKey === item.cartKey;
+          <div>
+            {[...cart].reverse().map((item) => {
+              const extras = item.selectedOptions.filter((o) => (o.prefix ?? "+") !== "-" && (o.prefix ?? "+") !== ">>" && o.priceDelta !== 0);
+              const removals = item.selectedOptions.filter((o) => (o.prefix ?? (o.isRemoval ? "-" : "+")) === "-");
+              const notes_ = item.selectedOptions.filter((o) => (o.prefix ?? "+") === ">>");
+              const modifiers = item.selectedOptions.filter((o) => (o.prefix ?? "+") === "+" && o.priceDelta === 0);
+              const isVariantOpen = variantTarget?.cartKey === item.cartKey;
 
-                return (
-                  <tr key={item.cartKey} style={{ borderBottom: "1px solid var(--color-gray-100)" }}>
-                    {/* Qty stepper */}
-                    <td style={{ padding: "8px 0 8px 10px", verticalAlign: "middle" }}>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
-                        <button onClick={() => updateCartQty(item.cartKey, item.quantity + 1)} style={{
-                          width: "20px", height: "20px", borderRadius: "50%",
-                          background: "var(--color-brand)", border: "none", cursor: "pointer",
-                          color: "white", fontWeight: 700, fontSize: "13px",
-                          display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
-                        }}>+</button>
-                        <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, lineHeight: 1 }}>{item.quantity}</span>
-                        <button onClick={() => updateCartQty(item.cartKey, item.quantity - 1)} style={{
-                          width: "20px", height: "20px", borderRadius: "50%",
-                          background: "var(--color-gray-100)", border: "none", cursor: "pointer",
-                          color: "var(--color-gray-600)", fontWeight: 700, fontSize: "13px",
-                          display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
-                        }}>−</button>
-                      </div>
-                    </td>
+              const btnBase: React.CSSProperties = {
+                height: "34px",
+                borderRadius: "var(--radius-md)",
+                border: "none", cursor: "pointer", fontWeight: 700, fontSize: "16px",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0, transition: "background 0.12s, color 0.12s",
+              };
 
-                    {/* Name + tags + variant button */}
-                    <td style={{ padding: "8px 6px", verticalAlign: "middle" }}>
-                      <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-900)", lineHeight: 1.3 }}>
+              const subSize = Math.max(9, cartTextSize - 3);
+
+              return (
+                <div key={item.cartKey} style={{ borderBottom: "1px solid var(--color-gray-100)", padding: "10px 12px" }}>
+                  {/* Row 1: name + price */}
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px", marginBottom: "8px" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: `${cartTextSize}px`, fontWeight: 700, color: "var(--color-gray-900)", lineHeight: 1.3 }}>
                         {item.name}
                       </div>
                       {modifiers.length > 0 && (
-                        <div style={{ fontSize: "11px", color: "var(--color-brand)", marginTop: "1px" }}>
+                        <div style={{ fontSize: `${subSize}px`, color: "var(--color-brand)", marginTop: "2px" }}>
                           + {modifiers.map((o) => o.name).join(", ")}
                         </div>
                       )}
                       {extras.length > 0 && (
-                        <div style={{ fontSize: "11px", color: "var(--color-brand)", marginTop: "1px" }}>
+                        <div style={{ fontSize: `${subSize}px`, color: "var(--color-brand)", marginTop: "2px" }}>
                           + {extras.map((o) => `${o.name} +€${o.priceDelta.toFixed(2)}`).join(", ")}
                         </div>
                       )}
                       {removals.length > 0 && (
-                        <div style={{ fontSize: "11px", color: "var(--color-danger)", marginTop: "1px" }}>
+                        <div style={{ fontSize: `${subSize}px`, color: "var(--color-danger)", marginTop: "2px" }}>
                           − {removals.map((o) => o.name).join(", ")}
                         </div>
                       )}
                       {notes_.length > 0 && (
-                        <div style={{ fontSize: "11px", color: "var(--color-gray-500)", fontStyle: "italic", marginTop: "1px" }}>
+                        <div style={{ fontSize: `${subSize}px`, color: "var(--color-gray-500)", fontStyle: "italic", marginTop: "2px" }}>
                           &gt;&gt; {notes_.map((o) => o.name).join(", ")}
                         </div>
                       )}
                       {item.notes && (
-                        <div style={{ fontSize: "10px", color: "var(--color-gray-400)", fontStyle: "italic", marginTop: "2px" }}>
+                        <div style={{ fontSize: `${Math.max(9, cartTextSize - 4)}px`, color: "var(--color-gray-400)", fontStyle: "italic", marginTop: "2px" }}>
                           ✏️ {item.notes}
                         </div>
                       )}
-                      {/* Variant button */}
-                      <button
-                        onClick={() => openVariant({ cartKey: item.cartKey, productId: item.productId, name: item.name, unitPrice: item.unitPrice })}
-                        style={{
-                          marginTop: "3px",
-                          fontSize: "10px", fontWeight: 600,
-                          color: isVariantOpen ? "var(--color-brand)" : "var(--color-gray-400)",
-                          background: "none", border: "none", cursor: "pointer", padding: 0,
-                          fontFamily: "var(--font)", letterSpacing: "0.02em",
-                          textDecoration: "underline", textUnderlineOffset: "2px",
-                        }}
-                      >
-                        + variante
-                      </button>
-                    </td>
-
-                    {/* Price */}
-                    <td style={{ padding: "8px 4px", verticalAlign: "middle", textAlign: "right" }}>
-                      <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, whiteSpace: "nowrap" }}>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontSize: `${cartTextSize}px`, fontWeight: 800, color: "var(--color-gray-900)", whiteSpace: "nowrap" }}>
                         €{(item.finalPrice * item.quantity).toFixed(2)}
-                      </span>
+                      </div>
                       {item.quantity > 1 && (
-                        <div style={{ fontSize: "10px", color: "var(--color-gray-400)", marginTop: "1px" }}>
+                        <div style={{ fontSize: `${subSize}px`, color: "var(--color-gray-400)", marginTop: "1px" }}>
                           €{item.finalPrice.toFixed(2)} cad.
                         </div>
                       )}
-                    </td>
+                    </div>
+                  </div>
 
-                    {/* Delete */}
-                    <td style={{ padding: "8px 8px 8px 0", verticalAlign: "middle", textAlign: "center" }}>
+                  {/* Row 2: controls */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    {/* − qty + stepper */}
+                    <div style={{ display: "flex", alignItems: "center", background: "var(--color-gray-100)", borderRadius: "var(--radius-md)", overflow: "hidden", flexShrink: 0 }}>
                       <button
-                        onClick={() => updateCartQty(item.cartKey, 0)}
-                        onMouseEnter={(e) => { e.currentTarget.style.color = "var(--color-danger)"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.color = "var(--color-gray-300)"; }}
-                        style={{
-                          width: "18px", height: "18px", display: "flex", alignItems: "center", justifyContent: "center",
-                          background: "none", border: "none", cursor: "pointer", color: "var(--color-gray-300)",
-                          fontSize: "13px", borderRadius: "50%", transition: "color 0.12s",
-                        }}
-                        title="Rimuovi"
-                      >✕</button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        onClick={() => updateCartQty(item.cartKey, item.quantity - 1)}
+                        style={{ ...btnBase, width: "34px", background: "transparent", color: "var(--color-gray-600)" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-gray-200)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                      >−</button>
+                      <span style={{ fontSize: "var(--text-md)", fontWeight: 700, minWidth: "28px", textAlign: "center", color: "var(--color-gray-900)" }}>
+                        {item.quantity}
+                      </span>
+                      <button
+                        onClick={() => updateCartQty(item.cartKey, item.quantity + 1)}
+                        style={{ ...btnBase, width: "34px", background: "var(--color-brand)", color: "white" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.85"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+                      >+</button>
+                    </div>
+
+                    <div style={{ flex: 1 }} />
+
+                    {/* Variante */}
+                    <button
+                      onClick={() => openVariant({ cartKey: item.cartKey, productId: item.productId, name: item.name, unitPrice: item.unitPrice })}
+                      style={{ ...btnBase, width: "34px", background: isVariantOpen ? "var(--color-brand)" : "var(--color-gray-100)", color: isVariantOpen ? "white" : "var(--color-gray-500)", fontSize: "14px" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = isVariantOpen ? "var(--color-brand)" : "var(--color-gray-200)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = isVariantOpen ? "var(--color-brand)" : "var(--color-gray-100)"; }}
+                      title="Variante / nota"
+                    >✎</button>
+
+                    {/* Rimuovi */}
+                    <button
+                      onClick={() => updateCartQty(item.cartKey, 0)}
+                      style={{ ...btnBase, width: "34px", background: "var(--color-gray-100)", color: "var(--color-gray-400)", fontSize: "13px" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-danger)"; e.currentTarget.style.color = "white"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "var(--color-gray-100)"; e.currentTarget.style.color = "var(--color-gray-400)"; }}
+                      title="Rimuovi"
+                    >✕</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 
-      {/* Variant popover anchor */}
-      {hasItems && variantTarget && (() => {
+      {/* Variant dialog — rendered via portal over the whole page */}
+      {variantTarget && (() => {
         const itemNotes = cart.find((c) => c.cartKey === variantTarget.cartKey)?.notes;
-        const notesProps = itemNotes !== undefined ? { existingNotes: itemNotes } : {};
         return (
-          <div ref={variantRef} style={{ position: "relative", flexShrink: 0 }}>
-            <VariantPopover
-              key={variantTarget.cartKey}
-              cartKey={variantTarget.cartKey}
-              productId={variantTarget.productId}
-              productName={variantTarget.name}
-              unitPrice={variantTarget.unitPrice}
-              {...notesProps}
-              onClose={() => setVariantTarget(null)}
-            />
-          </div>
+          <VariantDialog
+            key={variantTarget.cartKey}
+            cartKey={variantTarget.cartKey}
+            productId={variantTarget.productId}
+            productName={variantTarget.name}
+            unitPrice={variantTarget.unitPrice}
+            {...(itemNotes !== undefined ? { existingNotes: itemNotes } : {})}
+            onClose={() => setVariantTarget(null)}
+          />
         );
       })()}
 
@@ -715,14 +810,25 @@ export function CartPanel() {
           </div>
         )}
 
-        <Button
-          fullWidth size="xl"
-          disabled={!hasItems || loading || !currentShift}
-          loading={loading}
-          onClick={() => void handleCheckout()}
-        >
-          {!currentShift ? "Apri un turno per iniziare" : !hasItems ? "Carrello vuoto" : `Invia ordine · €${total.toFixed(2)}`}
-        </Button>
+        {editingOrderId ? (
+          <Button
+            fullWidth size="xl"
+            disabled={!hasItems || loading}
+            loading={loading}
+            onClick={() => void handleSaveEdit()}
+          >
+            {!hasItems ? "Carrello vuoto" : "Salva modifiche"}
+          </Button>
+        ) : (
+          <Button
+            fullWidth size="xl"
+            disabled={!hasItems || loading || !currentShift}
+            loading={loading}
+            onClick={() => void handleCheckout()}
+          >
+            {!currentShift ? "Apri un turno per iniziare" : !hasItems ? "Carrello vuoto" : " Paga"}
+          </Button>
+        )}
       </div>
     </div>
   );

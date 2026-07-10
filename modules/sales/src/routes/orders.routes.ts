@@ -163,6 +163,9 @@ export function registerOrderRoutes(
       return reply.status(201).send(serializeOrder(order));
     } catch (err) {
       if (err instanceof OrderValidationError) return reply.status(400).send({ error: err.message });
+      if (err instanceof Error && (err as NodeJS.ErrnoException).code === "SQLITE_CONSTRAINT_FOREIGNKEY") {
+        return reply.status(400).send({ error: "Riferimento non valido: turno o terminale non esistente. Ricarica la pagina." });
+      }
       throw err;
     }
   });
@@ -225,6 +228,38 @@ export function registerOrderRoutes(
       return reply.send(serializeOrder(order));
     } catch (err) {
       if (err instanceof OrderNotFoundError) return reply.status(404).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  // PATCH /orders/:id/items  — replace order items (edit in progress order)
+  fastify.patch("/orders/:id/items", {
+    schema: {
+      tags: ["orders"],
+      summary: "Replace items on an in-progress order",
+      params: { type: "object", properties: { id: { type: "string" } } },
+      body: {
+        type: "object",
+        required: ["items"],
+        properties: {
+          items: { type: "array", items: orderItemInputSchema, minItems: 1 },
+        },
+      },
+      response: {
+        200: orderSchema,
+        400: { type: "object", properties: { error: { type: "string" } } },
+        404: { type: "object", properties: { error: { type: "string" } } },
+      },
+    },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { items } = request.body as { items: Array<{ productId: string; name: string; quantity: number; selectedOptionIds?: string[]; notes?: string }> };
+    try {
+      const order = await service.updateItems(id, items);
+      return reply.send(serializeOrder(order));
+    } catch (err) {
+      if (err instanceof OrderNotFoundError) return reply.status(404).send({ error: err.message });
+      if (err instanceof OrderValidationError) return reply.status(400).send({ error: err.message });
       throw err;
     }
   });

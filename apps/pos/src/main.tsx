@@ -8,7 +8,5 @@ if (rootEl === null) {
 }
 
 createRoot(rootEl).render(
-  <StrictMode>
     <App />
-  </StrictMode>
 );

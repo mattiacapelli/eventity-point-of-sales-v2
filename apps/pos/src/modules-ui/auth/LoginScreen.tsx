@@ -30,11 +30,13 @@ export function LoginScreen() {
       const result = await authClient.login(currentPin);
       authClient.storeToken(result.token);
 
+      const me = await authClient.me(result.token);
+
       setSession({
         token: result.token,
         userId: result.userId,
         role: result.role,
-        username: "",
+        name: me.name,
       });
 
       wsClient.connect(`ws://${window.location.host}/ws`, result.token);

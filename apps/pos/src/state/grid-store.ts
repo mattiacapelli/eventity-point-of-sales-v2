@@ -9,6 +9,10 @@ export interface GridPrefs {
   viewMode: GridViewMode;
   showPrice: boolean;
   showDescription: boolean;
+  showCategory: boolean;
+  showImage: boolean;
+  cardTextSize: number;
+  cardRowHeight: number;
   sortBy: GridSortBy;
   baseCols: number;
 }
@@ -17,6 +21,10 @@ const DEFAULT_PREFS: GridPrefs = {
   viewMode: "category",
   showPrice: true,
   showDescription: true,
+  showCategory: false,
+  showImage: true,
+  cardTextSize: 14,
+  cardRowHeight: 120,
   sortBy: "custom",
   baseCols: 5,
 };
@@ -49,6 +57,10 @@ export const useGridStore = create<GridStore>((set, get) => ({
       viewMode: p.viewMode ?? s.viewMode,
       showPrice: p.showPrice ?? s.showPrice,
       showDescription: p.showDescription ?? s.showDescription,
+      showCategory: p.showCategory ?? s.showCategory,
+      showImage: p.showImage ?? s.showImage,
+      cardTextSize: p.cardTextSize ?? s.cardTextSize,
+      cardRowHeight: p.cardRowHeight ?? s.cardRowHeight,
       sortBy: p.sortBy ?? s.sortBy,
       baseCols: p.baseCols ?? s.baseCols,
     }));
@@ -60,6 +72,10 @@ export const useGridStore = create<GridStore>((set, get) => ({
         gridViewMode: s.viewMode,
         gridShowPrice: s.showPrice,
         gridShowDescription: s.showDescription,
+        gridShowCategory: s.showCategory,
+        gridShowImage: s.showImage,
+        gridCardTextSize: s.cardTextSize,
+        gridCardRowHeight: s.cardRowHeight,
         gridSortBy: s.sortBy,
         gridBaseCols: s.baseCols,
       });
@@ -89,6 +105,10 @@ export const useGridStore = create<GridStore>((set, get) => ({
       viewMode: serverPrefs.viewMode ?? DEFAULT_PREFS.viewMode,
       showPrice: serverPrefs.showPrice ?? DEFAULT_PREFS.showPrice,
       showDescription: serverPrefs.showDescription ?? DEFAULT_PREFS.showDescription,
+      showCategory: serverPrefs.showCategory ?? DEFAULT_PREFS.showCategory,
+      showImage: serverPrefs.showImage ?? DEFAULT_PREFS.showImage,
+      cardTextSize: serverPrefs.cardTextSize ?? DEFAULT_PREFS.cardTextSize,
+      cardRowHeight: serverPrefs.cardRowHeight ?? DEFAULT_PREFS.cardRowHeight,
       sortBy: serverPrefs.sortBy ?? DEFAULT_PREFS.sortBy,
       baseCols: serverPrefs.baseCols ?? DEFAULT_PREFS.baseCols,
       serverPrefsLoaded: true,

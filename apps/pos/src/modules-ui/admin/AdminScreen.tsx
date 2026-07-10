@@ -37,11 +37,12 @@ import { MovementsTab } from "./MovementsTab.js";
 import { TerminalsTab } from "./TerminalsTab.js";
 import { UsersTab } from "./UsersTab.js";
 import { LicenseTab } from "./LicenseTab.js";
+import { InterfaceTab } from "./InterfaceTab.js";
 import { NavMenuFab } from "../../components/NavMenu.js";
 
 // ─── Tab types ───────────────────────────────────────────────────────────────
 
-type Tab = "restaurant" | "products" | "categories" | "production-centers" | "payment-methods" | "printers" | "receipt-template" | "kitchen-template" | "shift-report-template" | "shifts" | "backup" | "advanced" | "inventory" | "movements" | "terminals" | "users" | "license";
+type Tab = "restaurant" | "products" | "categories" | "production-centers" | "payment-methods" | "printers" | "receipt-template" | "kitchen-template" | "shift-report-template" | "shifts" | "backup" | "advanced" | "interface" | "inventory" | "movements" | "terminals" | "users" | "license";
 
 type TabDef = { key: Tab; label: string; Icon: React.ComponentType<React.SVGProps<SVGSVGElement>> };
 
@@ -91,6 +92,7 @@ const GROUPS: Group[] = [
   {
     key: "system", label: "Sistema", Icon: WrenchScrewdriverIcon,
     tabs: [
+      { key: "interface", label: "Interfaccia", Icon: WrenchScrewdriverIcon },
       { key: "backup", label: "Backup", Icon: ArrowDownTrayIcon },
       { key: "advanced", label: "Avanzate", Icon: WrenchScrewdriverIcon },
       { key: "license", label: "Licenza", Icon: ShieldCheckIcon },
@@ -404,6 +406,7 @@ export function AdminScreen() {
             {resolvedActiveTab === "kitchen-template" && <KitchenTemplateTab />}
             {resolvedActiveTab === "shift-report-template" && <ShiftReportTemplateTab />}
             {resolvedActiveTab === "shifts" && <ShiftsTab />}
+            {resolvedActiveTab === "interface" && <InterfaceTab />}
             {resolvedActiveTab === "backup" && <BackupTab />}
             {resolvedActiveTab === "advanced" && <AdvancedTab onModuleToggle={refreshEnabledModules} />}
             {resolvedActiveTab === "inventory" && <InventoryTab />}

@@ -363,6 +363,51 @@ export class OrderRepository {
     return this.findById(id);
   }
 
+  async replaceItems(id: string, items: Array<{ productId: string; name: string; quantity: number; selectedOptionIds?: string[] | undefined; notes?: string | undefined }>): Promise<Order | null> {
+    const now = new Date();
+
+    // Resolve prices from catalog
+    const productIds = [...new Set(items.map((i) => i.productId))];
+    const productRows = await this.db.select({ id: products.id, price: products.price, vatRate: products.vatRate }).from(products).where(inArray(products.id, productIds));
+    const productPriceMap = new Map(productRows.map((p) => [p.id, { price: p.price, vatRate: p.vatRate ?? 10 }]));
+
+    const allOptionIds = items.flatMap((i) => i.selectedOptionIds ?? []);
+    const optionMap = new Map<string, { priceDelta: number; name: string }>();
+    if (allOptionIds.length > 0) {
+      const optionRows = await this.db.select({ id: options.id, priceDelta: options.priceDelta, name: options.name }).from(options).where(inArray(options.id, allOptionIds));
+      for (const o of optionRows) optionMap.set(o.id, { priceDelta: o.priceDelta, name: o.name });
+    }
+
+    const resolvedItems = items.map((item) => {
+      const productData = productPriceMap.get(item.productId);
+      if (productData === undefined) throw new Error(`Product not found: ${item.productId}`);
+      const optionDelta = (item.selectedOptionIds ?? []).reduce((sum, oid) => sum + (optionMap.get(oid)?.priceDelta ?? 0), 0);
+      return { id: randomUUID(), productId: item.productId, name: item.name, quantity: item.quantity, unitPrice: productData.price + optionDelta, vatRate: productData.vatRate, notes: item.notes ?? null, selectedOptionIds: item.selectedOptionIds ?? [] };
+    });
+
+    const totalAmount = resolvedItems.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+
+    // Delete existing items (and their options via cascade or explicit delete)
+    const existingItems = await this.db.select({ id: orderItems.id }).from(orderItems).where(eq(orderItems.orderId, id));
+    if (existingItems.length > 0) {
+      await this.db.delete(orderItemOptions).where(inArray(orderItemOptions.orderItemId, existingItems.map((i) => i.id)));
+      await this.db.delete(orderItems).where(eq(orderItems.orderId, id));
+    }
+
+    // Insert new items
+    if (resolvedItems.length > 0) {
+      await this.db.insert(orderItems).values(resolvedItems.map((item) => ({ id: item.id, orderId: id, productId: item.productId, name: item.name, quantity: item.quantity, unitPrice: item.unitPrice, vatRate: item.vatRate, notes: item.notes })));
+      for (const item of resolvedItems) {
+        if (item.selectedOptionIds.length > 0) {
+          await this.db.insert(orderItemOptions).values(item.selectedOptionIds.map((oid) => ({ id: randomUUID(), orderItemId: item.id, optionId: oid, optionName: optionMap.get(oid)?.name ?? oid, priceDelta: optionMap.get(oid)?.priceDelta ?? 0 })));
+        }
+      }
+    }
+
+    await this.db.update(orders).set({ totalAmount, updatedAt: now }).where(eq(orders.id, id));
+    return this.findById(id);
+  }
+
   async delete(id: string): Promise<void> {
     await this.db.delete(orderItems).where(eq(orderItems.orderId, id));
     await this.db.delete(orders).where(eq(orders.id, id));

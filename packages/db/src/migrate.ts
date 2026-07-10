@@ -380,7 +380,7 @@ function dropPaymentsMethodCheck(sqlite: Database.Database): void {
       created_at INTEGER NOT NULL,
       synced_at  INTEGER
     );
-    INSERT INTO payments SELECT * FROM payments_old_check;
+    INSERT INTO payments SELECT id, order_id, method, status, amount, currency, reference, created_at, synced_at, NULL FROM payments_old_check;
     DROP TABLE payments_old_check;
     CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments(order_id);
   `);

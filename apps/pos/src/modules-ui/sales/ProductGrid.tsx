@@ -38,6 +38,10 @@ interface CardProps {
   editMode: boolean;
   showPrice: boolean;
   showDescription: boolean;
+  showCategory: boolean;
+  showImage: boolean;
+  cardTextSize: number;
+  cardRowHeight: number;
   loading?: boolean;
   onClick: () => void;
   onDragStart: (e: React.DragEvent, productId: string) => void;
@@ -45,9 +49,9 @@ interface CardProps {
   scope: string;
 }
 
-function ProductCard({ product, slot, locked, editMode, showPrice, showDescription, loading, onClick, onDragStart, onResizeStart, scope }: CardProps) {
+function ProductCard({ product, slot, locked, editMode, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, loading, onClick, onDragStart, onResizeStart, scope }: CardProps) {
   const hasColor = !!product.color;
-  const hasImage = !!product.imageData;
+  const hasImage = showImage && !!product.imageData;
   const imageUrl = hasImage ? `/api/static/${product.imageData}` : null;
   const isResizingRef = useRef(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -100,7 +104,7 @@ function ProductCard({ product, slot, locked, editMode, showPrice, showDescripti
           flexDirection: "column",
           alignItems: hasImage ? "stretch" : "center",
           justifyContent: hasImage ? "flex-start" : "center",
-          gap: hasImage ? "0" : "8px",
+          gap: hasImage ? "0" : "6px",
           boxShadow: "var(--shadow-sm)",
           transition: "transform var(--transition), filter var(--transition)",
           fontFamily: "var(--font)",
@@ -123,11 +127,25 @@ function ProductCard({ product, slot, locked, editMode, showPrice, showDescripti
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          gap: "4px",
+          gap: "3px",
           padding: hasImage ? "8px 10px" : "0",
         }}>
+          {showCategory && product.categoryName && (
+            <span style={{
+              fontSize: `${Math.max(8, cardTextSize - 4)}px`,
+              fontWeight: 600,
+              color: hasImage ? "var(--color-gray-400)" : (hasColor ? "rgba(255,255,255,0.6)" : "var(--color-gray-400)"),
+              textAlign: "center",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+              lineHeight: 1.2,
+              textShadow: (!hasImage && hasColor) ? "0 1px 2px rgba(0,0,0,0.2)" : "none",
+            }}>
+              {product.categoryName}
+            </span>
+          )}
           <span style={{
-            fontSize: "var(--text-md)",
+            fontSize: `${cardTextSize}px`,
             fontWeight: 600,
             color: hasImage ? "var(--color-gray-800)" : (hasColor ? "rgba(255,255,255,0.95)" : "var(--color-gray-800)"),
             textAlign: "center",
@@ -138,7 +156,7 @@ function ProductCard({ product, slot, locked, editMode, showPrice, showDescripti
           </span>
           {showDescription && product.description && (
             <span style={{
-              fontSize: "10px",
+              fontSize: `${Math.max(8, cardTextSize - 3)}px`,
               fontWeight: 400,
               color: hasImage ? "var(--color-gray-500)" : (hasColor ? "rgba(255,255,255,0.7)" : "var(--color-gray-500)"),
               textAlign: "center",
@@ -154,7 +172,7 @@ function ProductCard({ product, slot, locked, editMode, showPrice, showDescripti
           )}
           {showPrice && (
             <span style={{
-              fontSize: "var(--text-md)",
+              fontSize: `${cardTextSize}px`,
               fontWeight: 700,
               color: hasImage ? "var(--color-brand)" : (hasColor ? "rgba(255,255,255,0.9)" : "var(--color-brand)"),
               textShadow: (!hasImage && hasColor) ? "0 1px 2px rgba(0,0,0,0.25)" : "none",
@@ -234,6 +252,10 @@ interface GridAreaProps {
   locked: boolean;
   showPrice: boolean;
   showDescription: boolean;
+  showCategory: boolean;
+  showImage: boolean;
+  cardTextSize: number;
+  cardRowHeight: number;
   loadingProductId: string | null;
   onProductClick: (p: Product) => void;
   onDragStart: (e: React.DragEvent, productId: string, scope: string) => void;
@@ -241,7 +263,7 @@ interface GridAreaProps {
   onResizeStart: (e: React.PointerEvent, productId: string, scope: string) => void;
 }
 
-function GridArea({ products, slots, scope, baseCols, editMode, locked, showPrice, showDescription, loadingProductId, onProductClick, onDragStart, onDrop, onResizeStart }: GridAreaProps) {
+function GridArea({ products, slots, scope, baseCols, editMode, locked, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, loadingProductId, onProductClick, onDragStart, onDrop, onResizeStart }: GridAreaProps) {
   const slotMap = new Map(slots.map((s) => [s.productId, s]));
   const positioned = products.filter((p) => slotMap.has(p.id));
   const floating = products.filter((p) => !slotMap.has(p.id));
@@ -263,11 +285,13 @@ function GridArea({ products, slots, scope, baseCols, editMode, locked, showPric
         if (!occupied.has(`${x},${y}`)) dropSlots.push({ x, y });
   }
 
+  const cardProps = { locked, editMode, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight };
+
   return (
     <div style={{
       display: "grid",
       gridTemplateColumns: `repeat(${baseCols}, 1fr)`,
-      gridAutoRows: "120px",
+      gridAutoRows: `${cardRowHeight}px`,
       gap: "10px",
     }}>
       {positioned.map((p) => (
@@ -275,10 +299,7 @@ function GridArea({ products, slots, scope, baseCols, editMode, locked, showPric
           key={p.id}
           product={p}
           slot={slotMap.get(p.id)}
-          locked={locked}
-          editMode={editMode}
-          showPrice={showPrice}
-          showDescription={showDescription}
+          {...cardProps}
           loading={loadingProductId === p.id}
           onClick={() => onProductClick(p)}
           onDragStart={(e, id) => onDragStart(e, id, scope)}
@@ -294,10 +315,7 @@ function GridArea({ products, slots, scope, baseCols, editMode, locked, showPric
           key={p.id}
           product={p}
           slot={undefined}
-          locked={locked}
-          editMode={editMode}
-          showPrice={showPrice}
-          showDescription={showDescription}
+          {...cardProps}
           loading={loadingProductId === p.id}
           onClick={() => onProductClick(p)}
           onDragStart={(e, id) => onDragStart(e, id, scope)}
@@ -327,7 +345,7 @@ export function ProductGrid() {
   const { terminalId } = useTerminalStore();
   const [visibleCategoryIds, setVisibleCategoryIds] = useState<string[] | null>(null);
 
-  const { viewMode, showPrice, showDescription, sortBy, baseCols, editMode, layouts, loadLayout, saveLayout, updateSlot, setEditMode, applyServerPrefs } = useGridStore();
+  const { viewMode, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, sortBy, baseCols, editMode, layouts, loadLayout, saveLayout, updateSlot, setEditMode, applyServerPrefs } = useGridStore();
 
   const visibleCategories: Category[] = visibleCategoryIds && visibleCategoryIds.length > 0
     ? visibleCategoryIds.map((id) => categories.find((c) => c.id === id)).filter((c): c is Category => c !== undefined)
@@ -367,6 +385,10 @@ export function ProductGrid() {
           viewMode: s.gridViewMode,
           showPrice: s.gridShowPrice,
           showDescription: s.gridShowDescription,
+          showCategory: s.gridShowCategory,
+          showImage: s.gridShowImage,
+          cardTextSize: s.gridCardTextSize,
+          cardRowHeight: s.gridCardRowHeight,
           sortBy: s.gridSortBy,
           baseCols: s.gridBaseCols,
         });
@@ -728,6 +750,10 @@ export function ProductGrid() {
                   locked={!currentShift}
                   showPrice={showPrice}
                   showDescription={showDescription}
+                  showCategory={showCategory}
+                  showImage={showImage}
+                  cardTextSize={cardTextSize}
+                  cardRowHeight={cardRowHeight}
                   onProductClick={(p) => void handleProductClick(p)}
                   onDragStart={handleDragStart}
                   onDrop={handleDrop}
@@ -748,6 +774,10 @@ export function ProductGrid() {
                 locked={!currentShift}
                 showPrice={showPrice}
                 showDescription={showDescription}
+                showCategory={showCategory}
+                showImage={showImage}
+                cardTextSize={cardTextSize}
+                cardRowHeight={cardRowHeight}
                 loadingProductId={loadingProductId}
                 onProductClick={(p) => void handleProductClick(p)}
                 onDragStart={handleDragStart}
@@ -777,6 +807,10 @@ export function ProductGrid() {
                   locked={!currentShift}
                   showPrice={showPrice}
                   showDescription={showDescription}
+                  showCategory={showCategory}
+                  showImage={showImage}
+                  cardTextSize={cardTextSize}
+                  cardRowHeight={cardRowHeight}
                   onProductClick={(p) => void handleProductClick(p)}
                   onDragStart={handleDragStart}
                   onDrop={handleDrop}

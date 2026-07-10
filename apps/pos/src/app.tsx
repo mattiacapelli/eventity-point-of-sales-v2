@@ -24,7 +24,6 @@ if (_savedFont) document.documentElement.setAttribute("data-font-scale", _savedF
 const PosScreen       = lazy(() => import("./modules-ui/sales/PosScreen.js").then((m) => ({ default: m.PosScreen })));
 const HistoryScreen   = lazy(() => import("./modules-ui/history/HistoryScreen.js").then((m) => ({ default: m.HistoryScreen })));
 const StatsScreen     = lazy(() => import("./modules-ui/stats/StatsScreen.js").then((m) => ({ default: m.StatsScreen })));
-const SettingsScreen  = lazy(() => import("./modules-ui/settings/SettingsScreen.js").then((m) => ({ default: m.SettingsScreen })));
 const AdminScreen     = lazy(() => import("./modules-ui/admin/AdminScreen.js").then((m) => ({ default: m.AdminScreen })));
 const AuditLogScreen  = lazy(() => import("./modules-ui/audit/AuditLogScreen.js").then((m) => ({ default: m.AuditLogScreen })));
 
@@ -73,7 +72,7 @@ function AppInner() {
   useEffect(() => {
     bootstrap()
       .then(() => bootstrapApi.status())
-      .then((status) => { if (!status.initialized) setNeedsSetup(true); })
+      .then((status) => { if (!status.initialized || new URLSearchParams(location.search).has("setup")) setNeedsSetup(true); })
       .catch(() => { /* server unreachable — let normal flow handle it */ })
       .finally(() => setBooted(true));
   }, []);
@@ -100,10 +99,15 @@ function AppInner() {
   // Periodic heartbeat so this terminal stays "online" in the list
   useEffect(() => {
     if (!terminalId || !session) return;
-    adminApi.terminals.heartbeat(terminalId).catch(() => {});
-    const interval = setInterval(() => {
-      adminApi.terminals.heartbeat(terminalId).catch(() => {});
-    }, 60_000);
+    const beat = () =>
+      adminApi.terminals.heartbeat(terminalId).catch((e: unknown) => {
+        // Terminal no longer exists in DB (e.g. after factory reset) — clear stored ID
+        if (e instanceof Error && e.message.includes("404")) {
+          useTerminalStore.getState().clearTerminal();
+        }
+      });
+    beat();
+    const interval = setInterval(beat, 60_000);
     return () => clearInterval(interval);
   }, [terminalId, session?.userId]);
 
@@ -154,7 +158,6 @@ function AppInner() {
         <Route path="/pos"       element={<PosScreen />} />
         <Route path="/history"   element={<HistoryScreen />} />
         <Route path="/stats"     element={<StatsScreen />} />
-        <Route path="/settings"  element={<SettingsScreen />} />
         <Route path="/admin"     element={<RequireRole role="admin"><AdminScreen /></RequireRole>} />
         <Route path="/audit"     element={<RequireRole role="admin"><AuditLogScreen /></RequireRole>} />
         <Route path="*"          element={<Navigate to="/pos" replace />} />

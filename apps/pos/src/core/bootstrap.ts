@@ -20,7 +20,7 @@ export async function bootstrap(): Promise<boolean> {
       token,
       userId: me.userId,
       role: me.role,
-      username: me.username,
+      name: me.name,
     });
 
     wsClient.connect(`ws://${window.location.host}/ws`, token);

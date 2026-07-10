@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { PosLayout } from "../../layout/PosLayout.js";
 import { Button } from "../../components/ui/Button.js";
 import { Modal } from "../../components/ui/Modal.js";
@@ -36,7 +37,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ─── Cancel confirm modal ─────────────────────────────────────────────────────
+// ─── Cancel modal (con opzione rimborso se già pagato) ───────────────────────
 
 function CancelModal({
   order,
@@ -44,19 +45,40 @@ function CancelModal({
   onClose,
 }: {
   order: Order | null;
-  onConfirm: (id: string) => Promise<void>;
+  onConfirm: (id: string, reason?: string, refundPaymentId?: string) => Promise<void>;
   onClose: () => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [reason, setReason] = useState("");
+  const [withRefund, setWithRefund] = useState(false);
+  const [paymentId, setPaymentId] = useState<string | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState(0);
+
+  // Se l'ordine è completed carica il pagamento per proporre il rimborso
+  useEffect(() => {
+    if (!order) { setPaymentId(null); setWithRefund(false); setReason(""); return; }
+    if (order.status === "completed") {
+      apiClient.payments.listByOrder(order.id)
+        .then(({ payments }) => {
+          const p = payments.find((x) => x.status === "completed");
+          if (p) { setPaymentId(p.id); setPaymentAmount(p.amount); setWithRefund(true); }
+        })
+        .catch(() => {});
+    } else {
+      setPaymentId(null); setWithRefund(false);
+    }
+  }, [order?.id]);
 
   async function handleConfirm() {
     if (!order) return;
     setLoading(true);
-    await onConfirm(order.id);
+    await onConfirm(order.id, reason || undefined, withRefund && paymentId ? paymentId : undefined);
     setLoading(false);
+    setReason(""); setWithRefund(false); setPaymentId(null);
     onClose();
   }
+
+  const isPaid = paymentId !== null;
 
   return (
     <Modal open={order !== null} onClose={onClose} title="Annulla ordine">
@@ -64,23 +86,111 @@ function CancelModal({
         <p style={{ margin: 0, color: "var(--color-gray-700)", fontSize: "var(--text-sm)" }}>
           Confermi l'annullamento dell'ordine <strong>#{order?.id.slice(-6).toUpperCase() ?? ""}</strong>?
         </p>
+        {isPaid && (
+          <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: "var(--radius-md)", padding: "12px 14px" }}>
+            <div style={{ fontWeight: 700, fontSize: "var(--text-sm)", color: "#92400E", marginBottom: "8px" }}>
+              Ordine già pagato — €{paymentAmount.toFixed(2)}
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "var(--text-sm)", color: "#78350F" }}>
+              <input type="checkbox" checked={withRefund} onChange={(e) => setWithRefund(e.target.checked)}
+                style={{ width: "16px", height: "16px", cursor: "pointer" }} />
+              Effettua rimborso contestuale
+            </label>
+          </div>
+        )}
         <input
           placeholder="Motivazione (opzionale)"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          style={{
-            height: "44px",
-            padding: "0 14px",
-            borderRadius: "var(--radius-lg)",
-            border: "2px solid var(--color-gray-200)",
-            fontFamily: "var(--font)",
-            fontSize: "var(--text-sm)",
-          }}
+          style={{ height: "44px", padding: "0 14px", borderRadius: "var(--radius-lg)", border: "2px solid var(--color-gray-200)", fontFamily: "var(--font)", fontSize: "var(--text-sm)" }}
         />
         <div style={{ display: "flex", gap: "var(--sp-sm)" }}>
-          <Button variant="ghost" size="sm" onClick={onClose} style={{ flex: 1 }}>Annulla</Button>
+          <Button variant="ghost" size="sm" onClick={onClose} style={{ flex: 1 }}>Chiudi</Button>
           <Button variant="danger" size="sm" onClick={handleConfirm} loading={loading} style={{ flex: 1 }}>
-            Conferma annullamento
+            {withRefund ? "Annulla e rimborsa" : "Conferma annullamento"}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Edit items modal ─────────────────────────────────────────────────────────
+
+function EditItemsModal({
+  order,
+  onSaved,
+  onClose,
+}: {
+  order: Order | null;
+  onSaved: () => void;
+  onClose: () => void;
+}) {
+  type EditItem = { productId: string; name: string; quantity: number; unitPrice: number };
+  const [items, setItems] = useState<EditItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!order) return;
+    setItems(order.items.map((i) => ({ productId: i.productId, name: i.name, quantity: i.quantity, unitPrice: i.unitPrice })));
+    setError(null);
+  }, [order?.id]);
+
+  function setQty(idx: number, qty: number) {
+    setItems((prev) => prev.map((it, i) => i === idx ? { ...it, quantity: Math.max(1, qty) } : it));
+  }
+  function removeItem(idx: number) {
+    setItems((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function handleSave() {
+    if (!order || items.length === 0) return;
+    setLoading(true); setError(null);
+    try {
+      await apiClient.orders.updateItems(order.id, items.map((i) => ({ productId: i.productId, name: i.name, quantity: i.quantity })));
+      onSaved();
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Errore");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const total = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+
+  return (
+    <Modal open={order !== null} onClose={onClose} title="Modifica ordine">
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-md)" }}>
+        {items.length === 0 ? (
+          <p style={{ margin: 0, color: "var(--color-gray-500)", fontSize: "var(--text-sm)" }}>Nessun articolo.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "320px", overflowY: "auto" }}>
+            {items.map((item, idx) => (
+              <div key={idx} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 10px", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)" }}>
+                <span style={{ flex: 1, fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-gray-800)" }}>{item.name}</span>
+                <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", width: "52px", textAlign: "right" }}>
+                  €{(item.unitPrice * item.quantity).toFixed(2)}
+                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  <button onClick={() => setQty(idx, item.quantity - 1)} style={{ width: "26px", height: "26px", borderRadius: "50%", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", fontSize: "14px", fontWeight: 700, color: "var(--color-gray-600)", display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
+                  <span style={{ width: "24px", textAlign: "center", fontSize: "var(--text-sm)", fontWeight: 700 }}>{item.quantity}</span>
+                  <button onClick={() => setQty(idx, item.quantity + 1)} style={{ width: "26px", height: "26px", borderRadius: "50%", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", fontSize: "14px", fontWeight: 700, color: "var(--color-gray-600)", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                </div>
+                <button onClick={() => removeItem(idx)} style={{ width: "26px", height: "26px", borderRadius: "50%", border: "none", background: "rgba(239,68,68,0.08)", cursor: "pointer", fontSize: "13px", color: "var(--color-danger)", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: "flex", justifyContent: "flex-end", fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-brand)" }}>
+          Totale: €{total.toFixed(2)}
+        </div>
+        {error && <div style={{ fontSize: "var(--text-sm)", color: "var(--color-danger)", fontWeight: 600 }}>{error}</div>}
+        <div style={{ display: "flex", gap: "var(--sp-sm)" }}>
+          <Button variant="ghost" size="sm" onClick={onClose} style={{ flex: 1 }}>Annulla</Button>
+          <Button size="sm" onClick={handleSave} loading={loading} disabled={items.length === 0} style={{ flex: 1 }}>
+            Salva modifiche
           </Button>
         </div>
       </div>
@@ -150,6 +260,7 @@ function OrderRow({
   onReprintKitchen,
   onCancel,
   onRefund,
+  onEdit,
   receiptPrefix,
   receiptPadding,
   terminalName,
@@ -160,11 +271,13 @@ function OrderRow({
   onReprintKitchen: (id: string) => void;
   onCancel: (order: Order) => void;
   onRefund: (order: Order) => void;
+  onEdit: (order: Order) => void;
   receiptPrefix: string;
   receiptPadding: number;
   terminalName?: string;
 }) {
-  const canCancel = isAdmin && order.status !== "completed" && order.status !== "cancelled";
+  const canCancel = isAdmin && order.status !== "cancelled";
+  const canEdit = isAdmin && order.status !== "completed" && order.status !== "cancelled";
   const canRefund = isAdmin && order.status === "completed";
   const itemSummary = order.items.length > 0
     ? order.items.map((i) => `${i.quantity}× ${i.name}`).join(", ")
@@ -209,6 +322,12 @@ function OrderRow({
             style={{ color: "var(--color-gray-600)" }}>
             Comanda
           </Button>
+          {canEdit && (
+            <Button size="sm" variant="ghost" onClick={() => onEdit(order)}
+              style={{ color: "var(--color-brand)", borderColor: "var(--color-brand)" }}>
+              Modifica
+            </Button>
+          )}
           {canRefund && (
             <Button size="sm" variant="ghost" onClick={() => onRefund(order)}
               style={{ color: "#b45309", borderColor: "#fcd34d" }}>
@@ -249,8 +368,12 @@ function displayOrderNum(order: Order, prefix: string, padding: number): string 
 }
 
 export function HistoryScreen() {
+  const navigate = useNavigate();
   const session = useStore((s) => s.session);
   const isAdmin = session?.role === "admin";
+  const clearCart = useStore((s) => s.clearCart);
+  const addToCart = useStore((s) => s.addToCart);
+  const setEditingOrderId = useStore((s) => s.setEditingOrderId);
 
   const [receiptPrefix, setReceiptPrefix] = useState("");
   const [receiptPadding, setReceiptPadding] = useState(0);
@@ -278,6 +401,21 @@ export function HistoryScreen() {
   function showToast(msg: string, type: "success" | "error") {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
+  }
+
+  function handleEditOrder(order: Order) {
+    clearCart();
+    for (const item of order.items) {
+      addToCart({
+        productId: item.productId,
+        name: item.name,
+        unitPrice: item.unitPrice,
+        quantity: item.quantity,
+        ...(item.notes ? { notes: item.notes } : {}),
+      });
+    }
+    setEditingOrderId(order.id);
+    navigate("/pos");
   }
 
   useEffect(() => {
@@ -347,10 +485,11 @@ export function HistoryScreen() {
     }
   }
 
-  async function handleCancel(id: string) {
+  async function handleCancel(id: string, reason?: string, refundPaymentId?: string) {
     try {
-      await apiClient.orders.cancel(id);
-      showToast("Ordine annullato", "success");
+      await apiClient.orders.cancel(id, reason);
+      if (refundPaymentId) await apiClient.payments.refund(refundPaymentId, reason);
+      showToast(refundPaymentId ? "Ordine annullato e rimborso effettuato" : "Ordine annullato", "success");
       load(0, false);
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Errore annullamento", "error");
@@ -483,6 +622,7 @@ export function HistoryScreen() {
               onReprintKitchen={handleReprintKitchen}
               onCancel={setCancelOrder}
               onRefund={handleRefundClick}
+              onEdit={handleEditOrder}
               receiptPrefix={receiptPrefix}
               receiptPadding={receiptPadding}
               {...(terminalName ? { terminalName } : {})}

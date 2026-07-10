@@ -32,6 +32,7 @@ interface PayModalProps {
 
 const BANKNOTES = [5, 10, 20, 50, 100];
 
+// TODO: unify with CheckoutModal in sales/PosScreen.tsx — shares payment method selection, order summary and pay() call; diverges on cash/change section vs table/customer fields
 function PayModal({ order, onClose, onPaid }: PayModalProps) {
   const { paymentMethods, setPaymentMethods } = useAdminStore();
   const activeMethods = paymentMethods.filter((m) => m.active);

@@ -25,7 +25,7 @@ interface Session {
   readonly token: string;
   readonly userId: string;
   readonly role: string;
-  readonly username: string;
+  readonly name: string;
 }
 
 export interface SelectedOption {
@@ -101,6 +101,10 @@ interface GlobalState {
   // Multi-terminal mode (read from app settings)
   multiTerminalEnabled: boolean;
   setMultiTerminalEnabled: (enabled: boolean) => void;
+
+  // Order being edited (History → POS flow)
+  editingOrderId: string | null;
+  setEditingOrderId: (id: string | null) => void;
 }
 
 function makeCartKey(productId: string, selectedOptions: SelectedOption[]): string {
@@ -209,4 +213,7 @@ export const useStore = create<GlobalState>((set, get) => ({
 
   multiTerminalEnabled: false,
   setMultiTerminalEnabled: (multiTerminalEnabled) => set({ multiTerminalEnabled }),
+
+  editingOrderId: null,
+  setEditingOrderId: (editingOrderId) => set({ editingOrderId }),
 }));

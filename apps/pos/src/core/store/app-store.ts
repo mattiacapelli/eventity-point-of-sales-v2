@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import type { SyncStatus } from "../sync/sync-engine.js";
+
+type SyncStatus = "idle" | "syncing" | "error";
 
 interface AppState {
   readonly isOnline: boolean;

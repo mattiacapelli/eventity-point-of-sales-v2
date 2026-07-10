@@ -1,3 +1,4 @@
+// TODO: not wired to moduleLoaderPlugin — register eventsModule in apps/server/src/plugins/module-loader.plugin.ts when ready
 import type { PosModule } from "@pos/shared-types";
 
 export const eventsModule: PosModule = {

@@ -18,9 +18,24 @@ const wsGateway: FastifyPluginAsync = async (fastify) => {
   fastify.get(
     "/ws",
     { websocket: true },
-    (socket: WebSocket, request) => {
+    async (socket: WebSocket, request) => {
+      const params = new URL(request.url, "http://x").searchParams;
+      const token = params.get("token");
+      const terminalId = params.get("terminalId") ?? null;
+
+      if (!token) {
+        socket.close(1008, "Missing token");
+        return;
+      }
+
+      try {
+        await fastify.authService.validateToken(token);
+      } catch {
+        socket.close(1008, "Invalid or expired token");
+        return;
+      }
+
       const clientId = randomUUID();
-      const terminalId = new URL(request.url, "http://x").searchParams.get("terminalId") ?? null;
 
       broadcaster.addClient({
         id: clientId,

@@ -28,7 +28,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           type: "object",
           required: ["pin"],
           properties: {
-            pin: { type: "string", minLength: 4, maxLength: 8 },
+            pin: { type: "string", minLength: 4, maxLength: 12 },
           },
         },
         response: {
@@ -112,6 +112,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
             properties: {
               userId: { type: "string" },
               role: { type: "string" },
+              username: { type: "string" },
+              name: { type: "string" },
               sessionId: { type: "string" },
             },
           },
@@ -129,6 +131,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         userId: session.userId,
         role: session.role,
         username: session.username,
+        name: session.name,
         sessionId: session.sessionId,
       });
     }

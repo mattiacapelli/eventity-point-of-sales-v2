@@ -218,10 +218,15 @@ export const adminApi = {
       gridShowDescription: boolean;
       gridSortBy: "custom" | "name" | "price" | "color" | "category";
       gridBaseCols: number;
+      gridShowCategory: boolean;
+      gridShowImage: boolean;
+      gridCardTextSize: number;
+      gridCardRowHeight: number;
       multiTerminalEnabled: boolean;
       cartNotesEnabled: boolean;
       cartPaxEnabled: boolean;
       cartDiscountEnabled: boolean;
+      cartTextSize: number;
     }>("GET", "/admin/settings"),
     update: (data: Partial<{
       expressMode: boolean;
@@ -233,10 +238,15 @@ export const adminApi = {
       gridShowDescription: boolean;
       gridSortBy: "custom" | "name" | "price" | "color" | "category";
       gridBaseCols: number;
+      gridShowCategory: boolean;
+      gridShowImage: boolean;
+      gridCardTextSize: number;
+      gridCardRowHeight: number;
       multiTerminalEnabled: boolean;
       cartNotesEnabled: boolean;
       cartPaxEnabled: boolean;
       cartDiscountEnabled: boolean;
+      cartTextSize: number;
     }>) => req<{
       expressMode: boolean;
       receiptNumberMode: "default" | "global" | "shift";
@@ -247,10 +257,15 @@ export const adminApi = {
       gridShowDescription: boolean;
       gridSortBy: "custom" | "name" | "price" | "color" | "category";
       gridBaseCols: number;
+      gridShowCategory: boolean;
+      gridShowImage: boolean;
+      gridCardTextSize: number;
+      gridCardRowHeight: number;
       multiTerminalEnabled: boolean;
       cartNotesEnabled: boolean;
       cartPaxEnabled: boolean;
       cartDiscountEnabled: boolean;
+      cartTextSize: number;
     }>("PATCH", "/admin/settings", data),
     resetReceiptCounter: (scope?: string, startFrom?: number) =>
       req<{ scope: string; lastValue: number }>("POST", "/admin/settings/reset-receipt-counter", { scope: scope ?? "global", startFrom: startFrom ?? 0 }),
@@ -382,4 +397,5 @@ export const adminApi = {
     update: (id: string, data: Partial<{ name: string; username: string; role: UserRole; active: boolean }>) => req<{ ok: boolean }>("PATCH", `/admin/users/${id}`, data),
     resetPin: (id: string, newPin: string) => req<{ ok: boolean }>("POST", `/admin/users/${id}/reset-pin`, { newPin }),
   },
+  factoryReset: (password: string) => req<{ ok: boolean }>("POST", "/admin/factory-reset", { password }),
 };

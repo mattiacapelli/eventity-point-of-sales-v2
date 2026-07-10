@@ -141,6 +141,23 @@ export class OrderService {
     return updated;
   }
 
+  async updateItems(id: string, items: Array<{ productId: string; name: string; quantity: number; selectedOptionIds?: string[] | undefined; notes?: string | undefined }>): Promise<Order> {
+    const current = await this.getById(id);
+    if (current.status === "completed" || current.status === "cancelled") {
+      throw new OrderValidationError(`Cannot edit items on order in status "${current.status}"`);
+    }
+    const updated = await this.repo.replaceItems(id, items);
+    if (updated === null) throw new OrderNotFoundError(id);
+    this.eventBus.emit("ORDER_UPDATED", {
+      traceId: randomUUID(),
+      order: updated,
+      input: { id },
+      previousStatus: current.status,
+      timestamp: new Date(),
+    });
+    return updated;
+  }
+
   async cancel(id: string, reason?: string): Promise<Order> {
     const current = await this.getById(id);
 

@@ -10,6 +10,7 @@ interface MeResponse {
   userId: string;
   role: string;
   username: string;
+  name: string;
 }
 
 export const authClient = {

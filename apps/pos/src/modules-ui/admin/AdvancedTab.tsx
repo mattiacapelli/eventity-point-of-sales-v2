@@ -1,7 +1,177 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { adminApi } from "../../core/admin-api.js";
 import type { ModuleInfo } from "../../core/admin-api.js";
 import { ArrowPathIcon } from "../../components/ui/icons.js";
+
+type ResetStep = "password" | "confirm1" | "confirm2" | "done";
+
+function FactoryResetDialog({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState<ResetStep>("password");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, [step]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  async function handleNext(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    if (step === "password") {
+      if (!password.trim()) { setError("Inserisci la password"); return; }
+      setStep("confirm1");
+      return;
+    }
+    if (step === "confirm1") {
+      setStep("confirm2");
+      return;
+    }
+    if (step === "confirm2") {
+      setLoading(true);
+      try {
+        await adminApi.factoryReset(password);
+        setStep("done");
+        // Clear all POS localStorage keys so stale shift/terminal IDs don't
+        // cause FK constraint errors on the first request after the reset.
+        const posKeys = Object.keys(localStorage).filter((k) => k.startsWith("pos_"));
+        posKeys.forEach((k) => localStorage.removeItem(k));
+        setTimeout(() => { window.location.href = "/"; }, 2000);
+      } catch (err) {
+        setStep("password");
+        setPassword("");
+        setError(err instanceof Error ? err.message : "Errore — password non valida");
+      } finally {
+        setLoading(false);
+      }
+    }
+  }
+
+  const stepConfig: Record<ResetStep, { title: string; body: React.ReactNode; action: string; danger: boolean }> = {
+    password: {
+      title: "Reset di sistema",
+      body: (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div style={{ fontSize: "14px", color: "var(--color-gray-600)", lineHeight: 1.6 }}>
+            Questa operazione <strong>cancella tutti i dati</strong>: ordini, scontrini, catalogo, turni, terminali, stampanti e impostazioni.<br />
+            L'unico dato conservato è il tuo utente admin.
+          </div>
+          <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", padding: "10px 14px", fontSize: "13px", color: "#DC2626", fontWeight: 600 }}>
+            ⚠️ Questa azione è irreversibile.
+          </div>
+          <input
+            ref={inputRef}
+            type="password"
+            placeholder="Password di reset"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={{ padding: "10px 14px", borderRadius: "8px", border: "1.5px solid var(--color-gray-200)", fontSize: "14px", fontFamily: "var(--font)", outline: "none" }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "#DC2626"; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-gray-200)"; }}
+          />
+          {error && <div style={{ fontSize: "13px", color: "#DC2626", fontWeight: 600 }}>{error}</div>}
+        </div>
+      ),
+      action: "Continua",
+      danger: false,
+    },
+    confirm1: {
+      title: "Sei sicuro?",
+      body: (
+        <div style={{ fontSize: "14px", color: "var(--color-gray-600)", lineHeight: 1.6 }}>
+          Stai per cancellare <strong>tutti i dati del sistema</strong>.<br />
+          Questa operazione non può essere annullata.<br /><br />
+          Conferma per continuare.
+        </div>
+      ),
+      action: "Sì, sono sicuro",
+      danger: true,
+    },
+    confirm2: {
+      title: "Ultima conferma",
+      body: (
+        <div style={{ fontSize: "14px", color: "var(--color-gray-600)", lineHeight: 1.6 }}>
+          Questa è l'<strong>ultima conferma</strong>.<br />
+          Dopo questo click tutti i dati verranno eliminati definitivamente.
+        </div>
+      ),
+      action: "RESET DEFINITIVO",
+      danger: true,
+    },
+    done: {
+      title: "Reset completato",
+      body: (
+        <div style={{ textAlign: "center", padding: "16px 0", fontSize: "14px", color: "var(--color-gray-600)" }}>
+          ✓ Sistema resettato. Reindirizzamento in corso...
+        </div>
+      ),
+      action: "",
+      danger: false,
+    },
+  };
+
+  const cfg = stepConfig[step];
+
+  return createPortal(
+    <div
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: "fixed", inset: 0, zIndex: 600,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "24px",
+      }}
+    >
+      <div style={{
+        background: "var(--color-white)",
+        borderRadius: "16px",
+        boxShadow: "0 24px 64px rgba(0,0,0,0.25)",
+        width: "100%", maxWidth: "420px",
+        overflow: "hidden",
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: "20px 24px 16px",
+          borderBottom: "1px solid var(--color-gray-100)",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <span style={{ fontWeight: 700, fontSize: "16px", color: "#DC2626" }}>{cfg.title}</span>
+          {step !== "done" && (
+            <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "var(--color-gray-400)", lineHeight: 1 }}>×</button>
+          )}
+        </div>
+
+        {/* Body */}
+        <form onSubmit={(e) => void handleNext(e)}>
+          <div style={{ padding: "20px 24px" }}>{cfg.body}</div>
+
+          {step !== "done" && (
+            <div style={{ padding: "0 24px 20px", display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+              <button type="button" onClick={onClose} style={{
+                padding: "9px 18px", borderRadius: "8px",
+                border: "1px solid var(--color-gray-200)", background: "var(--color-white)",
+                color: "var(--color-gray-600)", fontFamily: "var(--font)", fontSize: "14px", fontWeight: 600, cursor: "pointer",
+              }}>Annulla</button>
+              <button type="submit" disabled={loading} style={{
+                padding: "9px 18px", borderRadius: "8px", border: "none",
+                background: cfg.danger ? "#DC2626" : "var(--color-brand)",
+                color: "white", fontFamily: "var(--font)", fontSize: "14px", fontWeight: 700,
+                cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1,
+              }}>{loading ? "..." : cfg.action}</button>
+            </div>
+          )}
+        </form>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 export function AdvancedTab({ onModuleToggle }: { onModuleToggle?: () => void }) {
   const [subTab, setSubTab] = useState<"general" | "modules" | "fiscal">("general");
@@ -10,14 +180,11 @@ export function AdvancedTab({ onModuleToggle }: { onModuleToggle?: () => void })
   const [savingExpress, setSavingExpress] = useState(false);
   const [multiTerminalEnabled, setMultiTerminalEnabled] = useState(false);
   const [savingMultiTerminal, setSavingMultiTerminal] = useState(false);
-  const [cartNotesEnabled, setCartNotesEnabled] = useState(true);
-  const [cartPaxEnabled, setCartPaxEnabled] = useState(true);
-  const [cartDiscountEnabled, setCartDiscountEnabled] = useState(true);
-  const [savingCartFeature, setSavingCartFeature] = useState<string | null>(null);
   const [modules, setModules] = useState<ModuleInfo[]>([]);
   const [loadingModules, setLoadingModules] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
   const [moduleError, setModuleError] = useState<string | null>(null);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
   // Fiscal RT settings
   const [fiscalEnabled, setFiscalEnabled] = useState(false);
@@ -32,9 +199,6 @@ export function AdvancedTab({ onModuleToggle }: { onModuleToggle?: () => void })
     adminApi.settings.get().then((s) => {
       setExpressMode(s.expressMode);
       setMultiTerminalEnabled(s.multiTerminalEnabled);
-      setCartNotesEnabled(s.cartNotesEnabled);
-      setCartPaxEnabled(s.cartPaxEnabled);
-      setCartDiscountEnabled(s.cartDiscountEnabled);
     }).catch(() => {});
 
     adminApi.modules.list()
@@ -182,38 +346,26 @@ export function AdvancedTab({ onModuleToggle }: { onModuleToggle?: () => void })
             </div>
           </div>
 
-          {/* Cart features */}
-          <div style={cardStyle}>
-            <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-900)", marginBottom: "16px" }}>Funzionalità cassa</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {(
-                [
-                  { key: "cartNotesEnabled", label: "Note ordine", desc: "Campo note libere sulla comanda (allergie, preferenze, ecc.)", value: cartNotesEnabled, set: setCartNotesEnabled },
-                  { key: "cartPaxEnabled", label: "Coperti", desc: "Stepper per il numero di coperti associato all'ordine", value: cartPaxEnabled, set: setCartPaxEnabled },
-                  { key: "cartDiscountEnabled", label: "Sconto", desc: "Applica uno sconto percentuale o fisso all'ordine", value: cartDiscountEnabled, set: setCartDiscountEnabled },
-                ] as const
-              ).map(({ key, label, desc, value, set }) => (
-                <div key={key} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--sp-md)" }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)", marginBottom: "3px" }}>{label}</div>
-                    <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", lineHeight: 1.5 }}>{desc}</div>
-                  </div>
-                  <button
-                    disabled={savingCartFeature === key}
-                    onClick={async () => {
-                      const next = !value;
-                      setSavingCartFeature(key);
-                      try { await adminApi.settings.update({ [key]: next } as Parameters<typeof adminApi.settings.update>[0]); set(next); }
-                      catch { /* ignore */ } finally { setSavingCartFeature(null); }
-                    }}
-                    style={toggleStyle(value, savingCartFeature === key)}
-                  >
-                    <span style={thumbStyle(value)} />
-                  </button>
-                </div>
-              ))}
+          {/* Danger zone */}
+          <div style={{ ...cardStyle, borderColor: "#FECACA", background: "#FFF5F5" }}>
+            <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "#DC2626", marginBottom: "6px" }}>Zona pericolosa</div>
+            <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", lineHeight: 1.5, marginBottom: "14px" }}>
+              Il reset di sistema cancella tutti i dati (ordini, catalogo, turni, stampanti, impostazioni) mantenendo solo il tuo account admin.
             </div>
+            <button
+              onClick={() => setResetDialogOpen(true)}
+              style={{
+                padding: "9px 20px", borderRadius: "var(--radius-md)",
+                border: "1.5px solid #DC2626", background: "white",
+                color: "#DC2626", fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 700, cursor: "pointer",
+              }}
+            >
+              Reset di sistema
+            </button>
           </div>
+
+          {resetDialogOpen && <FactoryResetDialog onClose={() => setResetDialogOpen(false)} />}
+
         </>
       )}
 

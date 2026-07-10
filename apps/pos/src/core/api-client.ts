@@ -119,6 +119,8 @@ export const apiClient = {
       request<Order>("PATCH", `/orders/${id}/status`, { status }),
     updateDetails: (id: string, data: { tableId?: string | null; customerName?: string | null }) =>
       request<Order>("PATCH", `/orders/${id}/details`, data),
+    updateItems: (id: string, items: Array<{ productId: string; name: string; quantity: number; selectedOptionIds?: string[]; notes?: string }>) =>
+      request<Order>("PATCH", `/orders/${id}/items`, { items }),
     cancel: (id: string, reason?: string) =>
       request<Order>("DELETE", `/orders/${id}`, { reason }),
     reprint: (id: string) =>

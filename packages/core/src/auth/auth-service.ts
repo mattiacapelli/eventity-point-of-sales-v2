@@ -41,7 +41,7 @@ export class AuthService {
       throw new AuthError("Invalid credentials");
     }
 
-    return this.createSession(user as { id: string; role: string; username: string });
+    return this.createSession(user as { id: string; role: string; username: string; name: string });
   }
 
   async loginByPin(pin: string): Promise<LoginResult> {
@@ -64,10 +64,10 @@ export class AuthService {
     const matched = results.find((r) => r !== null);
     if (!matched) throw new AuthError("Invalid credentials");
 
-    return this.createSession(matched as { id: string; role: string; username: string });
+    return this.createSession(matched as { id: string; role: string; username: string; name: string });
   }
 
-  private async createSession(user: { id: string; role: string; username: string }): Promise<LoginResult> {
+  private async createSession(user: { id: string; role: string; username: string; name: string }): Promise<LoginResult> {
     const token = randomUUID();
     const now = new Date();
     const expiresAt = new Date(now.getTime() + this.sessionTtlSeconds * 1000);
@@ -91,6 +91,7 @@ export class AuthService {
         userId: user.id,
         role: user.role as UserRole,
         username: user.username,
+        name: user.name,
       },
     };
   }
@@ -126,6 +127,7 @@ export class AuthService {
       userId: user.id,
       role: user.role as UserRole,
       username: user.username,
+      name: user.name,
     };
   }
 
