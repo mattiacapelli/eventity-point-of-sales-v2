@@ -10,6 +10,9 @@ export type InventoryItem = {
   currentStock: number;
   minStock: number;
   productionCenterId: string | null;
+  productId: string | null;
+  resetOnShiftOpen: number;
+  shiftStock: number;
   createdAt: number;
   updatedAt: number;
 };
@@ -63,7 +66,17 @@ export class InventoryRepository {
     return row as InventoryItem | undefined;
   }
 
-  async createItem(data: Omit<InventoryItem, "currentStock" | "minStock"> & { currentStock?: number; minStock?: number }): Promise<InventoryItem> {
+  async findItemsByProductId(productId: string): Promise<InventoryItem[]> {
+    const rows = await this.db.select().from(inventoryItems).where(eq(inventoryItems.productId, productId));
+    return rows as unknown as InventoryItem[];
+  }
+
+  async findItemsWithShiftReset(): Promise<InventoryItem[]> {
+    const rows = await this.db.select().from(inventoryItems).where(eq(inventoryItems.resetOnShiftOpen, 1));
+    return rows as unknown as InventoryItem[];
+  }
+
+  async createItem(data: Omit<InventoryItem, "currentStock" | "minStock" | "productId" | "resetOnShiftOpen" | "shiftStock"> & { currentStock?: number; minStock?: number; productId?: string | null; resetOnShiftOpen?: number; shiftStock?: number }): Promise<InventoryItem> {
     await this.db.insert(inventoryItems).values({
       id: data.id,
       name: data.name,
@@ -72,13 +85,16 @@ export class InventoryRepository {
       currentStock: data.currentStock ?? 0,
       minStock: data.minStock ?? 0,
       productionCenterId: data.productionCenterId ?? null,
+      productId: data.productId ?? null,
+      resetOnShiftOpen: data.resetOnShiftOpen ?? 0,
+      shiftStock: data.shiftStock ?? 0,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
     });
     return (await this.findItemById(data.id))!;
   }
 
-  async updateItem(id: string, data: Partial<Pick<InventoryItem, "name" | "sku" | "unit" | "currentStock" | "minStock" | "productionCenterId" | "updatedAt">>): Promise<InventoryItem | undefined> {
+  async updateItem(id: string, data: Partial<Pick<InventoryItem, "name" | "sku" | "unit" | "currentStock" | "minStock" | "productionCenterId" | "productId" | "resetOnShiftOpen" | "shiftStock" | "updatedAt">>): Promise<InventoryItem | undefined> {
     if (Object.keys(data).length > 0) {
       await this.db.update(inventoryItems).set(data).where(eq(inventoryItems.id, id));
     }

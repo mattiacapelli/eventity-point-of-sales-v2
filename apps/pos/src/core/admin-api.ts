@@ -29,6 +29,9 @@ export interface InventoryItemRecord {
   currentStock: number;
   minStock: number;
   productionCenterId: string | null;
+  productId: string | null;
+  resetOnShiftOpen: number;
+  shiftStock: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -227,6 +230,7 @@ export const adminApi = {
       cartPaxEnabled: boolean;
       cartDiscountEnabled: boolean;
       cartTextSize: number;
+      tablesEnabled: boolean;
     }>("GET", "/admin/settings"),
     update: (data: Partial<{
       expressMode: boolean;
@@ -247,6 +251,7 @@ export const adminApi = {
       cartPaxEnabled: boolean;
       cartDiscountEnabled: boolean;
       cartTextSize: number;
+      tablesEnabled: boolean;
     }>) => req<{
       expressMode: boolean;
       receiptNumberMode: "default" | "global" | "shift";
@@ -266,6 +271,7 @@ export const adminApi = {
       cartPaxEnabled: boolean;
       cartDiscountEnabled: boolean;
       cartTextSize: number;
+      tablesEnabled: boolean;
     }>("PATCH", "/admin/settings", data),
     resetReceiptCounter: (scope?: string, startFrom?: number) =>
       req<{ scope: string; lastValue: number }>("POST", "/admin/settings/reset-receipt-counter", { scope: scope ?? "global", startFrom: startFrom ?? 0 }),
@@ -344,10 +350,11 @@ export const adminApi = {
   },
   inventory: {
     listItems: () => req<InventoryItemRecord[]>("GET", "/inventory/items"),
-    createItem: (data: { name: string; sku?: string; unit?: string; currentStock?: number; minStock?: number; productionCenterId?: string }) =>
+    createItem: (data: { name: string; sku?: string; unit?: string; currentStock?: number; minStock?: number; productionCenterId?: string; productId?: string | null; resetOnShiftOpen?: boolean; shiftStock?: number }) =>
       req<InventoryItemRecord>("POST", "/inventory/items", data),
-    updateItem: (id: string, data: Partial<{ name: string; sku: string | null; unit: string; minStock: number; productionCenterId: string | null }>) =>
+    updateItem: (id: string, data: Partial<{ name: string; sku: string | null; unit: string; minStock: number; productionCenterId: string | null; productId: string | null; resetOnShiftOpen: boolean; shiftStock: number }>) =>
       req<InventoryItemRecord>("PATCH", `/inventory/items/${id}`, data),
+    getItemsByProduct: (productId: string) => req<InventoryItemRecord[]>("GET", `/inventory/items/by-product/${productId}`),
     deleteItem: (id: string) => req<void>("DELETE", `/inventory/items/${id}`),
     adjustStock: (id: string, quantity: number, reason?: string) =>
       req<InventoryItemRecord>("POST", `/inventory/items/${id}/adjust`, { quantity, ...(reason !== undefined ? { reason } : {}) }),

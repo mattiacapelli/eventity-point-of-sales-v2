@@ -32,6 +32,9 @@ export class InventoryService {
     currentStock?: number;
     minStock?: number;
     productionCenterId?: string | null;
+    productId?: string | null;
+    resetOnShiftOpen?: boolean;
+    shiftStock?: number;
   }): Promise<InventoryItem> {
     const now = Math.floor(Date.now() / 1000);
     return this.repo.createItem({
@@ -42,6 +45,9 @@ export class InventoryService {
       currentStock: data.currentStock ?? 0,
       minStock: data.minStock ?? 0,
       productionCenterId: data.productionCenterId ?? null,
+      productId: data.productId ?? null,
+      resetOnShiftOpen: data.resetOnShiftOpen ? 1 : 0,
+      shiftStock: data.shiftStock ?? 0,
       createdAt: now,
       updatedAt: now,
     });
@@ -53,6 +59,9 @@ export class InventoryService {
     unit?: string;
     minStock?: number;
     productionCenterId?: string | null;
+    productId?: string | null;
+    resetOnShiftOpen?: boolean;
+    shiftStock?: number;
   }): Promise<InventoryItem> {
     const existing = await this.repo.findItemById(id);
     if (!existing) throw new InventoryValidationError(`Item ${id} not found`);
@@ -64,8 +73,32 @@ export class InventoryService {
     if (data.unit !== undefined) update.unit = data.unit;
     if (data.minStock !== undefined) update.minStock = data.minStock;
     if ("productionCenterId" in data) update.productionCenterId = data.productionCenterId ?? null;
+    if ("productId" in data) update.productId = data.productId ?? null;
+    if (data.resetOnShiftOpen !== undefined) update.resetOnShiftOpen = data.resetOnShiftOpen ? 1 : 0;
+    if (data.shiftStock !== undefined) update.shiftStock = data.shiftStock;
 
     return (await this.repo.updateItem(id, update))!;
+  }
+
+  async resetStockForShift(): Promise<void> {
+    const items = await this.repo.findItemsWithShiftReset();
+    const now = Math.floor(Date.now() / 1000);
+    for (const item of items) {
+      await this.repo.updateItem(item.id, { currentStock: item.shiftStock, updatedAt: now });
+      await this.repo.createMovement({
+        id: randomUUID(),
+        itemId: item.id,
+        type: "restock",
+        quantity: item.shiftStock - item.currentStock,
+        reason: "reset apertura turno",
+        orderId: null,
+        createdAt: now,
+      });
+    }
+  }
+
+  async getItemsByProduct(productId: string): Promise<InventoryItem[]> {
+    return this.repo.findItemsByProductId(productId);
   }
 
   async deleteItem(id: string): Promise<void> {

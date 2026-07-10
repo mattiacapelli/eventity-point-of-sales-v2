@@ -43,13 +43,14 @@ interface CardProps {
   cardTextSize: number;
   cardRowHeight: number;
   loading?: boolean;
+  stockCount: number | null;
   onClick: () => void;
   onDragStart: (e: React.DragEvent, productId: string) => void;
   onResizeStart: (e: React.PointerEvent, productId: string, scope: string) => void;
   scope: string;
 }
 
-function ProductCard({ product, slot, locked, editMode, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, loading, onClick, onDragStart, onResizeStart, scope }: CardProps) {
+function ProductCard({ product, slot, locked, editMode, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, loading, stockCount, onClick, onDragStart, onResizeStart, scope }: CardProps) {
   const hasColor = !!product.color;
   const hasImage = showImage && !!product.imageData;
   const imageUrl = hasImage ? `/api/static/${product.imageData}` : null;
@@ -183,6 +184,22 @@ function ProductCard({ product, slot, locked, editMode, showPrice, showDescripti
         </div>
       </button>
 
+      {stockCount !== null && (
+        <div style={{
+          position: "absolute", top: "5px", right: "5px",
+          background: stockCount <= 0 ? "rgba(239,68,68,0.88)" : "rgba(0,0,0,0.52)",
+          color: "white",
+          borderRadius: "999px",
+          fontSize: "11px",
+          fontWeight: 700,
+          padding: "2px 7px",
+          pointerEvents: "none",
+          lineHeight: 1.4,
+        }}>
+          {stockCount}
+        </div>
+      )}
+
       {loading && (
         <div style={{
           position: "absolute", inset: 0, borderRadius: "var(--radius-lg)",
@@ -257,13 +274,14 @@ interface GridAreaProps {
   cardTextSize: number;
   cardRowHeight: number;
   loadingProductId: string | null;
+  stockMap: Map<string, number>;
   onProductClick: (p: Product) => void;
   onDragStart: (e: React.DragEvent, productId: string, scope: string) => void;
   onDrop: (scope: string, x: number, y: number) => void;
   onResizeStart: (e: React.PointerEvent, productId: string, scope: string) => void;
 }
 
-function GridArea({ products, slots, scope, baseCols, editMode, locked, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, loadingProductId, onProductClick, onDragStart, onDrop, onResizeStart }: GridAreaProps) {
+function GridArea({ products, slots, scope, baseCols, editMode, locked, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, loadingProductId, stockMap, onProductClick, onDragStart, onDrop, onResizeStart }: GridAreaProps) {
   const slotMap = new Map(slots.map((s) => [s.productId, s]));
   const positioned = products.filter((p) => slotMap.has(p.id));
   const floating = products.filter((p) => !slotMap.has(p.id));
@@ -300,6 +318,7 @@ function GridArea({ products, slots, scope, baseCols, editMode, locked, showPric
           product={p}
           slot={slotMap.get(p.id)}
           {...cardProps}
+          stockCount={stockMap.has(p.id) ? (stockMap.get(p.id) ?? null) : null}
           loading={loadingProductId === p.id}
           onClick={() => onProductClick(p)}
           onDragStart={(e, id) => onDragStart(e, id, scope)}
@@ -316,6 +335,7 @@ function GridArea({ products, slots, scope, baseCols, editMode, locked, showPric
           product={p}
           slot={undefined}
           {...cardProps}
+          stockCount={stockMap.has(p.id) ? (stockMap.get(p.id) ?? null) : null}
           loading={loadingProductId === p.id}
           onClick={() => onProductClick(p)}
           onDragStart={(e, id) => onDragStart(e, id, scope)}
@@ -354,6 +374,19 @@ export function ProductGrid() {
 
   const [loadingProductId, setLoadingProductId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [stockMap, setStockMap] = useState<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    adminApi.inventory.listItems()
+      .then((items) => {
+        const map = new Map<string, number>();
+        for (const item of items) {
+          if (item.productId) map.set(item.productId, item.currentStock);
+        }
+        setStockMap(map);
+      })
+      .catch(() => {});
+  }, []);
 
   // Drag state
   const dragProductIdRef = useRef<string | null>(null);
@@ -758,6 +791,7 @@ export function ProductGrid() {
                   onDragStart={handleDragStart}
                   onDrop={handleDrop}
                   loadingProductId={loadingProductId}
+                  stockMap={stockMap}
                   onResizeStart={handleResizeStart}
                 />
               );
@@ -779,6 +813,7 @@ export function ProductGrid() {
                 cardTextSize={cardTextSize}
                 cardRowHeight={cardRowHeight}
                 loadingProductId={loadingProductId}
+                stockMap={stockMap}
                 onProductClick={(p) => void handleProductClick(p)}
                 onDragStart={handleDragStart}
                 onDrop={handleDrop}
@@ -815,6 +850,7 @@ export function ProductGrid() {
                   onDragStart={handleDragStart}
                   onDrop={handleDrop}
                   loadingProductId={loadingProductId}
+                  stockMap={stockMap}
                   onResizeStart={handleResizeStart}
                 />
               </div>

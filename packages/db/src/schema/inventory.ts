@@ -10,6 +10,9 @@ export const inventoryItems = sqliteTable("inventory_items", {
   currentStock:       real("current_stock").notNull().default(0),
   minStock:           real("min_stock").notNull().default(0),
   productionCenterId: text("production_center_id"),
+  productId:          text("product_id").references(() => products.id),
+  resetOnShiftOpen:   integer("reset_on_shift_open").notNull().default(0),
+  shiftStock:         real("shift_stock").notNull().default(0),
   createdAt:          integer("created_at").notNull(),
   updatedAt:          integer("updated_at").notNull(),
 });

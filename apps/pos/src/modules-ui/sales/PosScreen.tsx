@@ -42,25 +42,28 @@ function CheckoutModal() {
   const [paid, setPaid] = useState(false);
   const [tableId, setTableId] = useState("");
   const [customerName, setCustomerName] = useState("");
+  const [tablesEnabled, setTablesEnabled] = useState(false);
 
   const activeMethods = paymentMethods.filter((m) => m.active);
+  const singleMethod = activeMethods.length === 1 ? activeMethods[0] : null;
 
-  // Load payment methods when modal is needed; auto-select first
+  // Load payment methods + settings when modal opens; auto-select if single method
   useEffect(() => {
     if (!checkoutOrder) return;
     // Fall back to values prefilled by a QR scan when the order itself doesn't have them yet.
     setTableId(checkoutOrder.tableId ?? pendingTableId ?? "");
     setCustomerName(checkoutOrder.customerName ?? pendingCustomerName ?? "");
+    adminApi.settings.get().then((s) => setTablesEnabled(s.tablesEnabled)).catch(() => {});
     if (paymentMethods.length === 0) {
       adminApi.paymentMethods.list().then((ms) => {
         setPaymentMethods(ms);
         const active = ms.filter((m) => m.active);
-        if (active.length > 0 && !selectedMethodId) setSelectedMethodId(active[0]!.id);
+        if (active.length > 0) setSelectedMethodId(active[0]!.id);
       }).catch(console.error);
-    } else if (!selectedMethodId && activeMethods.length > 0) {
-      setSelectedMethodId(activeMethods[0]!.id);
+    } else {
+      setSelectedMethodId(activeMethods[0]?.id ?? null);
     }
-  }, [checkoutOrder]);
+  }, [checkoutOrder?.id]);
 
   if (!checkoutOrder) return null;
 
@@ -117,31 +120,33 @@ function CheckoutModal() {
     <Modal open onClose={() => setCheckoutOrder(null)} title="Pagamento" width="560px">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
 
-        {/* Table / customer */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-          <div>
-            <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)", display: "block" }}>
-              Tavolo
-            </label>
-            <input
-              value={tableId}
-              onChange={(e) => setTableId(e.target.value)}
-              placeholder="Es. 12"
-              style={{ width: "100%", height: "40px", padding: "0 12px", borderRadius: "var(--radius-md)", border: "2px solid var(--color-gray-200)", fontFamily: "var(--font)", fontSize: "var(--text-md)", boxSizing: "border-box" }}
-            />
+        {/* Table / customer — only when tables module is enabled */}
+        {tablesEnabled && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+            <div>
+              <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)", display: "block" }}>
+                Tavolo
+              </label>
+              <input
+                value={tableId}
+                onChange={(e) => setTableId(e.target.value)}
+                placeholder="Es. 12"
+                style={{ width: "100%", height: "40px", padding: "0 12px", borderRadius: "var(--radius-md)", border: "2px solid var(--color-gray-200)", fontFamily: "var(--font)", fontSize: "var(--text-md)", boxSizing: "border-box" }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)", display: "block" }}>
+                Nome cliente
+              </label>
+              <input
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Es. Mario Rossi"
+                style={{ width: "100%", height: "40px", padding: "0 12px", borderRadius: "var(--radius-md)", border: "2px solid var(--color-gray-200)", fontFamily: "var(--font)", fontSize: "var(--text-md)", boxSizing: "border-box" }}
+              />
+            </div>
           </div>
-          <div>
-            <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)", display: "block" }}>
-              Nome cliente
-            </label>
-            <input
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="Es. Mario Rossi"
-              style={{ width: "100%", height: "40px", padding: "0 12px", borderRadius: "var(--radius-md)", border: "2px solid var(--color-gray-200)", fontFamily: "var(--font)", fontSize: "var(--text-md)", boxSizing: "border-box" }}
-            />
-          </div>
-        </div>
+        )}
 
         {/* Order summary */}
         <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-lg)", padding: "var(--sp-md)" }}>
@@ -170,6 +175,16 @@ function CheckoutModal() {
           {activeMethods.length === 0 ? (
             <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)", padding: "16px 0" }}>
               Nessun metodo di pagamento attivo — configurali in Amministrazione.
+            </div>
+          ) : singleMethod ? (
+            <div style={{
+              display: "flex", alignItems: "center", gap: "10px",
+              padding: "12px 14px", borderRadius: "var(--radius-lg)",
+              border: "2px solid var(--color-brand)",
+              background: "rgba(48,107,52,0.06)",
+            }}>
+              <PaymentIcon type={singleMethod.type} style={{ width: "20px", height: "20px", color: "var(--color-brand)", flexShrink: 0 }} />
+              <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-brand)" }}>{singleMethod.name}</span>
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: activeMethods.length > 2 ? "1fr 1fr" : `repeat(${activeMethods.length}, 1fr)`, gap: "8px" }}>

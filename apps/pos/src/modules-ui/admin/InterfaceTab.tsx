@@ -228,6 +228,7 @@ export function InterfaceTab() {
   const [cartPaxEnabled, setCartPaxEnabled] = useState(true);
   const [cartDiscountEnabled, setCartDiscountEnabled] = useState(true);
   const [cartTextSize, setCartTextSize] = useState(14);
+  const [tablesEnabled, setTablesEnabled] = useState(false);
   const [savingCart, setSavingCart] = useState<string | null>(null);
 
   // Card — read from grid store, write via setPrefs (debounced to server)
@@ -241,6 +242,7 @@ export function InterfaceTab() {
       setCartPaxEnabled(s.cartPaxEnabled);
       setCartDiscountEnabled(s.cartDiscountEnabled);
       setCartTextSize(s.cartTextSize ?? 14);
+      setTablesEnabled(s.tablesEnabled);
       setLoaded(true);
     }).catch(() => setLoaded(true));
   }, []);
@@ -365,6 +367,28 @@ export function InterfaceTab() {
       {/* ── Carrello ── */}
       {subTab === "cart" && (
         <>
+          <div style={cardStyle}>
+            <div style={sectionTitle}>Modulo tavoli</div>
+            <div style={rowStyle}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)", marginBottom: "3px" }}>Tavolo e nome cliente</div>
+                <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", lineHeight: 1.5 }}>Mostra i campi tavolo e nome cliente nel modal di pagamento.</div>
+              </div>
+              <button
+                disabled={savingCart === "tablesEnabled"}
+                onClick={async () => {
+                  const next = !tablesEnabled;
+                  setTablesEnabled(next);
+                  setSavingCart("tablesEnabled");
+                  try { await adminApi.settings.update({ tablesEnabled: next }); } catch { /* ignore */ } finally { setSavingCart(null); }
+                }}
+                style={toggleStyle(tablesEnabled, savingCart === "tablesEnabled")}
+              >
+                <span style={thumbStyle(tablesEnabled)} />
+              </button>
+            </div>
+          </div>
+
           <div style={cardStyle}>
             <div style={sectionTitle}>Funzionalità carrello</div>
             <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>

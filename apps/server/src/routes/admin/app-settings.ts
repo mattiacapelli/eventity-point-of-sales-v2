@@ -6,6 +6,7 @@ import { requireRole, AuthError } from "@pos/core";
 const RECEIPT_NUM_KEYS = ["receipt_number_mode", "receipt_number_prefix", "receipt_number_padding"] as const;
 const GRID_KEYS = ["grid_view_mode", "grid_show_price", "grid_show_description", "grid_sort_by", "grid_base_cols", "grid_show_category", "grid_show_image", "grid_card_text_size", "grid_card_row_height"] as const;
 const TERMINAL_KEYS = ["multi_terminal_enabled"] as const;
+const MODULE_KEYS = ["tables_enabled"] as const;
 const CART_KEYS = ["cart_notes_enabled", "cart_pax_enabled", "cart_discount_enabled", "cart_text_size"] as const;
 
 const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
@@ -18,7 +19,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["admin"], summary: "Get app settings" },
   }, async (_request, reply) => {
     const db = fastify.ctx.db;
-    const keys = ["express_mode", ...RECEIPT_NUM_KEYS, ...GRID_KEYS, ...TERMINAL_KEYS, ...CART_KEYS];
+    const keys = ["express_mode", ...RECEIPT_NUM_KEYS, ...GRID_KEYS, ...TERMINAL_KEYS, ...CART_KEYS, ...MODULE_KEYS];
     const rows = await db.select().from(appSettings).where(inArray(appSettings.key, keys));
     const m = Object.fromEntries(rows.map((r) => [r.key, r.value]));
 
@@ -41,6 +42,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       cartPaxEnabled: m["cart_pax_enabled"] !== "false",
       cartDiscountEnabled: m["cart_discount_enabled"] !== "false",
       cartTextSize: parseInt(m["cart_text_size"] ?? "14", 10),
+      tablesEnabled: m["tables_enabled"] === "true",
     });
   });
 
@@ -75,6 +77,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       cartPaxEnabled: boolean;
       cartDiscountEnabled: boolean;
       cartTextSize: number;
+      tablesEnabled: boolean;
     }>;
     const db = fastify.ctx.db;
 
@@ -97,13 +100,14 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.cartPaxEnabled !== undefined) upserts.push({ key: "cart_pax_enabled", value: String(body.cartPaxEnabled) });
     if (body.cartDiscountEnabled !== undefined) upserts.push({ key: "cart_discount_enabled", value: String(body.cartDiscountEnabled) });
     if (body.cartTextSize !== undefined) upserts.push({ key: "cart_text_size", value: String(body.cartTextSize) });
+    if (body.tablesEnabled !== undefined) upserts.push({ key: "tables_enabled", value: String(body.tablesEnabled) });
 
     for (const { key, value } of upserts) {
       await db.insert(appSettings).values({ key, value }).onConflictDoUpdate({ target: appSettings.key, set: { value } });
     }
 
     // Re-read and return current state
-    const keys = ["express_mode", ...RECEIPT_NUM_KEYS, ...GRID_KEYS, ...TERMINAL_KEYS, ...CART_KEYS];
+    const keys = ["express_mode", ...RECEIPT_NUM_KEYS, ...GRID_KEYS, ...TERMINAL_KEYS, ...CART_KEYS, ...MODULE_KEYS];
     const rows = await db.select().from(appSettings).where(inArray(appSettings.key, keys));
     const m = Object.fromEntries(rows.map((r) => [r.key, r.value]));
 
@@ -126,6 +130,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       cartPaxEnabled: m["cart_pax_enabled"] !== "false",
       cartDiscountEnabled: m["cart_discount_enabled"] !== "false",
       cartTextSize: parseInt(m["cart_text_size"] ?? "14", 10),
+      tablesEnabled: m["tables_enabled"] === "true",
     });
   });
 

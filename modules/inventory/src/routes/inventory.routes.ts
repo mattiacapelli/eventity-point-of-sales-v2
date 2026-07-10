@@ -37,6 +37,9 @@ export function registerInventoryRoutes(
           currentStock: { type: "number" },
           minStock: { type: "number" },
           productionCenterId: { type: "string" },
+          productId: { type: "string" },
+          resetOnShiftOpen: { type: "boolean" },
+          shiftStock: { type: "number" },
         },
       },
     },
@@ -48,6 +51,9 @@ export function registerInventoryRoutes(
         currentStock?: number;
         minStock?: number;
         productionCenterId?: string;
+        productId?: string;
+        resetOnShiftOpen?: boolean;
+        shiftStock?: number;
       };
       const item = await service.createItem(body);
       reply.status(201).send(item);
@@ -71,6 +77,9 @@ export function registerInventoryRoutes(
         unit?: string;
         minStock?: number;
         productionCenterId?: string | null;
+        productId?: string | null;
+        resetOnShiftOpen?: boolean;
+        shiftStock?: number;
       };
       try {
         const item = await service.updateItem(id, body);
@@ -176,6 +185,22 @@ export function registerInventoryRoutes(
       if (q.to !== undefined) filters.to = Number(q.to);
       const movements = await service.listMovements(filters);
       reply.send(movements);
+    },
+  });
+
+  // GET /inventory/items/by-product/:productId
+  fastify.route({
+    method: "GET",
+    url: "/inventory/items/by-product/:productId",
+    schema: {
+      tags: ["inventory"],
+      summary: "Get inventory items linked to a product",
+      params: { type: "object", required: ["productId"], properties: { productId: { type: "string" } } },
+    },
+    handler: async (req, reply) => {
+      const { productId } = req.params as { productId: string };
+      const items = await service.getItemsByProduct(productId);
+      reply.send(items);
     },
   });
 
