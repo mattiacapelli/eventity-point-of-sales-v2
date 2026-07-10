@@ -39,7 +39,6 @@ export function registerInventoryRoutes(
           productionCenterId: { type: "string" },
           productId: { type: "string" },
           resetOnShiftOpen: { type: "boolean" },
-          shiftStock: { type: "number" },
         },
       },
     },
@@ -53,7 +52,6 @@ export function registerInventoryRoutes(
         productionCenterId?: string;
         productId?: string;
         resetOnShiftOpen?: boolean;
-        shiftStock?: number;
       };
       const item = await service.createItem(body);
       reply.status(201).send(item);
@@ -79,7 +77,6 @@ export function registerInventoryRoutes(
         productionCenterId?: string | null;
         productId?: string | null;
         resetOnShiftOpen?: boolean;
-        shiftStock?: number;
       };
       try {
         const item = await service.updateItem(id, body);

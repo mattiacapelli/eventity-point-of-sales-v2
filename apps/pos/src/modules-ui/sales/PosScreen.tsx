@@ -248,6 +248,21 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
   const { setCurrentShift } = useShiftStore();
   const [openingCash, setOpeningCash] = useState("0");
   const [saving, setSaving] = useState(false);
+  const [inventoryItems, setInventoryItems] = useState<import("../../core/admin-api.js").InventoryItemRecord[]>([]);
+  const [stockValues, setStockValues] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    adminApi.inventory.listItems()
+      .then((items) => {
+        setInventoryItems(items);
+        const vals: Record<string, string> = {};
+        for (const item of items) {
+          vals[item.id] = item.resetOnShiftOpen ? "0" : String(item.currentStock);
+        }
+        setStockValues(vals);
+      })
+      .catch(() => {});
+  }, []);
 
   async function handleOpen() {
     setSaving(true);
@@ -255,8 +270,19 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
       const userId = session?.userId ?? "unknown";
       const shift = await adminApi.shifts.open({ userId, openingCash: parseFloat(openingCash) || 0 });
       setCurrentShift(shift);
+      // Apply inventory quantities: adjust stock to match operator-entered values
+      await Promise.all(
+        inventoryItems.map(async (item) => {
+          const newQty = parseFloat(stockValues[item.id] ?? String(item.currentStock));
+          if (isNaN(newQty)) return;
+          const delta = newQty - item.currentStock;
+          if (delta === 0) return;
+          try {
+            await adminApi.inventory.adjustStock(item.id, delta, "carico apertura turno");
+          } catch { /* ignore single item failures */ }
+        })
+      );
     } catch {
-      // shift already open — fetch it and set it
       try {
         const existing = await adminApi.shifts.current();
         setCurrentShift(existing);
@@ -277,6 +303,40 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
           <input style={INPUT_STYLE} type="number" min="0" step="0.01" value={openingCash}
             onChange={(e) => setOpeningCash(e.target.value)} autoFocus />
         </div>
+
+        {inventoryItems.length > 0 && (
+          <div>
+            <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "8px" }}>
+              Inventario apertura
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "240px", overflowY: "auto" }}>
+              {inventoryItems.map((item) => (
+                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 10px", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", border: item.resetOnShiftOpen ? "1px solid #fcd34d" : "1px solid var(--color-gray-200)" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-800)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
+                    {item.resetOnShiftOpen ? (
+                      <div style={{ fontSize: "var(--text-xs)", color: "#b45309" }}>Reset turno — inserisci quantità iniziale</div>
+                    ) : (
+                      <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>Stock attuale: {item.currentStock} {item.unit}</div>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={stockValues[item.id] ?? ""}
+                      onChange={(e) => setStockValues((v) => ({ ...v, [item.id]: e.target.value }))}
+                      style={{ ...INPUT_STYLE, width: "72px", padding: "4px 8px", fontSize: "var(--text-sm)", textAlign: "right" }}
+                    />
+                    <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", minWidth: "20px" }}>{item.unit}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <Button variant="ghost" size="sm" onClick={onDone}>Annulla</Button>
           <Button size="sm" loading={saving} onClick={() => void handleOpen()}>Apri turno</Button>

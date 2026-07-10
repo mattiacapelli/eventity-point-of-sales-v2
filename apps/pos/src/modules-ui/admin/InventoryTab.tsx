@@ -36,7 +36,6 @@ export function InventoryTab() {
     minStock: "0",
     productId: "",
     resetOnShiftOpen: false,
-    shiftStock: "0",
   });
 
   const [adjustQty, setAdjustQty] = useState("0");
@@ -58,7 +57,7 @@ export function InventoryTab() {
 
   function openCreate() {
     setEditTarget(null);
-    setForm({ name: "", sku: "", unit: "pz", currentStock: "0", minStock: "0", productId: "", resetOnShiftOpen: false, shiftStock: "0" });
+    setForm({ name: "", sku: "", unit: "pz", currentStock: "0", minStock: "0", productId: "", resetOnShiftOpen: false });
     setModalOpen(true);
   }
 
@@ -72,7 +71,6 @@ export function InventoryTab() {
       minStock: String(item.minStock),
       productId: item.productId ?? "",
       resetOnShiftOpen: item.resetOnShiftOpen === 1,
-      shiftStock: String(item.shiftStock),
     });
     setModalOpen(true);
   }
@@ -88,7 +86,6 @@ export function InventoryTab() {
           minStock: Number(form.minStock),
           productId: form.productId === "" ? null : form.productId,
           resetOnShiftOpen: form.resetOnShiftOpen,
-          shiftStock: Number(form.shiftStock),
         });
         setItems((prev) => prev.map((i) => i.id === editTarget.id ? updated : i));
       } else {
@@ -100,7 +97,6 @@ export function InventoryTab() {
           minStock: Number(form.minStock),
           productId: form.productId === "" ? null : form.productId,
           resetOnShiftOpen: form.resetOnShiftOpen,
-          shiftStock: Number(form.shiftStock),
         });
         setItems((prev) => [...prev, created]);
       }
@@ -148,7 +144,7 @@ export function InventoryTab() {
                 <th style={tableHeaderStyle}>Unità</th>
                 <th style={{ ...tableHeaderStyle, textAlign: "right" }}>Stock</th>
                 <th style={{ ...tableHeaderStyle, textAlign: "right" }}>Min</th>
-                <th style={{ ...tableHeaderStyle, textAlign: "center" }}>Reset turno</th>
+                <th style={{ ...tableHeaderStyle, textAlign: "center" }}>Carico turno</th>
                 <th style={{ ...tableHeaderStyle, textAlign: "center" }}>Azioni</th>
               </tr>
             </thead>
@@ -173,7 +169,7 @@ export function InventoryTab() {
                     <td style={{ ...tableCellStyle, textAlign: "right" }}>{item.minStock}</td>
                     <td style={{ ...tableCellStyle, textAlign: "center" }}>
                       {item.resetOnShiftOpen === 1
-                        ? <span style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-brand)" }}>{item.shiftStock} {item.unit}</span>
+                        ? <span style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-brand)" }}>Si</span>
                         : <span style={{ color: "var(--color-gray-300)", fontSize: "var(--text-xs)" }}>—</span>}
                     </td>
                     <td style={{ ...tableCellStyle, textAlign: "center" }}>
@@ -246,27 +242,18 @@ export function InventoryTab() {
             <input style={inputStyle} type="number" value={form.minStock} onChange={(e) => setForm((f) => ({ ...f, minStock: e.target.value }))} />
           </div>
 
-          {/* Reset turno */}
-          <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "10px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)" }}>Reset all'apertura turno</div>
-                <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", marginTop: "2px" }}>Lo stock torna alla quantità turno ad ogni nuova apertura cassa.</div>
-              </div>
-              <button
-                onClick={() => setForm((f) => ({ ...f, resetOnShiftOpen: !f.resetOnShiftOpen }))}
-                style={toggleStyle(form.resetOnShiftOpen)}
-              >
-                <span style={thumbStyle(form.resetOnShiftOpen)} />
-              </button>
+          {/* Carico turno */}
+          <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)" }}>Carico apertura turno</div>
+              <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", marginTop: "2px" }}>Mostra questo item nel modal di apertura turno per inserire la quantità iniziale.</div>
             </div>
-            {form.resetOnShiftOpen && (
-              <div>
-                <label style={labelStyle}>Quantità turno</label>
-                <input style={inputStyle} type="number" min="0" step="1" value={form.shiftStock}
-                  onChange={(e) => setForm((f) => ({ ...f, shiftStock: e.target.value }))} />
-              </div>
-            )}
+            <button
+              onClick={() => setForm((f) => ({ ...f, resetOnShiftOpen: !f.resetOnShiftOpen }))}
+              style={toggleStyle(form.resetOnShiftOpen)}
+            >
+              <span style={thumbStyle(form.resetOnShiftOpen)} />
+            </button>
           </div>
 
           <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>

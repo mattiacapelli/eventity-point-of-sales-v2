@@ -53,15 +53,6 @@ export const inventoryModule: PosModule = {
       }
     });
 
-    ctx.eventBus.on("SHIFT_OPENED", async () => {
-      if (_service === null) return;
-      try {
-        await _service.resetStockForShift();
-      } catch (err) {
-        ctx.logger.error({ err }, "Inventory shift reset failed");
-      }
-    });
-
     ctx.logger.info("Inventory module initialized");
   },
 

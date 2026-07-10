@@ -335,7 +335,6 @@ INSERT OR IGNORE INTO app_settings(key,value) VALUES('cart_pax_enabled','true');
 INSERT OR IGNORE INTO app_settings(key,value) VALUES('cart_discount_enabled','true');
 ALTER TABLE inventory_items ADD COLUMN product_id TEXT REFERENCES products(id) ON DELETE SET NULL;
 ALTER TABLE inventory_items ADD COLUMN reset_on_shift_open INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE inventory_items ADD COLUMN shift_stock REAL NOT NULL DEFAULT 0;
 ALTER TABLE options ADD COLUMN prefix TEXT NOT NULL DEFAULT '+';
 ALTER TABLE products ADD COLUMN vat_rate INTEGER NOT NULL DEFAULT 10;
 ALTER TABLE orders ADD COLUMN fiscal_doc_number TEXT;

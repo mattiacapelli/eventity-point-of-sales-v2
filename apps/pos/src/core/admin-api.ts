@@ -31,7 +31,6 @@ export interface InventoryItemRecord {
   productionCenterId: string | null;
   productId: string | null;
   resetOnShiftOpen: number;
-  shiftStock: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -350,9 +349,9 @@ export const adminApi = {
   },
   inventory: {
     listItems: () => req<InventoryItemRecord[]>("GET", "/inventory/items"),
-    createItem: (data: { name: string; sku?: string; unit?: string; currentStock?: number; minStock?: number; productionCenterId?: string; productId?: string | null; resetOnShiftOpen?: boolean; shiftStock?: number }) =>
+    createItem: (data: { name: string; sku?: string; unit?: string; currentStock?: number; minStock?: number; productionCenterId?: string; productId?: string | null; resetOnShiftOpen?: boolean }) =>
       req<InventoryItemRecord>("POST", "/inventory/items", data),
-    updateItem: (id: string, data: Partial<{ name: string; sku: string | null; unit: string; minStock: number; productionCenterId: string | null; productId: string | null; resetOnShiftOpen: boolean; shiftStock: number }>) =>
+    updateItem: (id: string, data: Partial<{ name: string; sku: string | null; unit: string; minStock: number; productionCenterId: string | null; productId: string | null; resetOnShiftOpen: boolean }>) =>
       req<InventoryItemRecord>("PATCH", `/inventory/items/${id}`, data),
     getItemsByProduct: (productId: string) => req<InventoryItemRecord[]>("GET", `/inventory/items/by-product/${productId}`),
     deleteItem: (id: string) => req<void>("DELETE", `/inventory/items/${id}`),
