@@ -243,21 +243,62 @@ const INPUT_STYLE: React.CSSProperties = {
   outline: "none", boxSizing: "border-box",
 };
 
+const NUMPAD_BTN: React.CSSProperties = {
+  display: "flex", alignItems: "center", justifyContent: "center",
+  height: "64px", borderRadius: "var(--radius-lg)",
+  border: "1px solid var(--color-gray-200)", background: "var(--color-white)",
+  fontSize: "22px", fontWeight: 700, color: "var(--color-gray-800)",
+  cursor: "pointer", userSelect: "none", WebkitUserSelect: "none",
+  touchAction: "manipulation", transition: "background 0.1s",
+};
+
+function CashNumpad({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  function press(key: string) {
+    if (key === "⌫") {
+      onChange(value.length <= 1 ? "0" : value.slice(0, -1));
+      return;
+    }
+    if (key === "." && value.includes(".")) return;
+    const next = value === "0" && key !== "." ? key : value + key;
+    // max 2 decimal digits
+    const [int, dec] = next.split(".");
+    if (dec !== undefined && dec.length > 2) return;
+    if (int.length > 6) return;
+    onChange(next);
+  }
+
+  const keys = ["7","8","9","4","5","6","1","2","3",".","0","⌫"];
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "8px" }}>
+      {keys.map((k) => (
+        <button key={k} style={{ ...NUMPAD_BTN, background: k === "⌫" ? "var(--color-gray-100)" : "var(--color-white)" }}
+          onPointerDown={(e) => { e.preventDefault(); press(k); }}>
+          {k}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+type InvItem = import("../../core/admin-api.js").InventoryItemRecord;
+
 function OpenShiftModal({ onDone }: { onDone: () => void }) {
   const { session } = useStore();
   const { setCurrentShift } = useShiftStore();
+  const [step, setStep] = useState<"cash" | "inventory" | "summary">("cash");
   const [openingCash, setOpeningCash] = useState("0");
   const [saving, setSaving] = useState(false);
-  const [inventoryItems, setInventoryItems] = useState<import("../../core/admin-api.js").InventoryItemRecord[]>([]);
-  const [stockValues, setStockValues] = useState<Record<string, string>>({});
+  const [inventoryItems, setInventoryItems] = useState<InvItem[]>([]);
+  const [stockValues, setStockValues] = useState<Record<string, number>>({});
+  const [invIdx, setInvIdx] = useState(0);
 
   useEffect(() => {
     adminApi.inventory.listItems()
       .then((items) => {
         setInventoryItems(items);
-        const vals: Record<string, string> = {};
+        const vals: Record<string, number> = {};
         for (const item of items) {
-          vals[item.id] = item.resetOnShiftOpen ? "0" : String(item.currentStock);
+          vals[item.id] = item.resetOnShiftOpen ? 0 : item.currentStock;
         }
         setStockValues(vals);
       })
@@ -270,77 +311,214 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
       const userId = session?.userId ?? "unknown";
       const shift = await adminApi.shifts.open({ userId, openingCash: parseFloat(openingCash) || 0 });
       setCurrentShift(shift);
-      // Apply inventory quantities: adjust stock to match operator-entered values
       await Promise.all(
         inventoryItems.map(async (item) => {
-          const newQty = parseFloat(stockValues[item.id] ?? String(item.currentStock));
-          if (isNaN(newQty)) return;
+          const newQty = stockValues[item.id] ?? item.currentStock;
           const delta = newQty - item.currentStock;
           if (delta === 0) return;
-          try {
-            await adminApi.inventory.adjustStock(item.id, delta, "carico apertura turno");
-          } catch { /* ignore single item failures */ }
+          try { await adminApi.inventory.adjustStock(item.id, delta, "carico apertura turno"); } catch { /* ignore */ }
         })
       );
     } catch {
-      try {
-        const existing = await adminApi.shifts.current();
-        setCurrentShift(existing);
-      } catch { /* ignore */ }
+      try { setCurrentShift(await adminApi.shifts.current()); } catch { /* ignore */ }
     } finally {
       setSaving(false);
       onDone();
     }
   }
 
+  function adj(id: string, delta: number) {
+    setStockValues((v) => ({ ...v, [id]: Math.max(0, (v[id] ?? 0) + delta) }));
+  }
+
+  const stepIndex = step === "cash" ? 0 : step === "inventory" ? 1 : 2;
+  const totalSteps = inventoryItems.length > 0 ? 3 : 2;
+  const currentInvItem = inventoryItems[invIdx] ?? null;
+
+  const TOUCH_BTN: React.CSSProperties = {
+    display: "flex", alignItems: "center", justifyContent: "center",
+    width: "60px", height: "60px", borderRadius: "50%", border: "none",
+    fontSize: "28px", fontWeight: 700, cursor: "pointer",
+    touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none",
+    transition: "background 0.1s, transform 0.05s",
+  };
+
+  function goNext() {
+    if (step === "cash") {
+      if (inventoryItems.length > 0) { setInvIdx(0); setStep("inventory"); }
+      else setStep("summary");
+    } else if (step === "inventory") {
+      if (invIdx < inventoryItems.length - 1) setInvIdx((i) => i + 1);
+      else setStep("summary");
+    }
+  }
+  function goBack() {
+    if (step === "summary") {
+      if (inventoryItems.length > 0) { setInvIdx(inventoryItems.length - 1); setStep("inventory"); }
+      else setStep("cash");
+    } else if (step === "inventory") {
+      if (invIdx > 0) setInvIdx((i) => i - 1);
+      else setStep("cash");
+    }
+  }
+
+  const stepLabel = step === "cash" ? "Fondo cassa" : step === "inventory" ? `Inventario (${invIdx + 1}/${inventoryItems.length})` : "Riepilogo";
+
   return (
-    <Modal open onClose={onDone} title="Apri turno">
-      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-        <div>
-          <label style={{ display: "block", fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "6px" }}>
-            Fondo cassa iniziale (€)
-          </label>
-          <input style={INPUT_STYLE} type="number" min="0" step="0.01" value={openingCash}
-            onChange={(e) => setOpeningCash(e.target.value)} autoFocus />
+    <Modal open onClose={onDone} title="Apertura turno" width="520px">
+      <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+
+        {/* Progress bar */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "24px" }}>
+          {Array.from({ length: totalSteps }).map((_, i) => (
+            <div key={i} style={{
+              flex: 1, height: "4px", borderRadius: "2px",
+              background: i <= stepIndex ? "var(--color-brand)" : "var(--color-gray-200)",
+              transition: "background 0.3s",
+            }} />
+          ))}
+          <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", flexShrink: 0, minWidth: "80px", textAlign: "right" }}>
+            {stepLabel}
+          </span>
         </div>
 
-        {inventoryItems.length > 0 && (
-          <div>
-            <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "8px" }}>
-              Inventario apertura
+        {/* ── STEP 1: fondo cassa ── */}
+        {step === "cash" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-gray-400)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "4px" }}>Fondo cassa iniziale</div>
+              <div style={{ fontSize: "52px", fontWeight: 800, color: "var(--color-gray-900)", letterSpacing: "-1px", lineHeight: 1.1 }}>
+                € {openingCash}
+              </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "240px", overflowY: "auto" }}>
-              {inventoryItems.map((item) => (
-                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 10px", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", border: item.resetOnShiftOpen ? "1px solid #fcd34d" : "1px solid var(--color-gray-200)" }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-800)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
-                    {item.resetOnShiftOpen ? (
-                      <div style={{ fontSize: "var(--text-xs)", color: "#b45309" }}>Reset turno — inserisci quantità iniziale</div>
-                    ) : (
-                      <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>Stock attuale: {item.currentStock} {item.unit}</div>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={stockValues[item.id] ?? ""}
-                      onChange={(e) => setStockValues((v) => ({ ...v, [item.id]: e.target.value }))}
-                      style={{ ...INPUT_STYLE, width: "72px", padding: "4px 8px", fontSize: "var(--text-sm)", textAlign: "right" }}
-                    />
-                    <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", minWidth: "20px" }}>{item.unit}</span>
-                  </div>
+            <CashNumpad value={openingCash} onChange={setOpeningCash} />
+            <button
+              style={{ width: "100%", height: "56px", borderRadius: "var(--radius-lg)", border: "none", background: "var(--color-brand)", color: "var(--color-white)", fontSize: "var(--text-base)", fontWeight: 700, cursor: "pointer", touchAction: "manipulation" }}
+              onClick={goNext}
+            >
+              Continua →
+            </button>
+          </div>
+        )}
+
+        {/* ── STEP 2: inventario item per item ── */}
+        {step === "inventory" && currentInvItem && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-gray-400)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "6px" }}>
+                {currentInvItem.resetOnShiftOpen ? "Carico turno" : "Conferma stock"}
+              </div>
+              <div style={{ fontSize: "26px", fontWeight: 800, color: "var(--color-gray-900)", marginBottom: "2px" }}>{currentInvItem.name}</div>
+              {currentInvItem.resetOnShiftOpen ? (
+                <div style={{ fontSize: "var(--text-sm)", color: "#b45309" }}>Inserisci la quantità iniziale del turno</div>
+              ) : (
+                <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)" }}>Stock precedente: {currentInvItem.currentStock} {currentInvItem.unit}</div>
+              )}
+            </div>
+
+            {/* Big +/- counter */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "24px" }}>
+              <button
+                style={{ ...TOUCH_BTN, background: "var(--color-gray-100)", color: "var(--color-gray-800)", fontSize: "36px" }}
+                onPointerDown={(e) => { e.preventDefault(); adj(currentInvItem.id, -1); }}
+              >−</button>
+              <div style={{ textAlign: "center", minWidth: "120px" }}>
+                <div style={{ fontSize: "56px", fontWeight: 800, color: "var(--color-gray-900)", lineHeight: 1 }}>
+                  {stockValues[currentInvItem.id] ?? 0}
                 </div>
-              ))}
+                <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)", marginTop: "4px" }}>{currentInvItem.unit}</div>
+              </div>
+              <button
+                style={{ ...TOUCH_BTN, background: "var(--color-brand)", color: "var(--color-white)", fontSize: "36px" }}
+                onPointerDown={(e) => { e.preventDefault(); adj(currentInvItem.id, 1); }}
+              >+</button>
+            </div>
+
+            {/* Input numerico diretto */}
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={stockValues[currentInvItem.id] ?? 0}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value);
+                if (!isNaN(v) && v >= 0) setStockValues((s) => ({ ...s, [currentInvItem.id]: v }));
+              }}
+              style={{ ...INPUT_STYLE, textAlign: "center", fontSize: "var(--text-lg)", fontWeight: 700, height: "52px" }}
+            />
+
+            {/* Navigation */}
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                style={{ flex: 1, height: "52px", borderRadius: "var(--radius-lg)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", fontSize: "var(--text-base)", fontWeight: 600, color: "var(--color-gray-600)", cursor: "pointer", touchAction: "manipulation" }}
+                onClick={goBack}
+              >← Indietro</button>
+              <button
+                style={{ flex: 2, height: "52px", borderRadius: "var(--radius-lg)", border: "none", background: "var(--color-brand)", color: "var(--color-white)", fontSize: "var(--text-base)", fontWeight: 700, cursor: "pointer", touchAction: "manipulation" }}
+                onClick={goNext}
+              >
+                {invIdx < inventoryItems.length - 1 ? "Avanti →" : "Riepilogo →"}
+              </button>
             </div>
           </div>
         )}
 
-        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-          <Button variant="ghost" size="sm" onClick={onDone}>Annulla</Button>
-          <Button size="sm" loading={saving} onClick={() => void handleOpen()}>Apri turno</Button>
-        </div>
+        {/* ── STEP 3: riepilogo ── */}
+        {step === "summary" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-500)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Riepilogo apertura</div>
+
+            {/* Fondo cassa */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--color-gray-50)", borderRadius: "var(--radius-lg)", border: "1px solid var(--color-gray-200)" }}>
+              <div>
+                <div style={{ fontWeight: 700, color: "var(--color-gray-800)", fontSize: "var(--text-base)" }}>Fondo cassa</div>
+                <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>Contanti in cassa all'apertura</div>
+              </div>
+              <div style={{ fontSize: "24px", fontWeight: 800, color: "var(--color-gray-900)" }}>€ {parseFloat(openingCash).toFixed(2)}</div>
+            </div>
+
+            {/* Inventario */}
+            {inventoryItems.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "260px", overflowY: "auto" }}>
+                {inventoryItems.map((item) => {
+                  const qty = stockValues[item.id] ?? item.currentStock;
+                  const delta = qty - item.currentStock;
+                  return (
+                    <div key={item.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)" }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, color: "var(--color-gray-800)", fontSize: "var(--text-sm)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
+                        {delta !== 0 && (
+                          <div style={{ fontSize: "var(--text-xs)", color: delta > 0 ? "#16a34a" : "#dc2626", fontWeight: 600, marginTop: "1px" }}>
+                            {delta > 0 ? `+${delta}` : delta} {item.unit}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0, marginLeft: "12px" }}>
+                        <span style={{ fontSize: "20px", fontWeight: 800, color: "var(--color-gray-900)" }}>{qty}</span>
+                        <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>{item.unit}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "4px" }}>
+              <button
+                style={{ flex: 1, height: "52px", borderRadius: "var(--radius-lg)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", fontSize: "var(--text-base)", fontWeight: 600, color: "var(--color-gray-600)", cursor: "pointer", touchAction: "manipulation" }}
+                onClick={goBack}
+              >← Indietro</button>
+              <button
+                disabled={saving}
+                style={{ flex: 2, height: "52px", borderRadius: "var(--radius-lg)", border: "none", background: saving ? "var(--color-gray-300)" : "var(--color-brand)", color: "var(--color-white)", fontSize: "var(--text-base)", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", touchAction: "manipulation" }}
+                onClick={() => void handleOpen()}
+              >
+                {saving ? "Apertura..." : "Apri turno ✓"}
+              </button>
+            </div>
+          </div>
+        )}
+
       </div>
     </Modal>
   );
