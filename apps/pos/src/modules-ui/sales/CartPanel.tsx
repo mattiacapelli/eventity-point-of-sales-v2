@@ -600,7 +600,7 @@ export function CartPanel() {
       </div>
 
       {/* Item list — newest first */}
-      <div className="scrollable" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+      <div className="scrollable" style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}>
         {!hasItems ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: "var(--sp-sm)", color: "var(--color-gray-300)" }}>
             <ShoppingCartIcon style={{ width: "36px", height: "36px" }} />

@@ -812,7 +812,9 @@ export function PosScreen() {
     <PosLayout>
       <div style={{ height: "100%", display: "grid", gridTemplateColumns: "1fr 320px" }}>
         <ProductGrid />
-        <CartPanel />
+        <div style={{ height: "100%", overflow: "hidden" }}>
+          <CartPanel />
+        </div>
       </div>
       <CheckoutModal />
       {shiftModalOpen === "open" && (
