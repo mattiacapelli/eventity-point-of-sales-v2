@@ -6,6 +6,7 @@ import { useShiftStore } from "../../state/shift-store.js";
 import { useGridStore, type GridViewMode } from "../../state/grid-store.js";
 import { useTerminalStore } from "../../state/terminal-store.js";
 import { adminApi } from "../../core/admin-api.js";
+import { wsClient } from "../../core/ws-client.js";
 import type { Product, Category } from "@pos/shared-types";
 import type { ProductGridSlot } from "@pos/shared-types";
 import { ProductConfigurator } from "./ProductConfigurator.js";
@@ -376,7 +377,7 @@ export function ProductGrid() {
   const [searchQuery, setSearchQuery] = useState("");
   const [stockMap, setStockMap] = useState<Map<string, number>>(new Map());
 
-  useEffect(() => {
+  const refreshStockMap = () => {
     adminApi.inventory.listItems()
       .then((items) => {
         const map = new Map<string, number>();
@@ -386,6 +387,13 @@ export function ProductGrid() {
         setStockMap(map);
       })
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    refreshStockMap();
+    const unsubPayment = wsClient.on("PAYMENT_COMPLETED", refreshStockMap);
+    const unsubShift   = wsClient.on("SHIFT_OPENED",      refreshStockMap);
+    return () => { unsubPayment(); unsubShift(); };
   }, []);
 
   // Drag state
