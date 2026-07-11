@@ -8,6 +8,9 @@ import {
   appSettings, shiftReportTemplates, terminals, paymentMethods,
   type DbClient,
 } from "@pos/db";
+
+// Ordini "pagati": confirmed (pagato, in prep) + completed (consegnato)
+const PAID_STATUSES = ["confirmed", "completed"] as const;
 import type { ShiftReportBlock } from "@pos/shared-types";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -20,7 +23,7 @@ async function getShiftFullStats(db: DbClient, shiftId: string) {
 
   const shiftOrders = await db.select().from(orders).where(eq(orders.shiftId, shiftId));
 
-  const completedOrders = shiftOrders.filter((o) => o.status === "completed");
+  const completedOrders = shiftOrders.filter((o) => PAID_STATUSES.includes(o.status as typeof PAID_STATUSES[number]));
   const cancelledOrders = shiftOrders.filter((o) => o.status === "cancelled");
   const orderIds = completedOrders.map((o) => o.id);
 
@@ -295,7 +298,7 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     const completedOrders = await db
       .select()
       .from(orders)
-      .where(and(eq(orders.shiftId, shiftId), eq(orders.status, "completed")));
+      .where(and(eq(orders.shiftId, shiftId), inArray(orders.status, [...PAID_STATUSES])));
 
     const orderIds = completedOrders.map((o) => o.id);
     const totalSales = completedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
@@ -363,7 +366,7 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       .from(orders)
       .where(
         and(
-          eq(orders.status, "completed"),
+          inArray(orders.status, [...PAID_STATUSES]),
           gte(orders.createdAt, new Date(from)),
           lte(orders.createdAt, new Date(to)),
         )
@@ -424,7 +427,7 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
 
     const shiftOrders = await db.select().from(orders).where(eq(orders.shiftId, shiftId));
 
-    const completedOrders = shiftOrders.filter((o) => o.status === "completed");
+    const completedOrders = shiftOrders.filter((o) => PAID_STATUSES.includes(o.status as typeof PAID_STATUSES[number]));
     const cancelledOrders = shiftOrders.filter((o) => o.status === "cancelled");
     const orderIds = completedOrders.map((o) => o.id);
 
