@@ -83,6 +83,7 @@ export class InventoryService {
   async deleteItem(id: string): Promise<void> {
     const existing = await this.repo.findItemById(id);
     if (!existing) throw new InventoryValidationError(`Item ${id} not found`);
+    await this.repo.deleteMovementsByItemId(id);
     await this.repo.deleteItem(id);
   }
 

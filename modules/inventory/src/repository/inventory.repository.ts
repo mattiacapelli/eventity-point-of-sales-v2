@@ -99,6 +99,10 @@ export class InventoryRepository {
     return this.findItemById(id);
   }
 
+  async deleteMovementsByItemId(itemId: string): Promise<void> {
+    await this.db.delete(inventoryMovements).where(eq(inventoryMovements.itemId, itemId));
+  }
+
   async deleteItem(id: string): Promise<void> {
     await this.db.delete(inventoryItems).where(eq(inventoryItems.id, id));
   }
