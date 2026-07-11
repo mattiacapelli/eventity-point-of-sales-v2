@@ -524,13 +524,17 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
   );
 }
 
+const METHOD_LABELS: Record<string, string> = {
+  cash: "Contanti", card: "Carta", digital_wallet: "Digitale", tab: "Conto",
+};
+
 function CloseShiftModal({ onDone }: { onDone: () => void }) {
   const { currentShift, setCurrentShift } = useShiftStore();
   const [closingCash, setClosingCash] = useState(() => String(currentShift?.openingCash ?? 0));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsForce, setNeedsForce] = useState(false);
-  const [closedShiftId, setClosedShiftId] = useState<string | null>(null);
+  const [shiftStats, setShiftStats] = useState<import("../../core/api-client.js").ShiftFullStats | null>(null);
   const [printing, setPrinting] = useState(false);
   const [printResult, setPrintResult] = useState<string | null>(null);
 
@@ -542,7 +546,18 @@ function CloseShiftModal({ onDone }: { onDone: () => void }) {
     try {
       await adminApi.shifts.close(shiftId, { closingCash: parseFloat(closingCash) || 0, force });
       setCurrentShift(null);
-      setClosedShiftId(shiftId);
+      // Load full stats and auto-print in parallel
+      const [stats, settings] = await Promise.all([
+        apiClient.stats.shiftFull(shiftId),
+        adminApi.settings.get(),
+      ]);
+      setShiftStats(stats);
+      if (settings.shiftAutoPrintReport) {
+        try {
+          const res = await apiClient.stats.printShiftReport(shiftId);
+          setPrintResult(res.message ?? (res.ok ? "Report stampato automaticamente" : "Stampa automatica non riuscita"));
+        } catch { setPrintResult("Errore stampa automatica"); }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore durante la chiusura del turno");
       setNeedsForce(true);
@@ -552,11 +567,11 @@ function CloseShiftModal({ onDone }: { onDone: () => void }) {
   }
 
   async function handlePrint() {
-    if (!closedShiftId) return;
+    if (!shiftStats) return;
     setPrinting(true);
     setPrintResult(null);
     try {
-      const res = await apiClient.stats.printShiftReport(closedShiftId);
+      const res = await apiClient.stats.printShiftReport(shiftStats.shift.id);
       setPrintResult(res.message ?? (res.ok ? "Report stampato" : "Stampa non riuscita"));
     } catch (err) {
       setPrintResult(err instanceof Error ? err.message : "Errore durante la stampa");
@@ -565,31 +580,110 @@ function CloseShiftModal({ onDone }: { onDone: () => void }) {
     }
   }
 
-  if (closedShiftId) {
+  // ── Post-close: riepilogo statistiche ──
+  if (shiftStats) {
+    const s = shiftStats.summary;
+    const formatTime = (iso: string | null) => iso ? new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) : "—";
+    const formatDate = (iso: string | null) => iso ? new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
+
     return (
-      <Modal open onClose={onDone} title="Turno chiuso">
+      <Modal open onClose={onDone} title="Turno chiuso" width="540px">
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: "var(--text-sm)", color: "var(--color-gray-600)" }}>
-            Il turno è stato chiuso correttamente.
+
+          {/* Header verde */}
+          <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "var(--radius-lg)", padding: "14px 16px", display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <span style={{ color: "white", fontSize: "16px" }}>✓</span>
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, color: "#15803d", fontSize: "var(--text-base)" }}>Turno chiuso correttamente</div>
+              <div style={{ fontSize: "var(--text-xs)", color: "#16a34a" }}>
+                {formatDate(shiftStats.shift.openedAt)} · {formatTime(shiftStats.shift.openedAt)} → {formatTime(shiftStats.shift.closedAt)}
+              </div>
+            </div>
           </div>
-          {printResult && (
-            <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-600)" }}>{printResult}</div>
+
+          {/* KPI principali */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+            {[
+              { label: "Incasso netto", value: `€ ${s.netSales.toFixed(2)}`, highlight: true },
+              { label: "Ordini", value: String(s.totalOrders) },
+              { label: "Scontrino medio", value: `€ ${s.avgTicket.toFixed(2)}` },
+            ].map(({ label, value, highlight }) => (
+              <div key={label} style={{ background: highlight ? "var(--color-brand)" : "var(--color-gray-50)", borderRadius: "var(--radius-lg)", padding: "12px 14px", border: highlight ? "none" : "1px solid var(--color-gray-200)" }}>
+                <div style={{ fontSize: "var(--text-xs)", color: highlight ? "rgba(255,255,255,0.8)" : "var(--color-gray-400)", fontWeight: 600, marginBottom: "4px" }}>{label}</div>
+                <div style={{ fontSize: "22px", fontWeight: 800, color: highlight ? "white" : "var(--color-gray-900)", lineHeight: 1 }}>{value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Per metodo di pagamento */}
+          {shiftStats.byPaymentMethod.length > 0 && (
+            <div>
+              <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-gray-400)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>Incasso per metodo</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {shiftStats.byPaymentMethod.map((m) => (
+                  <div key={m.method} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-700)", fontWeight: 600 }}>{METHOD_LABELS[m.method] ?? m.method}</span>
+                      <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>{m.count} {m.count === 1 ? "ordine" : "ordini"}</span>
+                    </div>
+                    <span style={{ fontSize: "var(--text-base)", fontWeight: 700, color: "var(--color-gray-900)" }}>€ {m.amount.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
-          <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+
+          {/* Per categoria (top 5) */}
+          {shiftStats.byCategory.length > 0 && (
+            <div>
+              <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-gray-400)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>Per categoria</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {shiftStats.byCategory.slice(0, 5).map((c) => (
+                  <div key={c.categoryName} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 12px", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)" }}>
+                    <span style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-700)" }}>{c.categoryName} <span style={{ color: "var(--color-gray-400)", fontWeight: 400 }}>×{c.quantity}</span></span>
+                    <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-900)" }}>€ {c.amount.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Fondo cassa */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)" }}>
+            <span style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-600)" }}>Fondo cassa chiusura</span>
+            <span style={{ fontSize: "var(--text-base)", fontWeight: 700, color: "var(--color-gray-900)" }}>€ {(shiftStats.shift.closingCash ?? 0).toFixed(2)}</span>
+          </div>
+
+          {/* Risultato stampa */}
+          {printResult && (
+            <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", textAlign: "center", fontStyle: "italic" }}>{printResult}</div>
+          )}
+
+          <div style={{ display: "flex", gap: "10px" }}>
             <Button variant="ghost" size="sm" loading={printing} onClick={() => void handlePrint()}>Stampa report</Button>
-            <Button size="sm" onClick={onDone}>Chiudi</Button>
+            <Button size="sm" style={{ flex: 1 }} onClick={onDone}>Chiudi</Button>
           </div>
         </div>
       </Modal>
     );
   }
 
+  // ── Pre-close: conferma chiusura ──
   return (
     <Modal open onClose={onDone} title="Chiudi turno">
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         {currentShift && (
-          <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: "var(--text-sm)", color: "var(--color-gray-600)" }}>
-            Vendite registrate: <strong>€{currentShift.totalSales.toFixed(2)}</strong> · {currentShift.totalOrders} ordini
+          <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", padding: "12px 16px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+              <span style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)" }}>Vendite totali</span>
+              <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-900)" }}>€ {currentShift.totalSales.toFixed(2)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)" }}>Ordini</span>
+              <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-900)" }}>{currentShift.totalOrders}</span>
+            </div>
           </div>
         )}
         {error && (

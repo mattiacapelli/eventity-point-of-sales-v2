@@ -230,6 +230,7 @@ export const adminApi = {
       cartDiscountEnabled: boolean;
       cartTextSize: number;
       tablesEnabled: boolean;
+      shiftAutoPrintReport: boolean;
     }>("GET", "/admin/settings"),
     update: (data: Partial<{
       expressMode: boolean;
@@ -251,6 +252,7 @@ export const adminApi = {
       cartDiscountEnabled: boolean;
       cartTextSize: number;
       tablesEnabled: boolean;
+      shiftAutoPrintReport: boolean;
     }>) => req<{
       expressMode: boolean;
       receiptNumberMode: "default" | "global" | "shift";

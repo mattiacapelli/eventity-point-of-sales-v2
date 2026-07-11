@@ -6,7 +6,7 @@ import { requireRole, AuthError } from "@pos/core";
 const RECEIPT_NUM_KEYS = ["receipt_number_mode", "receipt_number_prefix", "receipt_number_padding"] as const;
 const GRID_KEYS = ["grid_view_mode", "grid_show_price", "grid_show_description", "grid_sort_by", "grid_base_cols", "grid_show_category", "grid_show_image", "grid_card_text_size", "grid_card_row_height"] as const;
 const TERMINAL_KEYS = ["multi_terminal_enabled"] as const;
-const MODULE_KEYS = ["tables_enabled"] as const;
+const MODULE_KEYS = ["tables_enabled", "shift_auto_print_report"] as const;
 const CART_KEYS = ["cart_notes_enabled", "cart_pax_enabled", "cart_discount_enabled", "cart_text_size"] as const;
 
 const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
@@ -43,6 +43,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       cartDiscountEnabled: m["cart_discount_enabled"] !== "false",
       cartTextSize: parseInt(m["cart_text_size"] ?? "14", 10),
       tablesEnabled: m["tables_enabled"] === "true",
+      shiftAutoPrintReport: m["shift_auto_print_report"] === "true",
     });
   });
 
@@ -78,6 +79,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       cartDiscountEnabled: boolean;
       cartTextSize: number;
       tablesEnabled: boolean;
+      shiftAutoPrintReport: boolean;
     }>;
     const db = fastify.ctx.db;
 
@@ -101,6 +103,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.cartDiscountEnabled !== undefined) upserts.push({ key: "cart_discount_enabled", value: String(body.cartDiscountEnabled) });
     if (body.cartTextSize !== undefined) upserts.push({ key: "cart_text_size", value: String(body.cartTextSize) });
     if (body.tablesEnabled !== undefined) upserts.push({ key: "tables_enabled", value: String(body.tablesEnabled) });
+    if (body.shiftAutoPrintReport !== undefined) upserts.push({ key: "shift_auto_print_report", value: String(body.shiftAutoPrintReport) });
 
     for (const { key, value } of upserts) {
       await db.insert(appSettings).values({ key, value }).onConflictDoUpdate({ target: appSettings.key, set: { value } });
@@ -131,6 +134,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       cartDiscountEnabled: m["cart_discount_enabled"] !== "false",
       cartTextSize: parseInt(m["cart_text_size"] ?? "14", 10),
       tablesEnabled: m["tables_enabled"] === "true",
+      shiftAutoPrintReport: m["shift_auto_print_report"] === "true",
     });
   });
 

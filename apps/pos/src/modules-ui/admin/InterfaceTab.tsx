@@ -229,6 +229,7 @@ export function InterfaceTab() {
   const [cartDiscountEnabled, setCartDiscountEnabled] = useState(true);
   const [cartTextSize, setCartTextSize] = useState(14);
   const [tablesEnabled, setTablesEnabled] = useState(false);
+  const [shiftAutoPrintReport, setShiftAutoPrintReport] = useState(false);
   const [savingCart, setSavingCart] = useState<string | null>(null);
 
   // Card — read from grid store, write via setPrefs (debounced to server)
@@ -243,6 +244,7 @@ export function InterfaceTab() {
       setCartDiscountEnabled(s.cartDiscountEnabled);
       setCartTextSize(s.cartTextSize ?? 14);
       setTablesEnabled(s.tablesEnabled);
+      setShiftAutoPrintReport(s.shiftAutoPrintReport ?? false);
       setLoaded(true);
     }).catch(() => setLoaded(true));
   }, []);
@@ -367,6 +369,28 @@ export function InterfaceTab() {
       {/* ── Carrello ── */}
       {subTab === "cart" && (
         <>
+          <div style={cardStyle}>
+            <div style={sectionTitle}>Turno</div>
+            <div style={rowStyle}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)", marginBottom: "3px" }}>Stampa automatica report</div>
+                <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", lineHeight: 1.5 }}>Stampa automaticamente il report di chiusura turno alla chiusura cassa.</div>
+              </div>
+              <button
+                disabled={savingCart === "shiftAutoPrintReport"}
+                onClick={async () => {
+                  const next = !shiftAutoPrintReport;
+                  setShiftAutoPrintReport(next);
+                  setSavingCart("shiftAutoPrintReport");
+                  try { await adminApi.settings.update({ shiftAutoPrintReport: next }); } catch { /* ignore */ } finally { setSavingCart(null); }
+                }}
+                style={toggleStyle(shiftAutoPrintReport, savingCart === "shiftAutoPrintReport")}
+              >
+                <span style={thumbStyle(shiftAutoPrintReport)} />
+              </button>
+            </div>
+          </div>
+
           <div style={cardStyle}>
             <div style={sectionTitle}>Modulo tavoli</div>
             <div style={rowStyle}>
