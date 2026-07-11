@@ -300,7 +300,7 @@ export function PosLayout({ children }: PosLayoutProps) {
         )}
       </header>
 
-      <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
+      <div style={{ flex: 1, overflow: "hidden", position: "relative", minHeight: 0, height: 0 }}>
         {children}
       </div>
 
