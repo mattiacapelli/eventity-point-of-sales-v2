@@ -254,18 +254,19 @@ export function PosLayout({ children }: PosLayoutProps) {
           {currentShift && <ShiftBadge openedAt={currentShift.openedAt} />}
           <button
             onClick={() => setShiftModalOpen(currentShift ? "close" : "open")}
-            title={currentShift ? "Chiudi turno" : "Apri turno"}
             style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              width: "32px", height: "32px", flexShrink: 0,
+              display: "flex", alignItems: "center", gap: "6px", flexShrink: 0,
               borderRadius: "var(--radius-md)",
               border: currentShift ? "1px solid rgba(239,68,68,0.5)" : "1px solid rgba(255,255,255,0.3)",
               background: currentShift ? "rgba(239,68,68,0.18)" : "rgba(255,255,255,0.12)",
               cursor: "pointer",
               color: "rgba(255,255,255,0.85)",
+              padding: "5px 10px",
+              fontFamily: "var(--font)", fontSize: "13px", fontWeight: 600,
             }}
           >
-            <ClockIcon style={{ width: "16px", height: "16px" }} />
+            <ClockIcon style={{ width: "14px", height: "14px", flexShrink: 0 }} />
+            {currentShift ? "Chiudi turno" : "Apri turno"}
           </button>
         </div>
 
