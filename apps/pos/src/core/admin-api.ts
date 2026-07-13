@@ -224,6 +224,8 @@ export const adminApi = {
       gridShowImage: boolean;
       gridCardTextSize: number;
       gridCardRowHeight: number;
+      gridSidebarTextSize: number;
+      gridSidebarSortBy: "custom" | "name";
       multiTerminalEnabled: boolean;
       cartNotesEnabled: boolean;
       cartPaxEnabled: boolean;
@@ -246,6 +248,8 @@ export const adminApi = {
       gridShowImage: boolean;
       gridCardTextSize: number;
       gridCardRowHeight: number;
+      gridSidebarTextSize: number;
+      gridSidebarSortBy: "custom" | "name";
       multiTerminalEnabled: boolean;
       cartNotesEnabled: boolean;
       cartPaxEnabled: boolean;
@@ -267,6 +271,8 @@ export const adminApi = {
       gridShowImage: boolean;
       gridCardTextSize: number;
       gridCardRowHeight: number;
+      gridSidebarTextSize: number;
+      gridSidebarSortBy: "custom" | "name";
       multiTerminalEnabled: boolean;
       cartNotesEnabled: boolean;
       cartPaxEnabled: boolean;

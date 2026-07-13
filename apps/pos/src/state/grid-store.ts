@@ -4,6 +4,7 @@ import { adminApi } from "../core/admin-api.js";
 
 export type GridViewMode = "category" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
 export type GridSortBy = "custom" | "name" | "price" | "color" | "category";
+export type GridSidebarSortBy = "custom" | "name";
 
 export interface GridPrefs {
   viewMode: GridViewMode;
@@ -15,6 +16,8 @@ export interface GridPrefs {
   cardRowHeight: number;
   sortBy: GridSortBy;
   baseCols: number;
+  sidebarTextSize: number;
+  sidebarSortBy: GridSidebarSortBy;
 }
 
 const DEFAULT_PREFS: GridPrefs = {
@@ -27,6 +30,8 @@ const DEFAULT_PREFS: GridPrefs = {
   cardRowHeight: 120,
   sortBy: "custom",
   baseCols: 5,
+  sidebarTextSize: 10,
+  sidebarSortBy: "custom",
 };
 
 // Debounce timers
@@ -63,6 +68,8 @@ export const useGridStore = create<GridStore>((set, get) => ({
       cardRowHeight: p.cardRowHeight ?? s.cardRowHeight,
       sortBy: p.sortBy ?? s.sortBy,
       baseCols: p.baseCols ?? s.baseCols,
+      sidebarTextSize: p.sidebarTextSize ?? s.sidebarTextSize,
+      sidebarSortBy: p.sidebarSortBy ?? s.sidebarSortBy,
     }));
     // Debounce save to server
     if (prefsDebounce) clearTimeout(prefsDebounce);
@@ -78,6 +85,8 @@ export const useGridStore = create<GridStore>((set, get) => ({
         gridCardRowHeight: s.cardRowHeight,
         gridSortBy: s.sortBy,
         gridBaseCols: s.baseCols,
+        gridSidebarTextSize: s.sidebarTextSize,
+        gridSidebarSortBy: s.sidebarSortBy,
       });
       prefsDebounce = null;
     }, 600);
@@ -111,6 +120,8 @@ export const useGridStore = create<GridStore>((set, get) => ({
       cardRowHeight: serverPrefs.cardRowHeight ?? DEFAULT_PREFS.cardRowHeight,
       sortBy: serverPrefs.sortBy ?? DEFAULT_PREFS.sortBy,
       baseCols: serverPrefs.baseCols ?? DEFAULT_PREFS.baseCols,
+      sidebarTextSize: serverPrefs.sidebarTextSize ?? DEFAULT_PREFS.sidebarTextSize,
+      sidebarSortBy: serverPrefs.sidebarSortBy ?? DEFAULT_PREFS.sidebarSortBy,
       serverPrefsLoaded: true,
     });
   },

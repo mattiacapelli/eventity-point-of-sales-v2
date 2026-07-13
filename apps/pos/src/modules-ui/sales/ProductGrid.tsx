@@ -366,7 +366,7 @@ export function ProductGrid() {
   const { terminalId } = useTerminalStore();
   const [visibleCategoryIds, setVisibleCategoryIds] = useState<string[] | null>(null);
 
-  const { viewMode, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, sortBy, baseCols, editMode, layouts, loadLayout, saveLayout, updateSlot, setEditMode, applyServerPrefs } = useGridStore();
+  const { viewMode, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, sortBy, baseCols, sidebarTextSize, sidebarSortBy, editMode, layouts, loadLayout, saveLayout, updateSlot, setEditMode, setPrefs, applyServerPrefs } = useGridStore();
 
   const visibleCategories: Category[] = visibleCategoryIds && visibleCategoryIds.length > 0
     ? visibleCategoryIds.map((id) => categories.find((c) => c.id === id)).filter((c): c is Category => c !== undefined)
@@ -432,6 +432,8 @@ export function ProductGrid() {
           cardRowHeight: s.gridCardRowHeight,
           sortBy: s.gridSortBy,
           baseCols: s.gridBaseCols,
+          sidebarTextSize: s.gridSidebarTextSize,
+          sidebarSortBy: s.gridSidebarSortBy,
         });
       })
       .catch(() => {});
@@ -677,7 +679,7 @@ export function ProductGrid() {
         {showSidebar && (
           <div
             style={{
-              width: "72px",
+              width: Math.max(56, sidebarTextSize * 6 + 24) + "px",
               flexShrink: 0,
               display: "flex",
               flexDirection: "column",
@@ -686,15 +688,37 @@ export function ProductGrid() {
               zIndex: 60,
             }}
           >
+            {/* Sidebar controls — text size + sort */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "3px", padding: "4px 4px 2px", borderBottom: "1px solid var(--color-gray-100)", flexShrink: 0 }}>
+              <button
+                onClick={() => setPrefs({ sidebarTextSize: Math.max(8, sidebarTextSize - 1) })}
+                title="Riduci testo"
+                style={{ padding: "2px 5px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", fontSize: "10px", fontWeight: 700, color: "var(--color-gray-500)", fontFamily: "var(--font)", lineHeight: 1 }}
+              >A−</button>
+              <button
+                onClick={() => setPrefs({ sidebarSortBy: sidebarSortBy === "custom" ? "name" : "custom" })}
+                title={sidebarSortBy === "custom" ? "Ordine personalizzato" : "Ordine alfabetico"}
+                style={{ padding: "2px 5px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-gray-200)", background: sidebarSortBy === "name" ? "var(--color-brand)" : "var(--color-white)", cursor: "pointer", fontSize: "10px", fontWeight: 700, color: sidebarSortBy === "name" ? "white" : "var(--color-gray-500)", fontFamily: "var(--font)", lineHeight: 1 }}
+              >A↓</button>
+              <button
+                onClick={() => setPrefs({ sidebarTextSize: Math.min(18, sidebarTextSize + 1) })}
+                title="Ingrandisci testo"
+                style={{ padding: "2px 5px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", fontSize: "10px", fontWeight: 700, color: "var(--color-gray-500)", fontFamily: "var(--font)", lineHeight: 1 }}
+              >A+</button>
+            </div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "2px", padding: "var(--sp-sm) 6px", overflowY: "auto", visibility: currentShift ? "visible" : "hidden" }}>
               {visibleCategories.length === 0 ? (
                 <div style={{ padding: "12px 4px", textAlign: "center" }}>
                   <TagIcon style={{ width: "20px", height: "20px", color: "var(--color-gray-300)", margin: "0 auto" }} />
                 </div>
               ) : (
-                visibleCategories.map((cat) => {
+                (sidebarSortBy === "name"
+                  ? [...visibleCategories].sort((a, b) => a.name.localeCompare(b.name, "it"))
+                  : visibleCategories
+                ).map((cat) => {
                   const active = activeCategoryId === cat.id;
                   const accent = cat.color ?? "var(--color-brand)";
+                  const iconSize = Math.max(14, sidebarTextSize + 4);
                   return (
                     <button
                       key={cat.id}
@@ -702,14 +726,14 @@ export function ProductGrid() {
                       style={{
                         width: "100%", display: "flex", flexDirection: "column",
                         alignItems: "center", justifyContent: "center", gap: "4px",
-                        padding: "10px 4px", borderRadius: "10px", border: "none",
+                        padding: "8px 4px", borderRadius: "10px", border: "none",
                         background: active ? accent : "transparent",
                         cursor: "pointer", transition: "background var(--transition)",
-                        minHeight: "64px", fontFamily: "var(--font)",
+                        minHeight: sidebarTextSize * 4 + 16 + "px", fontFamily: "var(--font)",
                       }}
                     >
-                      <TagIcon style={{ width: "20px", height: "20px", color: active ? "var(--color-white)" : (cat.color ?? "var(--color-gray-400)"), flexShrink: 0 }} />
-                      <span style={{ fontSize: "10px", fontWeight: 700, color: active ? "var(--color-white)" : "var(--color-gray-500)", textAlign: "center", lineHeight: 1.2, wordBreak: "break-word", hyphens: "auto" }}>
+                      <TagIcon style={{ width: iconSize + "px", height: iconSize + "px", color: active ? "var(--color-white)" : (cat.color ?? "var(--color-gray-400)"), flexShrink: 0 }} />
+                      <span style={{ fontSize: sidebarTextSize + "px", fontWeight: 700, color: active ? "var(--color-white)" : "var(--color-gray-500)", textAlign: "center", lineHeight: 1.2, wordBreak: "break-word", hyphens: "auto" }}>
                         {cat.name}
                       </span>
                     </button>

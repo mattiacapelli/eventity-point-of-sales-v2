@@ -448,6 +448,8 @@ function GridDefaultsSection() {
   const [gridShowDescription, setGridShowDescription] = useState(true);
   const [gridSortBy, setGridSortBy] = useState<"custom" | "name" | "price" | "color" | "category">("custom");
   const [gridBaseCols, setGridBaseCols] = useState(5);
+  const [gridSidebarTextSize, setGridSidebarTextSize] = useState(10);
+  const [gridSidebarSortBy, setGridSidebarSortBy] = useState<"custom" | "name">("custom");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -458,6 +460,8 @@ function GridDefaultsSection() {
       setGridShowDescription(s.gridShowDescription);
       setGridSortBy(s.gridSortBy);
       setGridBaseCols(s.gridBaseCols);
+      setGridSidebarTextSize(s.gridSidebarTextSize);
+      setGridSidebarSortBy(s.gridSidebarSortBy);
     }).catch(() => {});
   }, []);
 
@@ -554,13 +558,36 @@ function GridDefaultsSection() {
             <option value="category">Categoria</option>
           </select>
         </div>
+
+        <div style={{ borderTop: "1px solid var(--color-gray-100)", paddingTop: "16px" }}>
+          <div style={{ ...labelStyle, marginBottom: "10px" }}>Sidebar categorie</div>
+          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center" }}>
+            <div>
+              <label style={{ ...labelStyle, marginBottom: "6px", display: "block" }}>Dimensione testo ({gridSidebarTextSize}px)</label>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <input type="range" min={8} max={18} value={gridSidebarTextSize}
+                  onChange={(e) => setGridSidebarTextSize(Number(e.target.value))}
+                  style={{ width: "120px", accentColor: "var(--color-brand)" }} />
+                <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", minWidth: "30px" }}>{gridSidebarTextSize}px</span>
+              </div>
+            </div>
+            <div>
+              <label style={{ ...labelStyle, marginBottom: "6px", display: "block" }}>Ordinamento</label>
+              <select value={gridSidebarSortBy} onChange={(e) => setGridSidebarSortBy(e.target.value as "custom" | "name")}
+                style={{ ...inputStyle, maxWidth: "180px", cursor: "pointer" }}>
+                <option value="custom">Personalizzato</option>
+                <option value="name">Alfabetico</option>
+              </select>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div style={{ marginTop: "20px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
         <Button loading={saving} onClick={async () => {
           setSaving(true);
           try {
-            await adminApi.settings.update({ gridViewMode, gridShowPrice, gridShowDescription, gridSortBy, gridBaseCols });
+            await adminApi.settings.update({ gridViewMode, gridShowPrice, gridShowDescription, gridSortBy, gridBaseCols, gridSidebarTextSize, gridSidebarSortBy });
             setSaved(true);
             setTimeout(() => setSaved(false), 2500);
           } catch { /* ignore */ } finally { setSaving(false); }
