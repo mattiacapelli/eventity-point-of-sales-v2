@@ -480,6 +480,7 @@ function GridDefaultsSection() {
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {([
               ["category",         "Per categoria",             "Sidebar con categorie, mostra i prodotti della categoria selezionata"],
+              ["center",           "Per centro di produzione",  "Sidebar con centri di produzione, mostra i prodotti del centro selezionato"],
               ["all",              "Tutti i prodotti",          "Griglia piatta con tutti i prodotti attivi"],
               ["grouped_category", "Raggruppati per categoria", "Sezioni separate per ogni categoria"],
               ["grouped_center",   "Raggruppati per centro",    "Sezioni separate per centro di produzione"],

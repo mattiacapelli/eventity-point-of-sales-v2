@@ -28,7 +28,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       receiptNumberMode: (m["receipt_number_mode"] ?? "shift") as "default" | "global" | "shift",
       receiptNumberPrefix: m["receipt_number_prefix"] ?? "",
       receiptNumberPadding: parseInt(m["receipt_number_padding"] ?? "0", 10),
-      gridViewMode: (m["grid_view_mode"] ?? "category") as "category" | "all" | "grouped_category" | "grouped_center" | "grouped_color",
+      gridViewMode: (m["grid_view_mode"] ?? "category") as "category" | "center" | "all" | "grouped_category" | "grouped_center" | "grouped_color",
       gridShowPrice: m["grid_show_price"] !== "false",
       gridShowDescription: m["grid_show_description"] !== "false",
       gridSortBy: (m["grid_sort_by"] ?? "custom") as "custom" | "name" | "price" | "color" | "category",
@@ -66,7 +66,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       receiptNumberMode: "default" | "global" | "shift";
       receiptNumberPrefix: string;
       receiptNumberPadding: number;
-      gridViewMode: "category" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
+      gridViewMode: "category" | "center" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
       gridShowPrice: boolean;
       gridShowDescription: boolean;
       gridSortBy: "custom" | "name" | "price" | "color" | "category";
@@ -125,7 +125,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       receiptNumberMode: (m["receipt_number_mode"] ?? "shift") as "default" | "global" | "shift",
       receiptNumberPrefix: m["receipt_number_prefix"] ?? "",
       receiptNumberPadding: parseInt(m["receipt_number_padding"] ?? "0", 10),
-      gridViewMode: (m["grid_view_mode"] ?? "category") as "category" | "all" | "grouped_category" | "grouped_center" | "grouped_color",
+      gridViewMode: (m["grid_view_mode"] ?? "category") as "category" | "center" | "all" | "grouped_category" | "grouped_center" | "grouped_color",
       gridShowPrice: m["grid_show_price"] !== "false",
       gridShowDescription: m["grid_show_description"] !== "false",
       gridSortBy: (m["grid_sort_by"] ?? "custom") as "custom" | "name" | "price" | "color" | "category",

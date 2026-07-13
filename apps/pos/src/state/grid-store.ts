@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { ProductGridSlot } from "@pos/shared-types";
 import { adminApi } from "../core/admin-api.js";
 
-export type GridViewMode = "category" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
+export type GridViewMode = "category" | "center" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
 export type GridSortBy = "custom" | "name" | "price" | "color" | "category";
 export type GridSidebarSortBy = "custom" | "name";
 

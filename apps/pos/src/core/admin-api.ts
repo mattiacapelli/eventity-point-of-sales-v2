@@ -215,7 +215,7 @@ export const adminApi = {
       receiptNumberMode: "default" | "global" | "shift";
       receiptNumberPrefix: string;
       receiptNumberPadding: number;
-      gridViewMode: "category" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
+      gridViewMode: "category" | "center" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
       gridShowPrice: boolean;
       gridShowDescription: boolean;
       gridSortBy: "custom" | "name" | "price" | "color" | "category";
@@ -239,7 +239,7 @@ export const adminApi = {
       receiptNumberMode: "default" | "global" | "shift";
       receiptNumberPrefix: string;
       receiptNumberPadding: number;
-      gridViewMode: "category" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
+      gridViewMode: "category" | "center" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
       gridShowPrice: boolean;
       gridShowDescription: boolean;
       gridSortBy: "custom" | "name" | "price" | "color" | "category";
@@ -262,7 +262,7 @@ export const adminApi = {
       receiptNumberMode: "default" | "global" | "shift";
       receiptNumberPrefix: string;
       receiptNumberPadding: number;
-      gridViewMode: "category" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
+      gridViewMode: "category" | "center" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
       gridShowPrice: boolean;
       gridShowDescription: boolean;
       gridSortBy: "custom" | "name" | "price" | "color" | "category";

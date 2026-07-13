@@ -353,6 +353,7 @@ function GridArea({ products, slots, scope, baseCols, editMode, locked, showPric
 export function ProductGrid() {
   const { categories, products, productionCenters, optionGroupsByProduct, setOptionGroups } = useAdminStore();
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const [activeCenterId, setActiveCenterId] = useState<string | null>(null);
   const [configuratorProduct, setConfiguratorProductRaw] = useState<Product | null>(null);
   const addToCart = useStore((s) => s.addToCart);
   const setProductConfiguratorOpen = useStore((s) => s.setProductConfiguratorOpen);
@@ -462,17 +463,26 @@ export function ProductGrid() {
     }
   }, [visibleCategories, activeCategoryId]);
 
+  // Auto-select first center
+  useEffect(() => {
+    if (activeCenterId === null && productionCenters.length > 0) {
+      setActiveCenterId(productionCenters[0]?.id ?? null);
+    }
+  }, [productionCenters, activeCenterId]);
+
   // Load layout for current scope
   useEffect(() => {
     if (viewMode === "category" && activeCategoryId) {
       void loadLayout(`category:${activeCategoryId}`);
-    } else if (viewMode !== "category") {
+    } else if (viewMode === "center" && activeCenterId) {
+      void loadLayout(`center:${activeCenterId}`);
+    } else if (viewMode !== "category" && viewMode !== "center") {
       void loadLayout("global");
       if (viewMode === "grouped_category") {
         visibleCategories.forEach((c) => void loadLayout(`category:${c.id}`));
       }
     }
-  }, [viewMode, activeCategoryId, visibleCategories, loadLayout]);
+  }, [viewMode, activeCategoryId, activeCenterId, visibleCategories, loadLayout]);
 
   // Resize pointer events (pointer instead of mouse because of setPointerCapture)
   useEffect(() => {
@@ -609,7 +619,7 @@ export function ProductGrid() {
   }
 
   const isGrouped = viewMode === "grouped_category" || viewMode === "grouped_center" || viewMode === "grouped_color";
-  const showSidebar = viewMode === "category";
+  const showSidebar = viewMode === "category" || viewMode === "center";
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -707,39 +717,69 @@ export function ProductGrid() {
               >A+</button>
             </div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "2px", padding: "var(--sp-sm) 6px", overflowY: "auto", visibility: currentShift ? "visible" : "hidden" }}>
-              {visibleCategories.length === 0 ? (
-                <div style={{ padding: "12px 4px", textAlign: "center" }}>
-                  <TagIcon style={{ width: "20px", height: "20px", color: "var(--color-gray-300)", margin: "0 auto" }} />
-                </div>
-              ) : (
-                (sidebarSortBy === "name"
-                  ? [...visibleCategories].sort((a, b) => a.name.localeCompare(b.name, "it"))
-                  : visibleCategories
-                ).map((cat) => {
-                  const active = activeCategoryId === cat.id;
-                  const accent = cat.color ?? "var(--color-brand)";
-                  const iconSize = Math.max(14, sidebarTextSize + 4);
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => setActiveCategoryId(cat.id)}
-                      style={{
+              {(() => {
+                const iconSize = Math.max(14, sidebarTextSize + 4);
+                const minH = sidebarTextSize * 4 + 16 + "px";
+
+                if (viewMode === "center") {
+                  const sorted = sidebarSortBy === "name"
+                    ? [...productionCenters].sort((a, b) => a.name.localeCompare(b.name, "it"))
+                    : productionCenters;
+                  if (sorted.length === 0) return (
+                    <div style={{ padding: "12px 4px", textAlign: "center" }}>
+                      <TagIcon style={{ width: "20px", height: "20px", color: "var(--color-gray-300)", margin: "0 auto" }} />
+                    </div>
+                  );
+                  return sorted.map((pc) => {
+                    const active = activeCenterId === pc.id;
+                    const accent = pc.color ?? "var(--color-brand)";
+                    return (
+                      <button key={pc.id} onClick={() => setActiveCenterId(pc.id)} style={{
                         width: "100%", display: "flex", flexDirection: "column",
                         alignItems: "center", justifyContent: "center", gap: "4px",
                         padding: "8px 4px", borderRadius: "10px", border: "none",
                         background: active ? accent : "transparent",
                         cursor: "pointer", transition: "background var(--transition)",
-                        minHeight: sidebarTextSize * 4 + 16 + "px", fontFamily: "var(--font)",
-                      }}
-                    >
+                        minHeight: minH, fontFamily: "var(--font)",
+                      }}>
+                        <TagIcon style={{ width: iconSize + "px", height: iconSize + "px", color: active ? "var(--color-white)" : (pc.color ?? "var(--color-gray-400)"), flexShrink: 0 }} />
+                        <span style={{ fontSize: sidebarTextSize + "px", fontWeight: 700, color: active ? "var(--color-white)" : "var(--color-gray-500)", textAlign: "center", lineHeight: 1.2, wordBreak: "break-word", hyphens: "auto" }}>
+                          {pc.name}
+                        </span>
+                      </button>
+                    );
+                  });
+                }
+
+                // category view
+                const sorted = sidebarSortBy === "name"
+                  ? [...visibleCategories].sort((a, b) => a.name.localeCompare(b.name, "it"))
+                  : visibleCategories;
+                if (sorted.length === 0) return (
+                  <div style={{ padding: "12px 4px", textAlign: "center" }}>
+                    <TagIcon style={{ width: "20px", height: "20px", color: "var(--color-gray-300)", margin: "0 auto" }} />
+                  </div>
+                );
+                return sorted.map((cat) => {
+                  const active = activeCategoryId === cat.id;
+                  const accent = cat.color ?? "var(--color-brand)";
+                  return (
+                    <button key={cat.id} onClick={() => setActiveCategoryId(cat.id)} style={{
+                      width: "100%", display: "flex", flexDirection: "column",
+                      alignItems: "center", justifyContent: "center", gap: "4px",
+                      padding: "8px 4px", borderRadius: "10px", border: "none",
+                      background: active ? accent : "transparent",
+                      cursor: "pointer", transition: "background var(--transition)",
+                      minHeight: minH, fontFamily: "var(--font)",
+                    }}>
                       <TagIcon style={{ width: iconSize + "px", height: iconSize + "px", color: active ? "var(--color-white)" : (cat.color ?? "var(--color-gray-400)"), flexShrink: 0 }} />
                       <span style={{ fontSize: sidebarTextSize + "px", fontWeight: 700, color: active ? "var(--color-white)" : "var(--color-gray-500)", textAlign: "center", lineHeight: 1.2, wordBreak: "break-word", hyphens: "auto" }}>
                         {cat.name}
                       </span>
                     </button>
                   );
-                })
-              )}
+                });
+              })()}
             </div>
           </div>
         )}
@@ -806,6 +846,42 @@ export function ProductGrid() {
               return (
                 <GridArea
                   products={catProducts}
+                  slots={slots}
+                  scope={scope}
+                  baseCols={baseCols}
+                  editMode={editMode}
+                  locked={!currentShift}
+                  showPrice={showPrice}
+                  showDescription={showDescription}
+                  showCategory={showCategory}
+                  showImage={showImage}
+                  cardTextSize={cardTextSize}
+                  cardRowHeight={cardRowHeight}
+                  onProductClick={(p) => void handleProductClick(p)}
+                  onDragStart={handleDragStart}
+                  onDrop={handleDrop}
+                  loadingProductId={loadingProductId}
+                  stockMap={stockMap}
+                  onResizeStart={handleResizeStart}
+                />
+              );
+            })()}
+
+            {/* Center view */}
+            {viewMode === "center" && activeCenterId && (() => {
+              const scope = `center:${activeCenterId}`;
+              const centerProducts = sortProducts(activeProducts.filter((p) => p.productionCenterId === activeCenterId), sortBy);
+              const slots = layouts[scope] ?? [];
+              if (centerProducts.length === 0) {
+                return (
+                  <div style={{ textAlign: "center", padding: "48px 16px", color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>
+                    Nessun prodotto in questo centro di produzione
+                  </div>
+                );
+              }
+              return (
+                <GridArea
+                  products={centerProducts}
                   slots={slots}
                   scope={scope}
                   baseCols={baseCols}
