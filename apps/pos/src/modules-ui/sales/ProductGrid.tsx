@@ -367,7 +367,7 @@ export function ProductGrid() {
   const { terminalId } = useTerminalStore();
   const [visibleCategoryIds, setVisibleCategoryIds] = useState<string[] | null>(null);
 
-  const { viewMode, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, sortBy, baseCols, sidebarTextSize, sidebarSortBy, editMode, layouts, loadLayout, saveLayout, updateSlot, setEditMode, setPrefs, applyServerPrefs } = useGridStore();
+  const { viewMode, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, sortBy, baseCols, sidebarTextSize, sidebarSortBy, editMode, layouts, loadLayout, saveLayout, updateSlot, setEditMode, applyServerPrefs } = useGridStore();
 
   const visibleCategories: Category[] = visibleCategoryIds && visibleCategoryIds.length > 0
     ? visibleCategoryIds.map((id) => categories.find((c) => c.id === id)).filter((c): c is Category => c !== undefined)
@@ -698,24 +698,6 @@ export function ProductGrid() {
               zIndex: 60,
             }}
           >
-            {/* Sidebar controls — text size + sort */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "3px", padding: "4px 4px 2px", borderBottom: "1px solid var(--color-gray-100)", flexShrink: 0 }}>
-              <button
-                onClick={() => setPrefs({ sidebarTextSize: Math.max(8, sidebarTextSize - 1) })}
-                title="Riduci testo"
-                style={{ padding: "2px 5px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", fontSize: "10px", fontWeight: 700, color: "var(--color-gray-500)", fontFamily: "var(--font)", lineHeight: 1 }}
-              >A−</button>
-              <button
-                onClick={() => setPrefs({ sidebarSortBy: sidebarSortBy === "custom" ? "name" : "custom" })}
-                title={sidebarSortBy === "custom" ? "Ordine personalizzato" : "Ordine alfabetico"}
-                style={{ padding: "2px 5px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-gray-200)", background: sidebarSortBy === "name" ? "var(--color-brand)" : "var(--color-white)", cursor: "pointer", fontSize: "10px", fontWeight: 700, color: sidebarSortBy === "name" ? "white" : "var(--color-gray-500)", fontFamily: "var(--font)", lineHeight: 1 }}
-              >A↓</button>
-              <button
-                onClick={() => setPrefs({ sidebarTextSize: Math.min(18, sidebarTextSize + 1) })}
-                title="Ingrandisci testo"
-                style={{ padding: "2px 5px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", fontSize: "10px", fontWeight: 700, color: "var(--color-gray-500)", fontFamily: "var(--font)", lineHeight: 1 }}
-              >A+</button>
-            </div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "2px", padding: "var(--sp-sm) 6px", overflowY: "auto", visibility: currentShift ? "visible" : "hidden" }}>
               {(() => {
                 const iconSize = Math.max(14, sidebarTextSize + 4);

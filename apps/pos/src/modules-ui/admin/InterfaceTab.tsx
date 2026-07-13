@@ -233,7 +233,7 @@ export function InterfaceTab() {
   const [savingCart, setSavingCart] = useState<string | null>(null);
 
   // Card — read from grid store, write via setPrefs (debounced to server)
-  const { showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, setPrefs } = useGridStore();
+  const { showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, sidebarTextSize, sidebarSortBy, setPrefs } = useGridStore();
 
   const [loaded, setLoaded] = useState(false);
 
@@ -532,6 +532,37 @@ export function InterfaceTab() {
               step={10}
               onChange={(v) => setPrefs({ cardRowHeight: v })}
             />
+          </div>
+
+          {/* Sidebar categorie */}
+          <div style={cardStyle}>
+            <div style={sectionTitle}>Sidebar categorie</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)", marginBottom: "8px" }}>Dimensione testo</div>
+                <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", marginBottom: "12px", lineHeight: 1.5 }}>
+                  Dimensione in px delle etichette nella sidebar delle categorie/centri.
+                </div>
+                <PxSlider
+                  value={sidebarTextSize}
+                  min={8}
+                  max={18}
+                  onChange={(v) => setPrefs({ sidebarTextSize: v })}
+                />
+              </div>
+              <div style={rowStyle}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)", marginBottom: "3px" }}>Ordine alfabetico</div>
+                  <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", lineHeight: 1.5 }}>Ordina le voci della sidebar in ordine alfabetico invece che personalizzato.</div>
+                </div>
+                <button
+                  onClick={() => setPrefs({ sidebarSortBy: sidebarSortBy === "name" ? "custom" : "name" })}
+                  style={toggleStyle(sidebarSortBy === "name", false)}
+                >
+                  <span style={thumbStyle(sidebarSortBy === "name")} />
+                </button>
+              </div>
+            </div>
           </div>
         </>
       )}
