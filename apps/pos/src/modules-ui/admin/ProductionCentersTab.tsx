@@ -1,15 +1,40 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { adminApi } from "../../core/admin-api.js";
 import { useAdminStore } from "../../state/admin-store.js";
 import { Button } from "../../components/ui/Button.js";
 import { Modal } from "../../components/ui/Modal.js";
 import type { Category, ProductionCenter, Printer } from "@pos/shared-types";
-import { BuildingStorefrontIcon, PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, PrinterIcon } from "../../components/ui/icons.js";
+import { BuildingStorefrontIcon, PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, PrinterIcon, Bars3Icon } from "../../components/ui/icons.js";
 import { inputStyle, labelStyle } from "./shared.js";
 import { ColorField } from "./ColorField.js";
 
 export function ProductionCentersTab() {
-  const { productionCenters, categories, upsertProductionCenter, removeProductionCenter } = useAdminStore();
+  const { productionCenters, categories, upsertProductionCenter, removeProductionCenter, setProductionCenters } = useAdminStore();
+
+  const dragIndex = useRef<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  function onDragStart(index: number) {
+    dragIndex.current = index;
+  }
+
+  function onDragOver(e: React.DragEvent, index: number) {
+    e.preventDefault();
+    setDragOverIndex(index);
+  }
+
+  async function onDrop(dropIndex: number) {
+    const fromIndex = dragIndex.current;
+    dragIndex.current = null;
+    setDragOverIndex(null);
+    if (fromIndex === null || fromIndex === dropIndex) return;
+
+    const reordered = [...productionCenters];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(dropIndex, 0, moved!);
+    setProductionCenters(reordered);
+    await adminApi.productionCenters.reorder(reordered.map((pc) => pc.id));
+  }
 
   // Per-center assigned categories (loaded lazily)
   const [centerCategories, setCenterCategories] = useState<Record<string, Category[]>>({});
@@ -172,7 +197,7 @@ export function ProductionCentersTab() {
         gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
         gap: "16px",
       }}>
-        {productionCenters.map((pc) => {
+        {productionCenters.map((pc, index) => {
           const assigned = centerCategories[pc.id] ?? [];
           const unassigned = categories.filter((c) => !assigned.some((a) => a.id === c.id));
           const isDropdownOpen = addDropdown === pc.id;
@@ -180,6 +205,12 @@ export function ProductionCentersTab() {
           return (
             <div
               key={pc.id}
+              draggable
+              onDragStart={() => onDragStart(index)}
+              onDragOver={(e) => onDragOver(e, index)}
+              onDragLeave={() => setDragOverIndex(null)}
+              onDrop={() => void onDrop(index)}
+              onDragEnd={() => setDragOverIndex(null)}
               style={{
                 background: "var(--color-white)",
                 borderRadius: "var(--radius-xl)",
@@ -188,10 +219,16 @@ export function ProductionCentersTab() {
                 display: "flex",
                 flexDirection: "column",
                 gap: "14px",
+                border: dragOverIndex === index ? "2px solid var(--color-brand)" : "2px solid transparent",
+                transition: "border-color 0.15s",
               }}
             >
               {/* Header */}
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <Bars3Icon
+                  style={{ width: "16px", height: "16px", color: "var(--color-gray-400)", flexShrink: 0, cursor: "grab" }}
+                  title="Trascina per riordinare"
+                />
                 <BuildingStorefrontIcon style={{ width: "20px", height: "20px", color: pc.color ?? "var(--color-brand)", flexShrink: 0 }} />
                 <span style={{ flex: 1, fontSize: "var(--text-md)", fontWeight: 700, color: "var(--color-gray-800)" }}>
                   {pc.name}

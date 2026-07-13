@@ -41,6 +41,7 @@ export interface ProductionCenter {
   name: string;
   color: string | null;
   receiptPrintMode: ReceiptPrintMode;
+  sortOrder: number;
 }
 
 export interface ProductionCenterWithCategories extends ProductionCenter {

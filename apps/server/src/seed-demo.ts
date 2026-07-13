@@ -65,7 +65,7 @@ const USERS_SPEC: UserSpec[] = [
   { name: "Admin",          username: "admin",  role: "admin",   pin: "1234" },
   { name: "Cassa",          username: "cassa",  role: "cashier", pin: "0000" },
 ];
-const authService = new AuthService(db);
+const authService = new AuthService(db, 86400);
 for (const u of USERS_SPEC) {
   const existing = await db.select({ id: users.id }).from(users).where(eq(users.username, u.username)).limit(1);
   if (existing.length > 0) {
@@ -169,7 +169,7 @@ for (const p of PRODS) {
 
 console.log("\n── Centro di produzione");
 const cucinaId = stableId("center:cucina");
-await db.insert(productionCenters).values({ id: cucinaId, name: "Cucina", active: true }).onConflictDoNothing();
+await db.insert(productionCenters).values({ id: cucinaId, name: "Cucina" }).onConflictDoNothing();
 for (const cat of Object.keys(CATS) as CatKey[]) {
   await db.insert(productionCenterCategories).values({ productionCenterId: cucinaId, categoryId: catIds[cat] }).onConflictDoNothing();
 }

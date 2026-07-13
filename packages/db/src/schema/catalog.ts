@@ -30,6 +30,7 @@ export const productionCenters = sqliteTable("production_centers", {
   name:             text("name").notNull(),
   color:            text("color"),
   receiptPrintMode: text("receipt_print_mode").notNull().default("included"),
+  sortOrder:        integer("sort_order").notNull().default(0),
 });
 
 export const productionCenterCategories = sqliteTable("production_center_categories", {

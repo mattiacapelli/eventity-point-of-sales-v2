@@ -443,7 +443,7 @@ function IngredientsModal({ product, onClose }: { product: Product | null; onClo
 }
 
 function GridDefaultsSection() {
-  const [gridViewMode, setGridViewMode] = useState<"category" | "all" | "grouped_category" | "grouped_center" | "grouped_color">("category");
+  const [gridViewMode, setGridViewMode] = useState<"category" | "center" | "all" | "grouped_category" | "grouped_center" | "grouped_color">("category");
   const [gridShowPrice, setGridShowPrice] = useState(true);
   const [gridShowDescription, setGridShowDescription] = useState(true);
   const [gridSortBy, setGridSortBy] = useState<"custom" | "name" | "price" | "color" | "category">("custom");

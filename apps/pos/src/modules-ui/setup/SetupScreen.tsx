@@ -790,7 +790,7 @@ export function SetupScreen({ onDone }: { onDone: () => void }) {
         token: loginRes.token,
         role: loginRes.role,
         userId: loginRes.userId,
-        username: result.username,
+        name: result.username,
       });
 
       if (restaurantData) {

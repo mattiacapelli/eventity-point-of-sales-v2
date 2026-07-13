@@ -358,6 +358,7 @@ INSERT OR IGNORE INTO payment_methods(id, name, type, active, sort_order, icon) 
 INSERT OR IGNORE INTO payment_methods(id, name, type, active, sort_order, icon) VALUES('tab', 'Conto sospeso', 'tab', 1, 3, null);
 ALTER TABLE products ADD COLUMN receipt_print_mode TEXT NOT NULL DEFAULT 'inherit';
 ALTER TABLE receipt_templates ADD COLUMN show_item_category INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE production_centers ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
 `;
 
 // payments.method used to be a CHECK-constrained enum column (cash/card/digital_wallet/tab).

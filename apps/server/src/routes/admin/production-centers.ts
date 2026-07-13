@@ -1,6 +1,6 @@
 import "@fastify/swagger";
 import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
-import { eq, and } from "@pos/db";
+import { eq, and, asc } from "@pos/db";
 import { productionCenters, productionCenterCategories, productionCenterPrinters, categories, printers } from "@pos/db";
 import { randomUUID } from "node:crypto";
 import { requireRole, AuthError } from "@pos/core";
@@ -24,8 +24,9 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["production-centers"], summary: "List all production centers" },
   }, async (_request, reply) => {
     const rows = await fastify.ctx.db
-      .select({ id: productionCenters.id, name: productionCenters.name, color: productionCenters.color, receiptPrintMode: productionCenters.receiptPrintMode })
-      .from(productionCenters);
+      .select({ id: productionCenters.id, name: productionCenters.name, color: productionCenters.color, receiptPrintMode: productionCenters.receiptPrintMode, sortOrder: productionCenters.sortOrder })
+      .from(productionCenters)
+      .orderBy(asc(productionCenters.sortOrder), asc(productionCenters.name));
     return reply.send(rows);
   });
 
@@ -33,16 +34,17 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["production-centers"], summary: "Create a production center" },
     preHandler: adminOnly,
   }, async (request, reply) => {
-    const body = request.body as { name: string; color?: string; receiptPrintMode?: "included" | "separate" };
+    const body = request.body as { name: string; color?: string; receiptPrintMode?: "included" | "separate"; sortOrder?: number };
     const id = randomUUID();
     await fastify.ctx.db.insert(productionCenters).values({
       id,
       name: body.name,
       color: body.color ?? null,
       receiptPrintMode: body.receiptPrintMode ?? "included",
+      sortOrder: body.sortOrder ?? 0,
     });
     const [row] = await fastify.ctx.db
-      .select({ id: productionCenters.id, name: productionCenters.name, color: productionCenters.color, receiptPrintMode: productionCenters.receiptPrintMode })
+      .select({ id: productionCenters.id, name: productionCenters.name, color: productionCenters.color, receiptPrintMode: productionCenters.receiptPrintMode, sortOrder: productionCenters.sortOrder })
       .from(productionCenters)
       .where(eq(productionCenters.id, id));
     fastify.ctx.eventBus.emit("PRODUCTION_CENTER_CREATED", { traceId: randomUUID(), id, timestamp: new Date() });
@@ -54,22 +56,23 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as { name?: string; color?: string | null; receiptPrintMode?: "included" | "separate" };
+    const body = request.body as { name?: string; color?: string | null; receiptPrintMode?: "included" | "separate"; sortOrder?: number };
 
     const [existing] = await fastify.ctx.db.select().from(productionCenters).where(eq(productionCenters.id, id));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
-    const update: { name?: string; color?: string | null; receiptPrintMode?: "included" | "separate" } = {};
+    const update: { name?: string; color?: string | null; receiptPrintMode?: "included" | "separate"; sortOrder?: number } = {};
     if (body.name !== undefined) update.name = body.name;
     if ("color" in body) update.color = body.color ?? null;
     if (body.receiptPrintMode !== undefined) update.receiptPrintMode = body.receiptPrintMode;
+    if (body.sortOrder !== undefined) update.sortOrder = body.sortOrder;
 
     if (Object.keys(update).length > 0) {
       await fastify.ctx.db.update(productionCenters).set(update).where(eq(productionCenters.id, id));
     }
 
     const [row] = await fastify.ctx.db
-      .select({ id: productionCenters.id, name: productionCenters.name, color: productionCenters.color, receiptPrintMode: productionCenters.receiptPrintMode })
+      .select({ id: productionCenters.id, name: productionCenters.name, color: productionCenters.color, receiptPrintMode: productionCenters.receiptPrintMode, sortOrder: productionCenters.sortOrder })
       .from(productionCenters)
       .where(eq(productionCenters.id, id));
     fastify.ctx.eventBus.emit("PRODUCTION_CENTER_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
@@ -83,6 +86,17 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = request.params as { id: string };
     await fastify.ctx.db.delete(productionCenters).where(eq(productionCenters.id, id));
     fastify.ctx.eventBus.emit("PRODUCTION_CENTER_DELETED", { traceId: randomUUID(), id, timestamp: new Date() });
+    return reply.status(204).send();
+  });
+
+  fastify.put("/production-centers/reorder", {
+    schema: { tags: ["production-centers"], summary: "Reorder production centers" },
+    preHandler: adminOnly,
+  }, async (request, reply) => {
+    const { ids } = request.body as { ids: string[] };
+    for (let i = 0; i < ids.length; i++) {
+      await fastify.ctx.db.update(productionCenters).set({ sortOrder: i }).where(eq(productionCenters.id, ids[i]!));
+    }
     return reply.status(204).send();
   });
 

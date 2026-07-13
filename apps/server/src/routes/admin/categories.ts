@@ -84,6 +84,17 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(row);
   });
 
+  fastify.put("/categories/reorder", {
+    schema: { tags: ["categories"], summary: "Reorder categories" },
+    preHandler: adminOnly,
+  }, async (request, reply) => {
+    const { ids } = request.body as { ids: string[] };
+    for (let i = 0; i < ids.length; i++) {
+      await fastify.ctx.db.update(categories).set({ sortOrder: i }).where(eq(categories.id, ids[i]!));
+    }
+    return reply.status(204).send();
+  });
+
   fastify.delete("/categories/:id", {
     schema: { tags: ["categories"], summary: "Delete a category" },
     preHandler: adminOnly,

@@ -99,6 +99,7 @@ export const adminApi = {
     create: (data: { name: string; color?: string | null }) => req<Category>("POST", "/categories", data),
     update: (id: string, data: { name?: string; color?: string | null }) => req<Category>("PATCH", `/categories/${id}`, data),
     delete: (id: string) => req<void>("DELETE", `/categories/${id}`),
+    reorder: (ids: string[]) => req<void>("PUT", "/categories/reorder", { ids }),
   },
   products: {
     list: () => req<Product[]>("GET", "/products"),
@@ -127,6 +128,7 @@ export const adminApi = {
     create: (data: { name: string; color?: string | null; receiptPrintMode?: "included" | "separate" }) => req<ProductionCenter>("POST", "/production-centers", data),
     update: (id: string, data: { name?: string; color?: string | null; receiptPrintMode?: "included" | "separate" }) => req<ProductionCenter>("PATCH", `/production-centers/${id}`, data),
     delete: (id: string) => req<void>("DELETE", `/production-centers/${id}`),
+    reorder: (ids: string[]) => req<void>("PUT", "/production-centers/reorder", { ids }),
     getCategories: (id: string) => req<Category[]>("GET", `/production-centers/${id}/categories`),
     assignCategory: (id: string, categoryId: string) =>
       req<void>("POST", `/production-centers/${id}/categories`, { categoryId }),

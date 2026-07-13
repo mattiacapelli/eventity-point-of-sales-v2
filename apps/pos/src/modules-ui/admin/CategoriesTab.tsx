@@ -4,12 +4,12 @@ import { useAdminStore } from "../../state/admin-store.js";
 import { Button } from "../../components/ui/Button.js";
 import { Modal } from "../../components/ui/Modal.js";
 import type { Category } from "@pos/shared-types";
-import { TagIcon, PlusIcon, PencilSquareIcon, TrashIcon } from "../../components/ui/icons.js";
+import { TagIcon, PlusIcon, PencilSquareIcon, TrashIcon, Bars3Icon } from "../../components/ui/icons.js";
 import { inputStyle, labelStyle } from "./shared.js";
 import { ColorField } from "./ColorField.js";
 
 export function CategoriesTab() {
-  const { categories, upsertCategory, removeCategory } = useAdminStore();
+  const { categories, upsertCategory, removeCategory, setCategories } = useAdminStore();
   const [newName, setNewName] = useState("");
   const [editTarget, setEditTarget] = useState<Category | null>(null);
   const [editName, setEditName] = useState("");
@@ -19,6 +19,9 @@ export function CategoriesTab() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [addedName, setAddedName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const dragIndex = useRef<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   async function handleAdd() {
     if (!newName.trim()) return;
@@ -60,6 +63,28 @@ export function CategoriesTab() {
     await adminApi.categories.delete(id);
     removeCategory(id);
     setDeleteId(null);
+  }
+
+  function onDragStart(index: number) {
+    dragIndex.current = index;
+  }
+
+  function onDragOver(e: React.DragEvent, index: number) {
+    e.preventDefault();
+    setDragOverIndex(index);
+  }
+
+  async function onDrop(dropIndex: number) {
+    const fromIndex = dragIndex.current;
+    dragIndex.current = null;
+    setDragOverIndex(null);
+    if (fromIndex === null || fromIndex === dropIndex) return;
+
+    const reordered = [...categories];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(dropIndex, 0, moved!);
+    setCategories(reordered);
+    await adminApi.categories.reorder(reordered.map((c) => c.id));
   }
 
   return (
@@ -128,9 +153,15 @@ export function CategoriesTab() {
             Nessuna categoria. Aggiungine una sopra.
           </div>
         )}
-        {categories.map((c) => (
+        {categories.map((c, index) => (
           <div
             key={c.id}
+            draggable
+            onDragStart={() => onDragStart(index)}
+            onDragOver={(e) => onDragOver(e, index)}
+            onDragLeave={() => setDragOverIndex(null)}
+            onDrop={() => void onDrop(index)}
+            onDragEnd={() => setDragOverIndex(null)}
             style={{
               background: "var(--color-white)",
               borderRadius: "var(--radius-lg)",
@@ -139,8 +170,14 @@ export function CategoriesTab() {
               alignItems: "center",
               boxShadow: "var(--shadow-sm)",
               gap: "12px",
+              border: dragOverIndex === index ? "2px solid var(--color-brand)" : "2px solid transparent",
+              transition: "border-color 0.15s",
             }}
           >
+            <Bars3Icon
+              style={{ width: "18px", height: "18px", color: "var(--color-gray-400)", flexShrink: 0, cursor: "grab" }}
+              title="Trascina per riordinare"
+            />
             <TagIcon style={{ width: "18px", height: "18px", color: c.color ?? "var(--color-brand)", flexShrink: 0 }} />
             <span style={{ flex: 1, fontSize: "var(--text-md)", fontWeight: 600, color: "var(--color-gray-800)" }}>
               {c.name}
