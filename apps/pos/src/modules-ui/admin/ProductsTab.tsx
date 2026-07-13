@@ -747,6 +747,7 @@ export function ProductsTab() {
             <tr>
               <th style={tableHeaderStyle}>Nome</th>
               <th style={tableHeaderStyle}>Categoria</th>
+              <th style={tableHeaderStyle}>Centro produzione</th>
               <th style={tableHeaderStyle}>Prezzo</th>
               <th style={{ ...tableHeaderStyle, textAlign: "center" }}>Attivo</th>
               <th style={{ ...tableHeaderStyle, textAlign: "right" }}>Azioni</th>
@@ -755,7 +756,7 @@ export function ProductsTab() {
           <tbody>
             {products.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ ...tableCellStyle, textAlign: "center", color: "var(--color-gray-400)", padding: "32px" }}>
+                <td colSpan={6} style={{ ...tableCellStyle, textAlign: "center", color: "var(--color-gray-400)", padding: "32px" }}>
                   Nessun prodotto. Clicca "Nuovo prodotto" per aggiungerne uno.
                 </td>
               </tr>
@@ -781,6 +782,7 @@ export function ProductsTab() {
                       </div>
                     </td>
                     <td style={tableCellStyle}>{p.categoryName ?? <span style={{ color: "var(--color-gray-400)" }}>—</span>}</td>
+                    <td style={tableCellStyle}>{productionCenters.find((pc) => pc.id === p.productionCenterId)?.name ?? <span style={{ color: "var(--color-gray-400)" }}>—</span>}</td>
                     <td style={{ ...tableCellStyle, fontWeight: 600 }}>€{p.price.toFixed(2)}</td>
                     <td style={{ ...tableCellStyle, textAlign: "center" }}>
                       <button
@@ -845,7 +847,7 @@ export function ProductsTab() {
                   </tr>
                   {isExpanded && (
                     <tr>
-                      <td colSpan={5} style={{ padding: 0, borderBottom: "1px solid var(--color-gray-200)" }}>
+                      <td colSpan={6} style={{ padding: 0, borderBottom: "1px solid var(--color-gray-200)" }}>
                         <OptionGroupsPanel product={p} />
                       </td>
                     </tr>
