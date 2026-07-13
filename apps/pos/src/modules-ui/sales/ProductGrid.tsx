@@ -479,10 +479,8 @@ export function ProductGrid() {
       if (!r) return;
       const dx = Math.round((e.clientX - r.startX) / r.cellW);
       const dy = Math.round((e.clientY - r.startY) / r.cellH);
-      updateSlot(r.scope, r.productId, {
-        spanW: Math.max(1, Math.min(r.origSpanW + dx, baseCols)),
-        spanH: Math.max(1, Math.min(r.origSpanH + dy, 4)),
-      });
+      const span = Math.max(1, Math.min(Math.max(r.origSpanW + dx, r.origSpanH + dy), baseCols));
+      updateSlot(r.scope, r.productId, { spanW: span, spanH: span });
     }
     function onPointerUp() { resizeRef.current = null; }
     document.addEventListener("pointermove", onPointerMove);
