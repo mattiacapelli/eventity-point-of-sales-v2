@@ -711,7 +711,7 @@ function CloseShiftModal({ onDone }: { onDone: () => void }) {
 }
 
 export function PosScreen() {
-  const { setCategories, setProducts, categories, products, optionGroupsByProduct, setOptionGroups } = useAdminStore();
+  const { setCategories, setProducts, setProductionCenters, categories, products, productionCenters, optionGroupsByProduct, setOptionGroups } = useAdminStore();
   const { currentShift, shiftModalOpen, setShiftModalOpen } = useShiftStore();
   const addToCart = useStore((s) => s.addToCart);
   const setPendingOrderInfo = useStore((s) => s.setPendingOrderInfo);
@@ -721,13 +721,15 @@ export function PosScreen() {
 
   // Load catalogue from API on mount (only if not already loaded by AdminScreen)
   useEffect(() => {
-    if (categories.length > 0 && products.length > 0) { setCatalogueReady(true); return; }
+    if (categories.length > 0 && products.length > 0 && productionCenters.length > 0) { setCatalogueReady(true); return; }
     void Promise.all([
       adminApi.categories.list(),
       adminApi.products.list(),
-    ]).then(([cats, prods]) => {
+      adminApi.productionCenters.list(),
+    ]).then(([cats, prods, pcs]) => {
       setCategories(cats);
       setProducts(prods);
+      setProductionCenters(pcs);
       setCatalogueReady(true);
     });
   }, []);
