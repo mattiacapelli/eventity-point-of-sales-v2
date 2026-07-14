@@ -398,6 +398,14 @@ function migrateUuidToInt(sqlite: Database.Database): void {
 
   sqlite.pragma("foreign_keys = OFF");
 
+  // Clean up any leftover _old tables from a previously interrupted migration
+  const oldTables = (sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '\\_%' ESCAPE '\\'").all() as { name: string }[]).map((r) => r.name);
+  for (const t of oldTables) sqlite.exec(`DROP TABLE IF EXISTS "${t}"`);
+  // Clean up any leftover temp junction tables
+  for (const t of ["_junc_tc","_junc_tp","_junc_pcp","_junc_pcc","_cat_name_map","_pc_name_map","_pr_name_map","_term_name_map"]) {
+    try { sqlite.exec(`DROP TABLE IF EXISTS temp."${t}"`); } catch { /* ignore */ }
+  }
+
   // Rebuild order: leaf tables first, then tables they reference, roots last.
   // Each rebuild: rename old → create new with INTEGER PK → copy data → drop old → rename new.
 
