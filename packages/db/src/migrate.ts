@@ -392,11 +392,9 @@ function dropPaymentsMethodCheck(sqlite: Database.Database): void {
 // Migrate all entity PKs from TEXT UUID to INTEGER AUTOINCREMENT.
 // Idempotent: checks if id column is already INTEGER before running.
 function migrateUuidToInt(sqlite: Database.Database): void {
-  const row = sqlite.prepare("SELECT typeof(id) as t FROM users LIMIT 1").get() as { t?: string } | undefined;
-  if (!row || row.t === "integer") return; // already migrated or table empty — check by schema
-  // Check schema: if id column is already INTEGER, skip
+  // Check schema only — data presence doesn't matter
   const usersSchema = sqlite.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get() as { sql?: string } | undefined;
-  if (usersSchema?.sql?.includes("INTEGER PRIMARY KEY")) return;
+  if (!usersSchema?.sql || usersSchema.sql.includes("INTEGER PRIMARY KEY")) return;
 
   sqlite.pragma("foreign_keys = OFF");
 
@@ -644,42 +642,16 @@ function migrateUuidToInt(sqlite: Database.Database): void {
     DROP TABLE _ii_old;
   `);
 
-  // 14. junction tables: drop and recreate with INTEGER FKs
-  sqlite.exec(`DROP TABLE IF EXISTS terminal_categories;`);
+  // 14. junction tables: save old data, drop, will recreate after parent tables are rebuilt
   sqlite.exec(`
-    CREATE TABLE terminal_categories (
-      terminal_id INTEGER NOT NULL REFERENCES terminals(id) ON DELETE CASCADE,
-      category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
-      sort_order  INTEGER NOT NULL DEFAULT 0,
-      PRIMARY KEY (terminal_id, category_id)
-    );
-  `);
-
-  sqlite.exec(`DROP TABLE IF EXISTS terminal_printers;`);
-  sqlite.exec(`
-    CREATE TABLE terminal_printers (
-      terminal_id INTEGER NOT NULL REFERENCES terminals(id) ON DELETE CASCADE,
-      printer_id  INTEGER NOT NULL REFERENCES printers(id) ON DELETE CASCADE,
-      PRIMARY KEY (terminal_id, printer_id)
-    );
-  `);
-
-  sqlite.exec(`DROP TABLE IF EXISTS production_center_printers;`);
-  sqlite.exec(`
-    CREATE TABLE production_center_printers (
-      production_center_id INTEGER NOT NULL REFERENCES production_centers(id) ON DELETE CASCADE,
-      printer_id           INTEGER NOT NULL REFERENCES printers(id) ON DELETE CASCADE,
-      PRIMARY KEY (production_center_id, printer_id)
-    );
-  `);
-
-  sqlite.exec(`DROP TABLE IF EXISTS production_center_categories;`);
-  sqlite.exec(`
-    CREATE TABLE production_center_categories (
-      production_center_id INTEGER NOT NULL REFERENCES production_centers(id) ON DELETE CASCADE,
-      category_id          INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
-      PRIMARY KEY (production_center_id, category_id)
-    );
+    CREATE TEMP TABLE _junc_tc AS SELECT * FROM terminal_categories;
+    CREATE TEMP TABLE _junc_tp AS SELECT * FROM terminal_printers;
+    CREATE TEMP TABLE _junc_pcp AS SELECT * FROM production_center_printers;
+    CREATE TEMP TABLE _junc_pcc AS SELECT * FROM production_center_categories;
+    DROP TABLE terminal_categories;
+    DROP TABLE terminal_printers;
+    DROP TABLE production_center_printers;
+    DROP TABLE production_center_categories;
   `);
 
   // 15. orders (refs shifts, terminals)
@@ -739,8 +711,8 @@ function migrateUuidToInt(sqlite: Database.Database): void {
   `);
 
   // 17. printers
+  sqlite.exec(`ALTER TABLE printers RENAME TO _pr_old`);
   sqlite.exec(`
-    ALTER TABLE printers RENAME TO _pr_old;
     CREATE TABLE printers (
       id               INTEGER PRIMARY KEY AUTOINCREMENT,
       name             TEXT NOT NULL,
@@ -752,16 +724,19 @@ function migrateUuidToInt(sqlite: Database.Database): void {
       receipt_enabled  INTEGER NOT NULL DEFAULT 0,
       kitchen_enabled  INTEGER NOT NULL DEFAULT 0,
       print_mode       TEXT NOT NULL DEFAULT 'text'
-    );
-    INSERT INTO printers(name, type, connection_type, host, port, active, receipt_enabled, kitchen_enabled, print_mode)
-      SELECT name, COALESCE(type,'escpos'), COALESCE(connection_type,'network'), host, port, active, COALESCE(receipt_enabled,0), COALESCE(kitchen_enabled,0), COALESCE(print_mode,'text') FROM _pr_old;
-    DROP TABLE _pr_old;
-    CREATE UNIQUE INDEX IF NOT EXISTS printers_host_port_uniq ON printers(host, port);
+    )
   `);
+  sqlite.exec(`INSERT INTO printers(name, type, connection_type, host, port, active, receipt_enabled, kitchen_enabled, print_mode)
+    SELECT name, COALESCE(type,'escpos'), COALESCE(connection_type,'network'), host, port, active, COALESCE(receipt_enabled,0), COALESCE(kitchen_enabled,0), COALESCE(print_mode,'text') FROM _pr_old`);
+  sqlite.exec(`CREATE TEMP TABLE _pr_name_map AS
+    SELECT old.id AS old_uuid, new.id AS new_int
+    FROM _pr_old old JOIN printers new ON new.name = old.name`);
+  sqlite.exec(`DROP TABLE _pr_old`);
+  sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS printers_host_port_uniq ON printers(host, port)`);
 
   // 18. terminals
+  sqlite.exec(`ALTER TABLE terminals RENAME TO _term_old`);
   sqlite.exec(`
-    ALTER TABLE terminals RENAME TO _term_old;
     CREATE TABLE terminals (
       id               INTEGER PRIMARY KEY AUTOINCREMENT,
       name             TEXT NOT NULL,
@@ -769,65 +744,138 @@ function migrateUuidToInt(sqlite: Database.Database): void {
       created_at       INTEGER NOT NULL,
       last_seen_at     INTEGER,
       default_view_mode TEXT
-    );
-    INSERT INTO terminals(name, active, created_at, last_seen_at, default_view_mode)
-      SELECT name, active, created_at, last_seen_at, default_view_mode FROM _term_old;
-    DROP TABLE _term_old;
+    )
   `);
+  sqlite.exec(`INSERT INTO terminals(name, active, created_at, last_seen_at, default_view_mode)
+    SELECT name, active, created_at, last_seen_at, default_view_mode FROM _term_old`);
+  sqlite.exec(`CREATE TEMP TABLE _term_name_map AS
+    SELECT old.id AS old_uuid, new.id AS new_int
+    FROM _term_old old JOIN terminals new ON new.name = old.name`);
+  sqlite.exec(`DROP TABLE _term_old`);
 
   // 19. categories
+  sqlite.exec(`ALTER TABLE categories RENAME TO _cat_old`);
   sqlite.exec(`
-    ALTER TABLE categories RENAME TO _cat_old;
     CREATE TABLE categories (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       name       TEXT NOT NULL,
       color      TEXT,
       sort_order INTEGER NOT NULL DEFAULT 0,
       active     INTEGER NOT NULL DEFAULT 1
-    );
-    INSERT INTO categories(name, color, sort_order, active)
-      SELECT name, color, COALESCE(sort_order,0), COALESCE(active,1) FROM _cat_old;
-    DROP TABLE _cat_old;
+    )
   `);
+  sqlite.exec(`INSERT INTO categories(name, color, sort_order, active)
+    SELECT name, color, COALESCE(sort_order,0), COALESCE(active,1) FROM _cat_old`);
+  sqlite.exec(`CREATE TEMP TABLE _cat_name_map AS
+    SELECT old.id AS old_uuid, new.id AS new_int
+    FROM _cat_old old JOIN categories new ON new.name = old.name`);
+  sqlite.exec(`DROP TABLE _cat_old`);
 
   // 20. production_centers
+  sqlite.exec(`ALTER TABLE production_centers RENAME TO _pc_old`);
   sqlite.exec(`
-    ALTER TABLE production_centers RENAME TO _pc_old;
     CREATE TABLE production_centers (
       id               INTEGER PRIMARY KEY AUTOINCREMENT,
       name             TEXT NOT NULL,
       color            TEXT,
       receipt_print_mode TEXT NOT NULL DEFAULT 'included',
       sort_order       INTEGER NOT NULL DEFAULT 0
-    );
-    INSERT INTO production_centers(name, color, receipt_print_mode, sort_order)
-      SELECT name, color, COALESCE(receipt_print_mode,'included'), COALESCE(sort_order,0) FROM _pc_old;
-    DROP TABLE _pc_old;
+    )
   `);
+  sqlite.exec(`INSERT INTO production_centers(name, color, receipt_print_mode, sort_order)
+    SELECT name, color, COALESCE(receipt_print_mode,'included'), COALESCE(sort_order,0) FROM _pc_old`);
+  sqlite.exec(`CREATE TEMP TABLE _pc_name_map AS
+    SELECT old.id AS old_uuid, new.id AS new_int
+    FROM _pc_old old JOIN production_centers new ON new.name = old.name`);
+  sqlite.exec(`DROP TABLE _pc_old`);
+
+  // 20b. Rebuild junction tables now that all parent tables have integer IDs
+  sqlite.exec(`CREATE TABLE terminal_categories (
+    terminal_id INTEGER NOT NULL REFERENCES terminals(id) ON DELETE CASCADE,
+    category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    sort_order  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (terminal_id, category_id)
+  )`);
+  sqlite.exec(`INSERT INTO terminal_categories(terminal_id, category_id, sort_order)
+    SELECT tm.new_int, cm.new_int, COALESCE(j.sort_order, 0)
+    FROM _junc_tc j
+    JOIN _term_name_map tm ON tm.old_uuid = j.terminal_id
+    JOIN _cat_name_map  cm ON cm.old_uuid = j.category_id`);
+
+  sqlite.exec(`CREATE TABLE terminal_printers (
+    terminal_id INTEGER NOT NULL REFERENCES terminals(id) ON DELETE CASCADE,
+    printer_id  INTEGER NOT NULL REFERENCES printers(id) ON DELETE CASCADE,
+    PRIMARY KEY (terminal_id, printer_id)
+  )`);
+  sqlite.exec(`INSERT INTO terminal_printers(terminal_id, printer_id)
+    SELECT tm.new_int, pm.new_int
+    FROM _junc_tp j
+    JOIN _term_name_map tm ON tm.old_uuid = j.terminal_id
+    JOIN _pr_name_map   pm ON pm.old_uuid = j.printer_id`);
+
+  sqlite.exec(`CREATE TABLE production_center_printers (
+    production_center_id INTEGER NOT NULL REFERENCES production_centers(id) ON DELETE CASCADE,
+    printer_id           INTEGER NOT NULL REFERENCES printers(id) ON DELETE CASCADE,
+    PRIMARY KEY (production_center_id, printer_id)
+  )`);
+  sqlite.exec(`INSERT INTO production_center_printers(production_center_id, printer_id)
+    SELECT pcm.new_int, pm.new_int
+    FROM _junc_pcp j
+    JOIN _pc_name_map  pcm ON pcm.old_uuid = j.production_center_id
+    JOIN _pr_name_map  pm  ON pm.old_uuid  = j.printer_id`);
+
+  sqlite.exec(`CREATE TABLE production_center_categories (
+    production_center_id INTEGER NOT NULL REFERENCES production_centers(id) ON DELETE CASCADE,
+    category_id          INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    PRIMARY KEY (production_center_id, category_id)
+  )`);
+  sqlite.exec(`INSERT INTO production_center_categories(production_center_id, category_id)
+    SELECT pcm.new_int, cm.new_int
+    FROM _junc_pcc j
+    JOIN _pc_name_map  pcm ON pcm.old_uuid = j.production_center_id
+    JOIN _cat_name_map cm  ON cm.old_uuid  = j.category_id`);
+
+  sqlite.exec(`DROP TABLE _junc_tc`);
+  sqlite.exec(`DROP TABLE _junc_tp`);
+  sqlite.exec(`DROP TABLE _junc_pcp`);
+  sqlite.exec(`DROP TABLE _junc_pcc`);
+  sqlite.exec(`DROP TABLE _term_name_map`);
+  sqlite.exec(`DROP TABLE _pr_name_map`);
 
   // 21. products (refs categories, production_centers)
-  sqlite.exec(`
-    ALTER TABLE products RENAME TO _prod_old;
-    CREATE TABLE products (
-      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-      name                 TEXT NOT NULL,
-      price                REAL NOT NULL,
-      category_id          INTEGER REFERENCES categories(id),
-      production_center_id INTEGER REFERENCES production_centers(id),
-      active               INTEGER NOT NULL DEFAULT 1,
-      color                TEXT,
-      description          TEXT,
-      image_data           TEXT,
-      sort_order           INTEGER NOT NULL DEFAULT 0,
-      vat_rate             INTEGER NOT NULL DEFAULT 10,
-      receipt_print_mode   TEXT NOT NULL DEFAULT 'inherit',
-      created_at           INTEGER,
-      updated_at           INTEGER
-    );
-    INSERT INTO products(name, price, active, color, description, image_data, sort_order, vat_rate, receipt_print_mode, created_at, updated_at)
-      SELECT name, price, active, color, description, image_data, COALESCE(sort_order,0), COALESCE(vat_rate,10), COALESCE(receipt_print_mode,'inherit'), created_at, updated_at FROM _prod_old;
-    DROP TABLE _prod_old;
-  `);
+  // Resolve FK via name mapping tables built in steps 19-20
+  sqlite.exec(`ALTER TABLE products RENAME TO _prod_old`);
+  sqlite.exec(`CREATE TABLE products (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                 TEXT NOT NULL,
+    price                REAL NOT NULL,
+    category_id          INTEGER REFERENCES categories(id),
+    production_center_id INTEGER REFERENCES production_centers(id),
+    active               INTEGER NOT NULL DEFAULT 1,
+    color                TEXT,
+    description          TEXT,
+    image_data           TEXT,
+    sort_order           INTEGER NOT NULL DEFAULT 0,
+    vat_rate             INTEGER NOT NULL DEFAULT 10,
+    receipt_print_mode   TEXT NOT NULL DEFAULT 'inherit',
+    created_at           INTEGER,
+    updated_at           INTEGER
+  )`);
+  sqlite.exec(`INSERT INTO products(name, price, category_id, production_center_id, active, color, description, image_data, sort_order, vat_rate, receipt_print_mode, created_at, updated_at)
+    SELECT
+      p.name, p.price,
+      c.new_int,
+      pc.new_int,
+      p.active, p.color, p.description, p.image_data,
+      COALESCE(p.sort_order,0), COALESCE(p.vat_rate,10),
+      COALESCE(p.receipt_print_mode,'inherit'),
+      p.created_at, p.updated_at
+    FROM _prod_old p
+    LEFT JOIN _cat_name_map c  ON c.old_uuid = p.category_id
+    LEFT JOIN _pc_name_map  pc ON pc.old_uuid = p.production_center_id`);
+  sqlite.exec(`DROP TABLE _prod_old`);
+  sqlite.exec(`DROP TABLE _cat_name_map`);
+  sqlite.exec(`DROP TABLE _pc_name_map`);
 
   // 22. users
   sqlite.exec(`
