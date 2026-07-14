@@ -2,7 +2,6 @@ import "@fastify/swagger";
 import type { FastifyPluginAsync } from "fastify";
 import { eq } from "@pos/db";
 import { printers, productionCenters, productionCenterPrinters } from "@pos/db";
-import { randomUUID } from "node:crypto";
 import * as net from "node:net";
 import * as os from "node:os";
 import { requireRole, AuthError } from "@pos/core";
@@ -31,11 +30,12 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["printers"], summary: "List production centers assigned to a printer" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const rows = await fastify.ctx.db
       .select({ id: productionCenters.id, name: productionCenters.name, color: productionCenters.color })
       .from(productionCenterPrinters)
       .innerJoin(productionCenters, eq(productionCenterPrinters.productionCenterId, productionCenters.id))
-      .where(eq(productionCenterPrinters.printerId, id));
+      .where(eq(productionCenterPrinters.printerId, numId));
     return reply.send(rows);
   });
 
@@ -53,9 +53,7 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       kitchenEnabled?: boolean;
       printMode?: "text" | "image";
     };
-    const id = randomUUID();
-    await fastify.ctx.db.insert(printers).values({
-      id,
+    const [row] = await fastify.ctx.db.insert(printers).values({
       name:           body.name,
       type:           body.type ?? "escpos",
       connectionType: body.connectionType ?? "network",
@@ -65,9 +63,8 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       receiptEnabled: body.receiptEnabled ?? false,
       kitchenEnabled: body.kitchenEnabled ?? false,
       printMode:      body.printMode ?? "text",
-    });
-    const [row] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, id));
-    fastify.ctx.eventBus.emit("PRINTER_CREATED", { traceId: randomUUID(), id, timestamp: new Date() });
+    }).returning();
+    fastify.ctx.eventBus.emit("PRINTER_CREATED", { traceId: crypto.randomUUID(), id: row!.id, timestamp: new Date() });
     return reply.status(201).send(row);
   });
 
@@ -75,6 +72,7 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["printers"], summary: "Update a printer" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const body = request.body as Partial<{
       name: string;
       type: string;
@@ -87,7 +85,7 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       printMode: "text" | "image";
     }>;
 
-    const [existing] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, id));
+    const [existing] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     const update: {
@@ -112,10 +110,10 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.printMode !== undefined) update.printMode = body.printMode;
 
     if (Object.keys(update).length > 0) {
-      await fastify.ctx.db.update(printers).set(update).where(eq(printers.id, id));
+      await fastify.ctx.db.update(printers).set(update).where(eq(printers.id, numId));
     }
-    const [row] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, id));
-    fastify.ctx.eventBus.emit("PRINTER_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
+    const [row] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, numId));
+    fastify.ctx.eventBus.emit("PRINTER_UPDATED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
     return reply.send(row);
   });
 
@@ -157,8 +155,9 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["printers"], summary: "Delete a printer" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    await fastify.ctx.db.delete(printers).where(eq(printers.id, id));
-    fastify.ctx.eventBus.emit("PRINTER_DELETED", { traceId: randomUUID(), id, timestamp: new Date() });
+    const numId = parseInt(id, 10);
+    await fastify.ctx.db.delete(printers).where(eq(printers.id, numId));
+    fastify.ctx.eventBus.emit("PRINTER_DELETED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
     return reply.status(204).send();
   });
 
@@ -166,7 +165,8 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["printers"], summary: "Test print on a printer", body: {} },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const [printer] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, id));
+    const numId = parseInt(id, 10);
+    const [printer] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, numId));
     if (!printer) return reply.status(404).send({ error: "Not found" });
 
     const result = await fastify.ctx.printerService.printDirect({

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import type { CartLine, Category, OrderInfo, Product } from "../core/types.js";
 import { ProductCard } from "../components/ProductCard.js";
 import { ProductOptionsModal } from "../components/ProductOptionsModal.js";
@@ -55,6 +56,7 @@ export function MenuScreen({
           <button
             onClick={onBack}
             aria-label="Indietro"
+            className="icon-btn"
             style={{
               flexShrink: 0,
               width: "40px",
@@ -76,6 +78,7 @@ export function MenuScreen({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Cerca un piatto..."
+              className="input-field"
               style={{
                 width: "100%",
                 height: "40px",
@@ -91,6 +94,7 @@ export function MenuScreen({
               <button
                 onClick={() => setSearch("")}
                 aria-label="Cancella ricerca"
+                className="icon-btn"
                 style={{
                   position: "absolute", right: "6px", top: "50%", transform: "translateY(-50%)",
                   width: "28px", height: "28px", borderRadius: "50%",
@@ -151,14 +155,18 @@ export function MenuScreen({
           minHeight: 0,
           padding: "var(--sp-lg)",
           display: "grid",
-          gridTemplateColumns: "1fr 1fr",
+          gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
           gap: "var(--sp-md)",
           alignContent: "start",
+          maxWidth: "1100px",
+          margin: "0 auto",
+          width: "100%",
         }}
       >
         {visibleProducts.length === 0 ? (
-          <div style={{ gridColumn: "1 / -1", textAlign: "center", color: "var(--color-gray-400)", padding: "var(--sp-xxl) 0" }}>
-            Nessun prodotto trovato
+          <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--sp-sm)", color: "var(--color-gray-400)", padding: "var(--sp-xxl) 0" }}>
+            <MagnifyingGlassIcon width={40} height={40} color="var(--color-gray-300)" />
+            <span>Nessun prodotto trovato</span>
           </div>
         ) : (
           visibleProducts.map((product) => (

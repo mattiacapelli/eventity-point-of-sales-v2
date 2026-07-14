@@ -14,7 +14,7 @@ export interface KitchenTicketItem {
 }
 
 export interface KitchenTicketData {
-  orderId: string;
+  orderId: number;
   receiptDisplay?: string;
   tableId?: string | null;
   customerName?: string | null;
@@ -47,7 +47,7 @@ export function formatKitchenTicket(data: KitchenTicketData, width = DEFAULT_WID
   lines.push(divider(width));
   lines.push(center(data.centerName.toUpperCase(), width));
   lines.push(divider(width));
-  lines.push(bigOrderNumber(data.receiptDisplay ?? data.orderId.slice(-6).toUpperCase(), width));
+  lines.push(bigOrderNumber(data.receiptDisplay ?? String(data.orderId), width));
   if (data.tableId) {
     lines.push(center(`Tavolo ${data.tableId}`, width));
   }

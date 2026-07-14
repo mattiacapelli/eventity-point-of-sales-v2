@@ -73,7 +73,7 @@ export function MovementsTab() {
                     {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
                   </td>
                   <td style={{ ...tableCellStyle, color: "var(--color-gray-500)" }}>
-                    {m.reason ?? (m.orderId ? `Ordine #${m.orderId.slice(-6).toUpperCase()}` : "—")}
+                    {m.reason ?? (m.orderId ? `Ordine #${m.orderId}` : "—")}
                   </td>
                 </tr>
               ))}

@@ -29,8 +29,8 @@ interface Session {
 }
 
 export interface SelectedOption {
-  readonly optionId: string;
-  readonly optionGroupId: string;
+  readonly optionId: number;
+  readonly optionGroupId: number;
   readonly name: string;
   readonly priceDelta: number;
   readonly prefix: "+" | "-" | ">>";
@@ -39,7 +39,7 @@ export interface SelectedOption {
 
 export interface CartItem {
   readonly cartKey: string;       // productId + options fingerprint — unique per configuration
-  readonly productId: string;
+  readonly productId: number;
   readonly name: string;
   readonly unitPrice: number;     // base price
   readonly finalPrice: number;    // unitPrice + sum(priceDelta)
@@ -57,12 +57,12 @@ interface GlobalState {
   orders: Order[];
   setOrders: (orders: Order[]) => void;
   upsertOrder: (order: Order) => void;
-  removeOrder: (id: string) => void;
+  removeOrder: (id: number) => void;
 
   // Cart (sales module)
   cart: CartItem[];
   addToCart: (item: {
-    productId: string;
+    productId: number;
     name: string;
     unitPrice: number;
     selectedOptions?: SelectedOption[];
@@ -103,13 +103,13 @@ interface GlobalState {
   setMultiTerminalEnabled: (enabled: boolean) => void;
 
   // Order being edited (History → POS flow)
-  editingOrderId: string | null;
-  setEditingOrderId: (id: string | null) => void;
+  editingOrderId: number | null;
+  setEditingOrderId: (id: number | null) => void;
 }
 
-function makeCartKey(productId: string, selectedOptions: SelectedOption[]): string {
-  if (selectedOptions.length === 0) return productId;
-  const sorted = [...selectedOptions].sort((a, b) => a.optionId.localeCompare(b.optionId));
+function makeCartKey(productId: number, selectedOptions: SelectedOption[]): string {
+  if (selectedOptions.length === 0) return String(productId);
+  const sorted = [...selectedOptions].sort((a, b) => a.optionId - b.optionId);
   return `${productId}::${sorted.map((o) => o.optionId).join(",")}`;
 }
 

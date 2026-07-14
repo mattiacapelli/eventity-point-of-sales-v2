@@ -5,6 +5,9 @@ export interface Tenant {
   apiKey: string;
   active: boolean;
   createdAt: number;
+  logoPath: string | null;
+  colorBrand: string | null;
+  colorAccent: string | null;
 }
 
 export interface TenantStats {
@@ -52,4 +55,21 @@ export interface AuditLogEntry {
   action: string;
   metadataJson: string | null;
   createdAt: number;
+}
+
+export interface CategoryRecord {
+  id: string;
+  tenantId: string;
+  name: string;
+  sortOrder: number;
+}
+
+export interface ProductRecord {
+  id: string;
+  tenantId: string;
+  categoryId: string;
+  name: string;
+  price: number;
+  active: boolean;
+  sortOrder: number;
 }

@@ -25,10 +25,10 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [savingNew, setSavingNew] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [terminalPrinters, setTerminalPrinters] = useState<Record<string, string[]>>({});
-  const [terminalCategories, setTerminalCategories] = useState<Record<string, Category[]>>({});
-  const [categoryDropdownId, setCategoryDropdownId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [terminalPrinters, setTerminalPrinters] = useState<Record<number, number[]>>({});
+  const [terminalCategories, setTerminalCategories] = useState<Record<number, Category[]>>({});
+  const [categoryDropdownId, setCategoryDropdownId] = useState<number | null>(null);
 
   const now = Date.now();
   const isOnline = (t: Terminal) => t.lastSeenAt !== null && now - t.lastSeenAt < 5 * 60 * 1000;
@@ -56,7 +56,7 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
     return () => { for (const unsub of unsubs) unsub(); };
   }, []);
 
-  async function loadTerminalPrinters(terminalId: string) {
+  async function loadTerminalPrinters(terminalId: number) {
     try {
       const list = await adminApi.terminals.getPrinters(terminalId);
       setTerminalPrinters((prev) => ({ ...prev, [terminalId]: list.map((p) => p.id) }));
@@ -83,14 +83,14 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
     } catch { /* ignore */ }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: number) {
     try {
       await adminApi.terminals.delete(id);
       setTerminals((prev) => prev.filter((t) => t.id !== id));
     } catch { /* ignore */ }
   }
 
-  async function handleTogglePrinter(terminalId: string, printerId: string) {
+  async function handleTogglePrinter(terminalId: number, printerId: number) {
     const current = terminalPrinters[terminalId] ?? [];
     const has = current.includes(printerId);
     try {
@@ -103,14 +103,14 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
     } catch { /* ignore */ }
   }
 
-  async function loadTerminalCategories(terminalId: string) {
+  async function loadTerminalCategories(terminalId: number) {
     try {
       const list = await adminApi.terminals.getCategories(terminalId);
       setTerminalCategories((prev) => ({ ...prev, [terminalId]: list }));
     } catch { /* ignore */ }
   }
 
-  async function handleAssignCategory(terminalId: string, categoryId: string) {
+  async function handleAssignCategory(terminalId: number, categoryId: number) {
     try {
       await adminApi.terminals.assignCategory(terminalId, categoryId);
       await loadTerminalCategories(terminalId);
@@ -120,7 +120,7 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
     }
   }
 
-  async function handleRemoveCategory(terminalId: string, categoryId: string) {
+  async function handleRemoveCategory(terminalId: number, categoryId: number) {
     try {
       await adminApi.terminals.removeCategory(terminalId, categoryId);
       await loadTerminalCategories(terminalId);
@@ -129,7 +129,7 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
     }
   }
 
-  async function handleMoveCategory(terminalId: string, index: number, direction: -1 | 1) {
+  async function handleMoveCategory(terminalId: number, index: number, direction: -1 | 1) {
     const list = terminalCategories[terminalId] ?? [];
     const newIndex = index + direction;
     if (newIndex < 0 || newIndex >= list.length) return;

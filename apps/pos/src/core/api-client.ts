@@ -40,7 +40,7 @@ type ShiftStats = {
 
 export type ZReport = {
   shift: {
-    id: string;
+    id: number;
     openedAt: string;
     closedAt: string | null;
     openingCash: number;
@@ -70,7 +70,7 @@ type PeriodStats = {
 
 export type ShiftFullStats = {
   shift: {
-    id: string;
+    id: number;
     openedAt: string;
     closedAt: string | null;
     openingCash: number;
@@ -108,53 +108,53 @@ export const apiClient = {
       const qs = params.toString();
       return request<Order[]>("GET", qs ? `/orders?${qs}` : "/orders");
     },
-    getById: (id: string) =>
+    getById: (id: number) =>
       request<Order>("GET", `/orders/${id}`),
     create: (input: CreateOrderInput) => {
       const terminalId = useTerminalStore.getState().terminalId;
-      const extraHeaders = terminalId ? { "X-Terminal-Id": terminalId } : undefined;
+      const extraHeaders = terminalId !== null ? { "X-Terminal-Id": String(terminalId) } : undefined;
       return request<Order>("POST", "/orders", input, extraHeaders);
     },
-    updateStatus: (id: string, status: string) =>
+    updateStatus: (id: number, status: string) =>
       request<Order>("PATCH", `/orders/${id}/status`, { status }),
-    updateDetails: (id: string, data: { tableId?: string | null; customerName?: string | null }) =>
+    updateDetails: (id: number, data: { tableId?: string | null; customerName?: string | null }) =>
       request<Order>("PATCH", `/orders/${id}/details`, data),
-    updateItems: (id: string, items: Array<{ productId: string; name: string; quantity: number; selectedOptionIds?: string[]; notes?: string }>) =>
+    updateItems: (id: number, items: Array<{ productId: number; name: string; quantity: number; selectedOptionIds?: number[]; notes?: string }>) =>
       request<Order>("PATCH", `/orders/${id}/items`, { items }),
-    cancel: (id: string, reason?: string) =>
+    cancel: (id: number, reason?: string) =>
       request<Order>("DELETE", `/orders/${id}`, { reason }),
-    reprint: (id: string) =>
+    reprint: (id: number) =>
       request<{ ok: boolean }>("POST", `/orders/${id}/reprint`, {}),
-    reprintKitchen: (id: string) =>
+    reprintKitchen: (id: number) =>
       request<{ ok: boolean }>("POST", `/orders/${id}/reprint-kitchen`, {}),
   },
   kitchen: {
     queue: () =>
       request<{ orders: Order[] }>("GET", "/kitchen/queue"),
-    transition: (id: string, status: string) =>
+    transition: (id: number, status: string) =>
       request<Order>("PATCH", `/kitchen/orders/${id}/status`, { status }),
   },
   payments: {
     pay: (input: CreatePaymentInput) => {
       const terminalId = useTerminalStore.getState().terminalId;
-      const extraHeaders = terminalId ? { "X-Terminal-Id": terminalId } : undefined;
+      const extraHeaders = terminalId !== null ? { "X-Terminal-Id": String(terminalId) } : undefined;
       return request<Payment>("POST", "/payments", input, extraHeaders);
     },
-    listByOrder: (orderId: string) =>
+    listByOrder: (orderId: number) =>
       request<{ payments: Payment[] }>("GET", `/payments/order/${orderId}`),
-    refund: (paymentId: string, reason?: string) =>
+    refund: (paymentId: number, reason?: string) =>
       request<Payment>("POST", `/payments/${paymentId}/refund`, { ...(reason !== undefined ? { reason } : {}) }),
   },
   stats: {
-    shift: (shiftId: string) =>
+    shift: (shiftId: number) =>
       request<ShiftStats>("GET", `/stats/shift/${shiftId}`),
     period: (from: number, to: number) =>
       request<PeriodStats>("GET", `/stats/period?from=${from}&to=${to}`),
-    zreport: (shiftId: string) =>
+    zreport: (shiftId: number) =>
       request<ZReport>("GET", `/stats/zreport/${shiftId}`),
-    shiftFull: (shiftId: string) =>
+    shiftFull: (shiftId: number) =>
       request<ShiftFullStats>("GET", `/stats/shift/${shiftId}/full`),
-    printShiftReport: (shiftId: string) =>
+    printShiftReport: (shiftId: number) =>
       request<{ ok: boolean; message?: string }>("POST", `/stats/shift/${shiftId}/print`, {}),
   },
   auth: {

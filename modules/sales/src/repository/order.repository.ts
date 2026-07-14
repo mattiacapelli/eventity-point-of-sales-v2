@@ -1,26 +1,26 @@
-import { randomUUID } from "node:crypto";
 import { eq, desc, and, gte, lte, inArray, orders, orderItems, orderItemOptions, products, options, sql, appSettings, receiptCounters } from "@pos/db";
 import type { DbClient } from "@pos/db";
 import type { Order, OrderItem, OrderItemOption, VatBreakdown, CreateOrderInput, OrderStatus, UpdateOrderInput } from "@pos/shared-types";
 
 export function formatReceiptNumber(
   n: number | undefined,
-  id: string,
+  id: number | string,
   prefix: string,
   padding: number,
 ): string {
-  if (n === undefined) return id.slice(-6).toUpperCase();
+  const idStr = String(id);
+  if (n === undefined) return idStr.slice(-6).toUpperCase();
   const padded = padding > 0 ? String(n).padStart(padding, "0") : String(n);
   return `${prefix}${padded}`;
 }
 
 type DbOrderRow = {
-  id: string;
+  id: number;
   tableId: string | null;
   customerName: string | null;
   eventId: string | null;
-  shiftId: string | null;
-  terminalId: string | null;
+  shiftId: number | null;
+  terminalId: number | null;
   status: string;
   totalAmount: number;
   discountAmount: number;
@@ -37,9 +37,9 @@ type DbOrderRow = {
 };
 
 type DbItemRow = {
-  id: string;
-  orderId: string;
-  productId: string;
+  id: number;
+  orderId: number;
+  productId: number;
   name: string;
   quantity: number;
   unitPrice: number;
@@ -48,12 +48,12 @@ type DbItemRow = {
 };
 
 type JoinRow = {
-  orderId: string;
+  orderId: number;
   tableId: string | null;
   customerName: string | null;
   eventId: string | null;
-  shiftId: string | null;
-  terminalId: string | null;
+  shiftId: number | null;
+  terminalId: number | null;
   status: string;
   totalAmount: number;
   discountAmount: number;
@@ -68,8 +68,8 @@ type JoinRow = {
   updatedAt: Date;
   syncedAt: Date | null;
   // nullable when order has no items (left join)
-  itemId: string | null;
-  productId: string | null;
+  itemId: number | null;
+  productId: number | null;
   itemName: string | null;
   quantity: number | null;
   unitPrice: number | null;
@@ -98,7 +98,7 @@ export class OrderRepository {
     return row!.v;
   }
 
-  async findById(id: string): Promise<Order | null> {
+  async findById(id: number): Promise<Order | null> {
     const rows = await this.db
       .select({
         // order columns
@@ -137,7 +137,7 @@ export class OrderRepository {
     return (await this._collapseRowsWithOptions(rows as unknown as JoinRow[]))[0] ?? null;
   }
 
-  async findAll(filters?: { status?: OrderStatus; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number }): Promise<Order[]> {
+  async findAll(filters?: { status?: OrderStatus; shiftId?: number; terminalId?: number; from?: number; to?: number; limit?: number; offset?: number }): Promise<Order[]> {
     const conditions = [];
     if (filters?.status !== undefined) conditions.push(eq(orders.status, filters.status));
     if (filters?.shiftId !== undefined) conditions.push(eq(orders.shiftId, filters.shiftId));
@@ -197,7 +197,6 @@ export class OrderRepository {
   }
 
   async create(input: CreateOrderInput): Promise<Order> {
-    const id = randomUUID();
     const now = new Date();
 
     // Resolve canonical prices from DB — never trust client-supplied prices
@@ -210,16 +209,16 @@ export class OrderRepository {
 
     // Collect all option IDs across all items
     const allOptionIds = input.items.flatMap((i) => i.selectedOptionIds ?? []);
-    const optionMap = new Map<string, { priceDelta: number; name: string }>();
+    const optionMap = new Map<number, { priceDelta: number; name: string }>();
     if (allOptionIds.length > 0) {
       const optionRows = await this.db
         .select({ id: options.id, priceDelta: options.priceDelta, name: options.name })
         .from(options)
-        .where(inArray(options.id, allOptionIds));
+        .where(inArray(options.id, [...allOptionIds]));
       for (const o of optionRows) optionMap.set(o.id, { priceDelta: o.priceDelta, name: o.name });
     }
 
-    const itemsWithIds = input.items.map((item) => {
+    const itemsWithoutId = input.items.map((item) => {
       const productData = productPriceMap.get(item.productId);
       if (productData === undefined) throw new Error(`Product not found: ${item.productId}`);
       const optionDelta = (item.selectedOptionIds ?? []).reduce(
@@ -227,7 +226,6 @@ export class OrderRepository {
         0
       );
       return {
-        id: randomUUID(),
         productId: item.productId,
         name: item.name,
         quantity: item.quantity,
@@ -238,7 +236,7 @@ export class OrderRepository {
       };
     });
 
-    const subtotal = itemsWithIds.reduce(
+    const subtotal = itemsWithoutId.reduce(
       (sum, item) => sum + item.unitPrice * item.quantity,
       0
     );
@@ -255,8 +253,7 @@ export class OrderRepository {
       receiptNumber = await this._nextReceiptNumber(input.shiftId ? `shift:${input.shiftId}` : "global");
     }
 
-    await this.db.insert(orders).values({
-      id,
+    const [orderRow] = await this.db.insert(orders).values({
       tableId: input.tableId ?? null,
       customerName: null,
       eventId: input.eventId ?? null,
@@ -271,12 +268,15 @@ export class OrderRepository {
       receiptNumber,
       createdAt: now,
       updatedAt: now,
-    });
+    }).returning();
 
-    if (itemsWithIds.length > 0) {
-      await this.db.insert(orderItems).values(
-        itemsWithIds.map((item) => ({
-          id: item.id,
+    const id = orderRow!.id;
+
+    let insertedItems: Array<{ id: number; productId: number; unitPrice: number; vatRate: number; notes: string | null; name: string; quantity: number; selectedOptionIds: ReadonlyArray<number>; orderId: number }> = [];
+
+    if (itemsWithoutId.length > 0) {
+      const insertedItemRows = await this.db.insert(orderItems).values(
+        itemsWithoutId.map((item) => ({
           orderId: id,
           productId: item.productId,
           name: item.name,
@@ -284,14 +284,20 @@ export class OrderRepository {
           unitPrice: item.unitPrice,
           notes: item.notes,
         }))
-      );
+      ).returning();
+
+      insertedItems = insertedItemRows.map((row, idx) => ({
+        ...row,
+        vatRate: itemsWithoutId[idx]!.vatRate,
+        selectedOptionIds: itemsWithoutId[idx]!.selectedOptionIds,
+      }));
 
       // Persist selected options for each item
-      const optionInserts = itemsWithIds.flatMap((item) =>
+      const optionInserts = insertedItems.flatMap((item) =>
         item.selectedOptionIds.flatMap((oid) => {
           const opt = optionMap.get(oid);
           if (!opt) return [];
-          return [{ id: randomUUID(), orderItemId: item.id, optionId: oid, optionName: opt.name, priceDelta: opt.priceDelta }];
+          return [{ orderItemId: item.id, optionId: oid, optionName: opt.name, priceDelta: opt.priceDelta }];
         })
       );
       if (optionInserts.length > 0) {
@@ -300,11 +306,11 @@ export class OrderRepository {
     }
 
     // Load persisted options for return value
-    const allItemIds = itemsWithIds.map((i) => i.id);
+    const allItemIds = insertedItems.map((i) => i.id);
     const persistedOptions = allItemIds.length > 0
       ? await this.db.select().from(orderItemOptions).where(inArray(orderItemOptions.orderItemId, allItemIds))
       : [];
-    const optsByItemId = new Map<string, OrderItemOption[]>();
+    const optsByItemId = new Map<number, OrderItemOption[]>();
     for (const o of persistedOptions) {
       const arr = optsByItemId.get(o.orderItemId) ?? [];
       arr.push({ optionId: o.optionId, optionName: o.optionName, priceDelta: o.priceDelta });
@@ -333,12 +339,12 @@ export class OrderRepository {
         updatedAt: now,
         syncedAt: null,
       },
-      itemsWithIds.map((item) => ({ ...item, orderId: id })),
+      insertedItems.map((item) => ({ ...item, orderId: id })),
       optsByItemId,
     );
   }
 
-  async updateStatus(id: string, status: OrderStatus): Promise<Order | null> {
+  async updateStatus(id: number, status: OrderStatus): Promise<Order | null> {
     await this.db
       .update(orders)
       .set({ status, updatedAt: new Date() })
@@ -347,14 +353,14 @@ export class OrderRepository {
     return this.findById(id);
   }
 
-  async updateFiscalData(id: string, data: { fiscalDocNumber: string; fiscalDocDate: string; fiscalRtSerial: string }): Promise<void> {
+  async updateFiscalData(id: number, data: { fiscalDocNumber: string; fiscalDocDate: string; fiscalRtSerial: string }): Promise<void> {
     await this.db
       .update(orders)
       .set({ fiscalDocNumber: data.fiscalDocNumber, fiscalDocDate: data.fiscalDocDate, fiscalRtSerial: data.fiscalRtSerial, updatedAt: new Date() })
       .where(eq(orders.id, id));
   }
 
-  async updateDetails(id: string, data: { tableId?: string | null; customerName?: string | null }): Promise<Order | null> {
+  async updateDetails(id: number, data: { tableId?: string | null; customerName?: string | null }): Promise<Order | null> {
     const update: { tableId?: string | null; customerName?: string | null; updatedAt: Date } = { updatedAt: new Date() };
     if ("tableId" in data) update.tableId = data.tableId ?? null;
     if ("customerName" in data) update.customerName = data.customerName ?? null;
@@ -363,7 +369,7 @@ export class OrderRepository {
     return this.findById(id);
   }
 
-  async replaceItems(id: string, items: Array<{ productId: string; name: string; quantity: number; selectedOptionIds?: string[] | undefined; notes?: string | undefined }>): Promise<Order | null> {
+  async replaceItems(id: number, items: Array<{ productId: number; name: string; quantity: number; selectedOptionIds?: number[] | undefined; notes?: string | undefined }>): Promise<Order | null> {
     const now = new Date();
 
     // Resolve prices from catalog
@@ -372,7 +378,7 @@ export class OrderRepository {
     const productPriceMap = new Map(productRows.map((p) => [p.id, { price: p.price, vatRate: p.vatRate ?? 10 }]));
 
     const allOptionIds = items.flatMap((i) => i.selectedOptionIds ?? []);
-    const optionMap = new Map<string, { priceDelta: number; name: string }>();
+    const optionMap = new Map<number, { priceDelta: number; name: string }>();
     if (allOptionIds.length > 0) {
       const optionRows = await this.db.select({ id: options.id, priceDelta: options.priceDelta, name: options.name }).from(options).where(inArray(options.id, allOptionIds));
       for (const o of optionRows) optionMap.set(o.id, { priceDelta: o.priceDelta, name: o.name });
@@ -382,7 +388,7 @@ export class OrderRepository {
       const productData = productPriceMap.get(item.productId);
       if (productData === undefined) throw new Error(`Product not found: ${item.productId}`);
       const optionDelta = (item.selectedOptionIds ?? []).reduce((sum, oid) => sum + (optionMap.get(oid)?.priceDelta ?? 0), 0);
-      return { id: randomUUID(), productId: item.productId, name: item.name, quantity: item.quantity, unitPrice: productData.price + optionDelta, vatRate: productData.vatRate, notes: item.notes ?? null, selectedOptionIds: item.selectedOptionIds ?? [] };
+      return { productId: item.productId, name: item.name, quantity: item.quantity, unitPrice: productData.price + optionDelta, vatRate: productData.vatRate, notes: item.notes ?? null, selectedOptionIds: item.selectedOptionIds ?? [] };
     });
 
     const totalAmount = resolvedItems.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
@@ -396,10 +402,12 @@ export class OrderRepository {
 
     // Insert new items
     if (resolvedItems.length > 0) {
-      await this.db.insert(orderItems).values(resolvedItems.map((item) => ({ id: item.id, orderId: id, productId: item.productId, name: item.name, quantity: item.quantity, unitPrice: item.unitPrice, vatRate: item.vatRate, notes: item.notes })));
-      for (const item of resolvedItems) {
-        if (item.selectedOptionIds.length > 0) {
-          await this.db.insert(orderItemOptions).values(item.selectedOptionIds.map((oid) => ({ id: randomUUID(), orderItemId: item.id, optionId: oid, optionName: optionMap.get(oid)?.name ?? oid, priceDelta: optionMap.get(oid)?.priceDelta ?? 0 })));
+      const insertedItemRows = await this.db.insert(orderItems).values(resolvedItems.map((item) => ({ orderId: id, productId: item.productId, name: item.name, quantity: item.quantity, unitPrice: item.unitPrice, notes: item.notes }))).returning();
+      for (let i = 0; i < insertedItemRows.length; i++) {
+        const row = insertedItemRows[i]!;
+        const resolved = resolvedItems[i]!;
+        if (resolved.selectedOptionIds.length > 0) {
+          await this.db.insert(orderItemOptions).values(resolved.selectedOptionIds.map((oid) => ({ orderItemId: row.id, optionId: oid, optionName: optionMap.get(oid)?.name ?? String(oid), priceDelta: optionMap.get(oid)?.priceDelta ?? 0 })));
         }
       }
     }
@@ -408,13 +416,13 @@ export class OrderRepository {
     return this.findById(id);
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: number): Promise<void> {
     await this.db.delete(orderItems).where(eq(orderItems.orderId, id));
     await this.db.delete(orders).where(eq(orders.id, id));
   }
 
-  private async _loadOptionsMap(itemIds: string[]): Promise<Map<string, OrderItemOption[]>> {
-    const map = new Map<string, OrderItemOption[]>();
+  private async _loadOptionsMap(itemIds: number[]): Promise<Map<number, OrderItemOption[]>> {
+    const map = new Map<number, OrderItemOption[]>();
     if (itemIds.length === 0) return map;
     const rows = await this.db.select().from(orderItemOptions).where(inArray(orderItemOptions.orderItemId, itemIds));
     for (const o of rows) {
@@ -426,7 +434,7 @@ export class OrderRepository {
   }
 
   private async _collapseRowsWithOptions(rows: JoinRow[]): Promise<Order[]> {
-    const orderMap = new Map<string, { row: JoinRow; items: DbItemRow[] }>();
+    const orderMap = new Map<number, { row: JoinRow; items: DbItemRow[] }>();
     for (const r of rows) {
       if (!orderMap.has(r.orderId)) {
         orderMap.set(r.orderId, { row: r, items: [] });
@@ -475,7 +483,7 @@ export class OrderRepository {
     );
   }
 
-  private toOrder(row: DbOrderRow, items: DbItemRow[], optsByItemId?: Map<string, OrderItemOption[]>): Order {
+  private toOrder(row: DbOrderRow, items: DbItemRow[], optsByItemId?: Map<number, OrderItemOption[]>): Order {
     const mappedItems = items.map((i): OrderItem => {
       const opts = optsByItemId?.get(i.id) ?? [];
       return {

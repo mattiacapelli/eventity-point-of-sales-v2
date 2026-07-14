@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { EventBus } from "@pos/event-bus";
 import type { Payment, CreatePaymentInput } from "@pos/shared-types";
 import { eq, orders, paymentMethods } from "@pos/db";
@@ -64,7 +63,7 @@ export class PaymentService {
     const payment = await this.repo.create(input);
 
     this.eventBus.emit("PAYMENT_COMPLETED", {
-      traceId: randomUUID(),
+      traceId: crypto.randomUUID(),
       payment,
       input,
       ...(input.terminalId !== undefined ? { terminalId: input.terminalId } : {}),
@@ -74,11 +73,11 @@ export class PaymentService {
     return payment;
   }
 
-  async getPaymentsForOrder(orderId: string): Promise<Payment[]> {
+  async getPaymentsForOrder(orderId: number): Promise<Payment[]> {
     return this.repo.findByOrderId(orderId);
   }
 
-  async refund(paymentId: string, reason?: string): Promise<Payment> {
+  async refund(paymentId: number, reason?: string): Promise<Payment> {
     const payment = await this.repo.findById(paymentId);
     if (!payment) throw new PaymentError(`Payment ${paymentId} not found`);
     if (payment.status !== "completed") {
@@ -89,8 +88,8 @@ export class PaymentService {
     if (!updated) throw new PaymentError(`Payment ${paymentId} not found after update`);
 
     this.eventBus.emit("PAYMENT_REFUNDED", {
-      traceId: randomUUID(),
-      paymentId,
+      traceId: crypto.randomUUID(),
+      paymentId: paymentId,
       orderId: payment.orderId,
       amount: payment.amount,
       ...(reason !== undefined ? { reason } : {}),

@@ -2,7 +2,6 @@ import "@fastify/swagger";
 import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
 import { eq, asc } from "@pos/db";
 import { optionGroups, options } from "@pos/db";
-import { randomUUID } from "node:crypto";
 import { requireRole, AuthError } from "@pos/core";
 
 async function adminOnly(request: FastifyRequest, reply: FastifyReply) {
@@ -27,11 +26,12 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const { productId } = request.query as { productId?: string };
     if (!productId) return reply.status(400).send({ error: "productId required" });
+    const numProductId = parseInt(productId, 10);
 
     const groups = await fastify.ctx.db
       .select()
       .from(optionGroups)
-      .where(eq(optionGroups.productId, productId))
+      .where(eq(optionGroups.productId, numProductId))
       .orderBy(asc(optionGroups.sortOrder));
 
     const opts = await fastify.ctx.db
@@ -69,7 +69,7 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const body = request.body as {
-      productId: string;
+      productId: number;
       name: string;
       type: "single" | "multi" | "removal";
       required?: boolean;
@@ -77,9 +77,7 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
       maxSel?: number;
       sortOrder?: number;
     };
-    const id = randomUUID();
-    await fastify.ctx.db.insert(optionGroups).values({
-      id,
+    const [row] = await fastify.ctx.db.insert(optionGroups).values({
       productId: body.productId,
       name: body.name,
       type: body.type,
@@ -87,9 +85,8 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
       minSel: body.minSel ?? 0,
       maxSel: body.maxSel ?? 1,
       sortOrder: body.sortOrder ?? 0,
-    });
-    const [row] = await fastify.ctx.db.select().from(optionGroups).where(eq(optionGroups.id, id));
-    fastify.ctx.eventBus.emit("OPTION_GROUP_CREATED", { traceId: randomUUID(), id, productId: body.productId, timestamp: new Date() });
+    }).returning();
+    fastify.ctx.eventBus.emit("OPTION_GROUP_CREATED", { traceId: crypto.randomUUID(), id: row!.id, productId: body.productId, timestamp: new Date() });
     return reply.status(201).send({ ...row, options: [] });
   });
 
@@ -98,6 +95,7 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const body = request.body as Partial<{
       name: string;
       type: "single" | "multi" | "removal";
@@ -107,7 +105,7 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
       sortOrder: number;
     }>;
 
-    const [existing] = await fastify.ctx.db.select().from(optionGroups).where(eq(optionGroups.id, id));
+    const [existing] = await fastify.ctx.db.select().from(optionGroups).where(eq(optionGroups.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     const update: {
@@ -126,17 +124,17 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.sortOrder !== undefined) update.sortOrder = body.sortOrder;
 
     if (Object.keys(update).length > 0) {
-      await fastify.ctx.db.update(optionGroups).set(update).where(eq(optionGroups.id, id));
+      await fastify.ctx.db.update(optionGroups).set(update).where(eq(optionGroups.id, numId));
     }
 
-    const [row] = await fastify.ctx.db.select().from(optionGroups).where(eq(optionGroups.id, id));
+    const [row] = await fastify.ctx.db.select().from(optionGroups).where(eq(optionGroups.id, numId));
     const groupOptions = await fastify.ctx.db
       .select()
       .from(options)
-      .where(eq(options.optionGroupId, id))
+      .where(eq(options.optionGroupId, numId))
       .orderBy(asc(options.sortOrder));
 
-    fastify.ctx.eventBus.emit("OPTION_GROUP_UPDATED", { traceId: randomUUID(), id, productId: existing.productId, timestamp: new Date() });
+    fastify.ctx.eventBus.emit("OPTION_GROUP_UPDATED", { traceId: crypto.randomUUID(), id: numId, productId: existing.productId, timestamp: new Date() });
     return reply.send({ ...row, options: groupOptions });
   });
 
@@ -145,10 +143,11 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const [existing] = await fastify.ctx.db.select().from(optionGroups).where(eq(optionGroups.id, id));
-    await fastify.ctx.db.delete(optionGroups).where(eq(optionGroups.id, id));
+    const numId = parseInt(id, 10);
+    const [existing] = await fastify.ctx.db.select().from(optionGroups).where(eq(optionGroups.id, numId));
+    await fastify.ctx.db.delete(optionGroups).where(eq(optionGroups.id, numId));
     if (existing) {
-      fastify.ctx.eventBus.emit("OPTION_GROUP_DELETED", { traceId: randomUUID(), id, productId: existing.productId, timestamp: new Date() });
+      fastify.ctx.eventBus.emit("OPTION_GROUP_DELETED", { traceId: crypto.randomUUID(), id: numId, productId: existing.productId, timestamp: new Date() });
     }
     return reply.status(204).send();
   });
@@ -160,25 +159,23 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { groupId } = request.params as { groupId: string };
+    const numGroupId = parseInt(groupId, 10);
     const body = request.body as {
       name: string;
       priceDelta?: number;
       prefix?: "+" | "-" | ">>";
       sortOrder?: number;
     };
-    const id = randomUUID();
-    await fastify.ctx.db.insert(options).values({
-      id,
-      optionGroupId: groupId,
+    const [row] = await fastify.ctx.db.insert(options).values({
+      optionGroupId: numGroupId,
       name: body.name,
       priceDelta: body.priceDelta ?? 0,
       prefix: body.prefix ?? "+",
       active: true,
       sortOrder: body.sortOrder ?? 0,
-    });
-    const [row] = await fastify.ctx.db.select().from(options).where(eq(options.id, id));
+    }).returning();
     if (!row) return reply.status(500).send({ error: "Insert failed" });
-    fastify.ctx.eventBus.emit("OPTION_CREATED", { traceId: randomUUID(), id, optionGroupId: groupId, timestamp: new Date() });
+    fastify.ctx.eventBus.emit("OPTION_CREATED", { traceId: crypto.randomUUID(), id: row.id, optionGroupId: numGroupId, timestamp: new Date() });
     return reply.status(201).send({ ...row, prefix: row.prefix ?? "+" });
   });
 
@@ -187,6 +184,7 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { optionId } = request.params as { optionId: string };
+    const numOptionId = parseInt(optionId, 10);
     const body = request.body as Partial<{
       name: string;
       priceDelta: number;
@@ -195,7 +193,7 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
       sortOrder: number;
     }>;
 
-    const [existing] = await fastify.ctx.db.select().from(options).where(eq(options.id, optionId));
+    const [existing] = await fastify.ctx.db.select().from(options).where(eq(options.id, numOptionId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     const update: {
@@ -212,12 +210,12 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.sortOrder !== undefined) update.sortOrder = body.sortOrder;
 
     if (Object.keys(update).length > 0) {
-      await fastify.ctx.db.update(options).set(update).where(eq(options.id, optionId));
+      await fastify.ctx.db.update(options).set(update).where(eq(options.id, numOptionId));
     }
 
-    const [row] = await fastify.ctx.db.select().from(options).where(eq(options.id, optionId));
+    const [row] = await fastify.ctx.db.select().from(options).where(eq(options.id, numOptionId));
     if (!row) return reply.status(404).send({ error: "Not found" });
-    fastify.ctx.eventBus.emit("OPTION_UPDATED", { traceId: randomUUID(), id: optionId, optionGroupId: existing.optionGroupId, timestamp: new Date() });
+    fastify.ctx.eventBus.emit("OPTION_UPDATED", { traceId: crypto.randomUUID(), id: numOptionId, optionGroupId: existing.optionGroupId, timestamp: new Date() });
     return reply.send({ ...row, prefix: row.prefix ?? "+" });
   });
 
@@ -226,10 +224,11 @@ const optionGroupsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { optionId } = request.params as { optionId: string };
-    const [existing] = await fastify.ctx.db.select().from(options).where(eq(options.id, optionId));
-    await fastify.ctx.db.delete(options).where(eq(options.id, optionId));
+    const numOptionId = parseInt(optionId, 10);
+    const [existing] = await fastify.ctx.db.select().from(options).where(eq(options.id, numOptionId));
+    await fastify.ctx.db.delete(options).where(eq(options.id, numOptionId));
     if (existing) {
-      fastify.ctx.eventBus.emit("OPTION_DELETED", { traceId: randomUUID(), id: optionId, optionGroupId: existing.optionGroupId, timestamp: new Date() });
+      fastify.ctx.eventBus.emit("OPTION_DELETED", { traceId: crypto.randomUUID(), id: numOptionId, optionGroupId: existing.optionGroupId, timestamp: new Date() });
     }
     return reply.status(204).send();
   });

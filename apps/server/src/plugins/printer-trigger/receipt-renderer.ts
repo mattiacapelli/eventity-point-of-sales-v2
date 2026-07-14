@@ -8,7 +8,7 @@ import type { OrderItemRow, PrinterRow, ReceiptContext, ReceiptJobData } from ".
 import type { ReceiptLine } from "@pos/core";
 
 type TemplateRow = {
-  id: string;
+  id: number;
   role: string | null;
   printMode: string | null;
   blocks: string | unknown | null;
@@ -61,7 +61,7 @@ export function buildTextLines(
     lines.push({ type: "item", left: `${item.quantity}x ${item.name}`, right: `€${(item.unitPrice * item.quantity).toFixed(2)}` });
     if (tmpl?.showItemCategory) {
       const catId   = productCategoryMap[item.productId] ?? null;
-      const catName = catId ? categoryNameMap[catId] : undefined;
+      const catName = catId !== null ? categoryNameMap[catId] : undefined;
       if (catName) lines.push({ type: "text", content: `  ${catName}` });
     }
   }
@@ -71,7 +71,7 @@ export function buildTextLines(
   if (!groupName && (tmpl?.showPaymentMethod ?? true)) lines.push({ type: "item", left: "Pagamento", right: paymentMethodName });
 
   if (!groupName) {
-    const vatItems = jobItems.map((i) => ({
+    const vatItems: Array<{ id: number; productId: number; name: string; quantity: number; unitPrice: number; vatRate: number }> = jobItems.map((i) => ({
       id: i.id, productId: i.productId, name: i.name,
       quantity: i.quantity, unitPrice: i.unitPrice,
       vatRate: i.vatRate ?? 10,
@@ -150,7 +150,7 @@ export async function printOneReceipt(opts: {
         receiptDisplay:    ctx.displayNum,
         items:             jobItems.map((i) => {
           const catId   = ctx.productCategoryMap[i.productId] ?? null;
-          const catName = catId ? ctx.categoryNameMap[catId] : undefined;
+          const catName = catId !== null ? ctx.categoryNameMap[catId] : undefined;
           return { name: i.name, quantity: i.quantity, unitPrice: i.unitPrice, ...(catName ? { category: catName } : {}) };
         }),
         showItemCategory:  tmpl?.showItemCategory ?? false,
@@ -202,11 +202,12 @@ export function groupItemsByCategory(
 ): Map<string, { name: string; items: OrderItemRow[] }> {
   const grouped = new Map<string, { name: string; items: OrderItemRow[] }>();
   for (const item of items) {
-    const catId   = ctx.productCategoryMap[item.productId] ?? "__none__";
-    const catName = catId !== "__none__" ? (ctx.categoryNameMap[catId] ?? "Senza categoria") : "Senza categoria";
-    const existing = grouped.get(catId) ?? { name: catName, items: [] };
+    const catId   = ctx.productCategoryMap[item.productId] ?? null;
+    const catKey  = catId !== null ? String(catId) : "__none__";
+    const catName = catId !== null ? (ctx.categoryNameMap[catId] ?? "Senza categoria") : "Senza categoria";
+    const existing = grouped.get(catKey) ?? { name: catName, items: [] };
     existing.items.push(item);
-    grouped.set(catId, existing);
+    grouped.set(catKey, existing);
   }
   return grouped;
 }
@@ -217,12 +218,13 @@ export function groupItemsByCenter(
 ): Map<string, { name: string; items: OrderItemRow[] }> {
   const grouped = new Map<string, { name: string; items: OrderItemRow[] }>();
   for (const item of items) {
-    const catId    = ctx.productCategoryMap[item.productId] ?? null;
-    const centerId = (catId && ctx.categoryFirstCenterMap[catId]) ? ctx.categoryFirstCenterMap[catId]! : "__none__";
-    const centerName = centerId !== "__none__" ? (ctx.centerNameMap[centerId] ?? "Senza centro") : "Senza centro";
-    const existing = grouped.get(centerId) ?? { name: centerName, items: [] };
+    const catId     = ctx.productCategoryMap[item.productId] ?? null;
+    const centerId  = (catId !== null && ctx.categoryFirstCenterMap[catId] !== undefined) ? ctx.categoryFirstCenterMap[catId]! : null;
+    const centerKey = centerId !== null ? String(centerId) : "__none__";
+    const centerName = centerId !== null ? (ctx.centerNameMap[centerId] ?? "Senza centro") : "Senza centro";
+    const existing = grouped.get(centerKey) ?? { name: centerName, items: [] };
     existing.items.push(item);
-    grouped.set(centerId, existing);
+    grouped.set(centerKey, existing);
   }
   return grouped;
 }
@@ -246,13 +248,14 @@ export function buildSeparateGroups(
 
     // "inherit" — check production center mode
     const catId     = ctx.productCategoryMap[item.productId] ?? null;
-    const centerIds = catId ? (ctx.categoryCentersMap[catId] ?? []) : [];
+    const centerIds = catId !== null ? (ctx.categoryCentersMap[catId] ?? []) : [];
     const separateCenterId = centerIds.find((cid) => ctx.centerPrintModeMap[cid] === "separate");
-    if (separateCenterId) {
+    if (separateCenterId !== undefined) {
+      const centerKey  = String(separateCenterId);
       const centerName = ctx.centerNameMap[separateCenterId] ?? "Centro";
-      const existing   = separateGroups.get(separateCenterId) ?? { name: centerName, items: [] };
+      const existing   = separateGroups.get(centerKey) ?? { name: centerName, items: [] };
       existing.items.push(item);
-      separateGroups.set(separateCenterId, existing);
+      separateGroups.set(centerKey, existing);
     }
   }
   return separateGroups;

@@ -46,8 +46,8 @@ interface CardProps {
   loading?: boolean;
   stockCount: number | null;
   onClick: () => void;
-  onDragStart: (e: React.DragEvent, productId: string) => void;
-  onResizeStart: (e: React.PointerEvent, productId: string, scope: string) => void;
+  onDragStart: (e: React.DragEvent, productId: number) => void;
+  onResizeStart: (e: React.PointerEvent, productId: number, scope: string) => void;
   scope: string;
 }
 
@@ -274,12 +274,12 @@ interface GridAreaProps {
   showImage: boolean;
   cardTextSize: number;
   cardRowHeight: number;
-  loadingProductId: string | null;
-  stockMap: Map<string, number>;
+  loadingProductId: number | null;
+  stockMap: Map<number, number>;
   onProductClick: (p: Product) => void;
-  onDragStart: (e: React.DragEvent, productId: string, scope: string) => void;
+  onDragStart: (e: React.DragEvent, productId: number, scope: string) => void;
   onDrop: (scope: string, x: number, y: number) => void;
-  onResizeStart: (e: React.PointerEvent, productId: string, scope: string) => void;
+  onResizeStart: (e: React.PointerEvent, productId: number, scope: string) => void;
 }
 
 function GridArea({ products, slots, scope, baseCols, editMode, locked, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, loadingProductId, stockMap, onProductClick, onDragStart, onDrop, onResizeStart }: GridAreaProps) {
@@ -352,8 +352,8 @@ function GridArea({ products, slots, scope, baseCols, editMode, locked, showPric
 
 export function ProductGrid() {
   const { categories, products, productionCenters, optionGroupsByProduct, setOptionGroups } = useAdminStore();
-  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
-  const [activeCenterId, setActiveCenterId] = useState<string | null>(null);
+  const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
+  const [activeCenterId, setActiveCenterId] = useState<number | null>(null);
   const [configuratorProduct, setConfiguratorProductRaw] = useState<Product | null>(null);
   const addToCart = useStore((s) => s.addToCart);
   const setProductConfiguratorOpen = useStore((s) => s.setProductConfiguratorOpen);
@@ -365,7 +365,7 @@ export function ProductGrid() {
   const navigate = useNavigate();
   const location = useLocation();
   const { terminalId } = useTerminalStore();
-  const [visibleCategoryIds, setVisibleCategoryIds] = useState<string[] | null>(null);
+  const [visibleCategoryIds, setVisibleCategoryIds] = useState<number[] | null>(null);
 
   const { viewMode, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, sortBy, baseCols, sidebarTextSize, sidebarSortBy, editMode, layouts, loadLayout, saveLayout, updateSlot, setEditMode, applyServerPrefs } = useGridStore();
 
@@ -374,16 +374,16 @@ export function ProductGrid() {
     : categories;
   const visibleCategoryIdSet = visibleCategoryIds && visibleCategoryIds.length > 0 ? new Set(visibleCategoryIds) : null;
 
-  const [loadingProductId, setLoadingProductId] = useState<string | null>(null);
+  const [loadingProductId, setLoadingProductId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [stockMap, setStockMap] = useState<Map<string, number>>(new Map());
+  const [stockMap, setStockMap] = useState<Map<number, number>>(new Map());
 
   const refreshStockMap = () => {
     adminApi.inventory.listItems()
       .then((items) => {
-        const map = new Map<string, number>();
+        const map = new Map<number, number>();
         for (const item of items) {
-          if (item.productId) map.set(item.productId, item.currentStock);
+          if (item.productId !== null) map.set(item.productId, item.currentStock);
         }
         setStockMap(map);
       })
@@ -398,12 +398,12 @@ export function ProductGrid() {
   }, []);
 
   // Drag state
-  const dragProductIdRef = useRef<string | null>(null);
+  const dragProductIdRef = useRef<number | null>(null);
   const dragScopeRef     = useRef<string | null>(null);
 
   // Resize state
   const resizeRef = useRef<{
-    productId: string; scope: string;
+    productId: number; scope: string;
     startX: number; startY: number;
     origSpanW: number; origSpanH: number;
     cellW: number; cellH: number;
@@ -505,7 +505,7 @@ export function ProductGrid() {
     };
   }, [baseCols, updateSlot]);
 
-  function handleDragStart(e: React.DragEvent, productId: string, scope: string) {
+  function handleDragStart(e: React.DragEvent, productId: number, scope: string) {
     dragProductIdRef.current = productId;
     dragScopeRef.current = scope;
     e.dataTransfer.effectAllowed = "move";
@@ -535,14 +535,14 @@ export function ProductGrid() {
     }
     saveLayout(scope, nextSlots);
     if (sourceScopeId && sourceScopeId !== scope) {
-      if (scope.startsWith("category:")) void adminApi.products.update(productId, { categoryId: scope.replace("category:", "") });
-      else if (scope.startsWith("center:")) void adminApi.products.update(productId, { productionCenterId: scope.replace("center:", "") });
+      if (scope.startsWith("category:")) void adminApi.products.update(productId, { categoryId: parseInt(scope.replace("category:", ""), 10) });
+      else if (scope.startsWith("center:")) void adminApi.products.update(productId, { productionCenterId: parseInt(scope.replace("center:", ""), 10) });
     }
     dragProductIdRef.current = null;
     dragScopeRef.current = null;
   }
 
-  function handleResizeStart(e: React.PointerEvent, productId: string, scope: string) {
+  function handleResizeStart(e: React.PointerEvent, productId: number, scope: string) {
     const slot = (layouts[scope] ?? []).find((s) => s.productId === productId);
     if (!slot) return;
     const gridEl = (e.currentTarget as HTMLElement).closest("[data-grid]") as HTMLElement | null;
@@ -583,7 +583,7 @@ export function ProductGrid() {
     !visibleCategoryIdSet || !p.categoryId || visibleCategoryIdSet.has(p.categoryId)
   ));
 
-  function getProductsForCategory(catId: string) {
+  function getProductsForCategory(catId: number) {
     return sortProducts(activeProducts.filter((p) => p.categoryId === catId), sortBy);
   }
 

@@ -2,7 +2,7 @@ import type { Logger } from "pino";
 import { TcpPrinterAdapter } from "./tcp-printer.adapter.js";
 
 export interface PrintJob {
-  printerId: string;
+  printerId: number;
   /** Plain text content (text mode). Mutually exclusive with contentBuffer. */
   content?: string;
   /** Raw bytes to write directly (image/raster mode). Mutually exclusive with content. */

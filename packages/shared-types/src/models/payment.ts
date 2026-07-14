@@ -2,8 +2,8 @@ export type PaymentMethod = string;
 export type PaymentStatus = "pending" | "completed" | "failed" | "refunded";
 
 export interface Payment {
-  readonly id: string;
-  readonly orderId: string;
+  readonly id: number;
+  readonly orderId: number;
   readonly method: PaymentMethod;
   readonly status: PaymentStatus;
   readonly amount: number;
@@ -14,10 +14,10 @@ export interface Payment {
 }
 
 export interface CreatePaymentInput {
-  readonly orderId: string;
+  readonly orderId: number;
   readonly method: PaymentMethod;
   readonly amount: number;
   readonly currency?: string;
   readonly reference?: string;
-  readonly terminalId?: string;
+  readonly terminalId?: number;
 }

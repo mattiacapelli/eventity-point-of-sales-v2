@@ -151,7 +151,7 @@ function CheckoutModal() {
         {/* Order summary */}
         <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-lg)", padding: "var(--sp-md)" }}>
           <div style={{ color: "var(--color-gray-500)", fontSize: "var(--text-sm)", marginBottom: "var(--sp-sm)" }}>
-            Ordine #{order.id.slice(-6).toUpperCase()}
+            Ordine #{order.id}
           </div>
           {order.items.map((item) => (
             <div key={item.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)", padding: "4px 0" }}>
@@ -327,7 +327,7 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
     }
   }
 
-  function adj(id: string, delta: number) {
+  function adj(id: number, delta: number) {
     setStockValues((v) => ({ ...v, [id]: Math.max(0, (v[id] ?? 0) + delta) }));
   }
 

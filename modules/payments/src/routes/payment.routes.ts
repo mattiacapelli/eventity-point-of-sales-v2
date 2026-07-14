@@ -38,16 +38,18 @@ export function registerPaymentRoutes(
     },
     handler: async (req, reply) => {
       const body = req.body as {
-        orderId: string;
+        orderId: number | string;
         method: string;
         amount: number;
         currency?: string;
         reference?: string;
       };
-      const terminalId = (req.headers["x-terminal-id"] as string | undefined) ?? undefined;
+      const terminalIdHeader = (req.headers["x-terminal-id"] as string | undefined) ?? undefined;
+      const terminalId = terminalIdHeader !== undefined ? parseInt(terminalIdHeader, 10) : undefined;
+      const orderId = typeof body.orderId === "string" ? parseInt(body.orderId, 10) : body.orderId;
       try {
         const payment = await service.pay({
-          orderId: body.orderId,
+          orderId,
           method: body.method,
           amount: body.amount,
           ...(body.currency !== undefined ? { currency: body.currency } : {}),
@@ -86,7 +88,7 @@ export function registerPaymentRoutes(
       const { id } = req.params as { id: string };
       const { reason } = (req.body ?? {}) as { reason?: string };
       try {
-        const payment = await service.refund(id, reason);
+        const payment = await service.refund(parseInt(id, 10), reason);
         reply.send(serializePayment(payment));
       } catch (err) {
         if (err instanceof PaymentError) {
@@ -113,7 +115,7 @@ export function registerPaymentRoutes(
     },
     handler: async (req, reply) => {
       const { orderId } = req.params as { orderId: string };
-      const list = await service.getPaymentsForOrder(orderId);
+      const list = await service.getPaymentsForOrder(parseInt(orderId, 10));
       reply.send({ payments: list.map(serializePayment) });
     },
   });

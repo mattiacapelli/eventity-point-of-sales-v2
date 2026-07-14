@@ -17,7 +17,7 @@ import { join, resolve } from "node:path";
 
 const RESTAURANT_KEYS = ["restaurant_name", "restaurant_address", "restaurant_city", "restaurant_vat", "restaurant_phone", "restaurant_logo_path"] as const;
 
-async function getShiftFullStats(db: DbClient, shiftId: string) {
+async function getShiftFullStats(db: DbClient, shiftId: number) {
   const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId)).limit(1);
   if (!shift) return null;
 
@@ -33,14 +33,14 @@ async function getShiftFullStats(db: DbClient, shiftId: string) {
   const methodIdToName = Object.fromEntries(allMethodRows.map((m) => [m.id, m.name]));
 
   // Map orderId -> payment method (at most one "completed" payment per order, enforced at DB level)
-  let orderMethodMap: Record<string, string> = {};
+  let orderMethodMap: Record<number, string> = {};
   if (excludedMethodIds.size > 0 && orderIds.length > 0) {
     const completedPmtRows = await db.select({ orderId: payments.orderId, method: payments.method })
       .from(payments)
       .where(and(inArray(payments.orderId, orderIds), eq(payments.status, "completed")));
     orderMethodMap = Object.fromEntries(completedPmtRows.map((p) => [p.orderId, p.method]));
   }
-  const isOrderExcluded = (orderId: string) => {
+  const isOrderExcluded = (orderId: number) => {
     const method = orderMethodMap[orderId];
     return method !== undefined && excludedMethodIds.has(method);
   };
@@ -67,15 +67,15 @@ async function getShiftFullStats(db: DbClient, shiftId: string) {
     bucket.amount += order.totalAmount;
   }
 
-  const terminalIds = [...new Set(completedOrders.map((o) => o.terminalId).filter((id): id is string => Boolean(id)))];
-  let terminalNameMap: Record<string, string> = {};
+  const terminalIds = [...new Set(completedOrders.map((o) => o.terminalId).filter((id): id is number => id !== null && id !== undefined))];
+  let terminalNameMap: Record<number, string> = {};
   if (terminalIds.length > 0) {
     const terminalRows = await db.select().from(terminals).where(inArray(terminals.id, terminalIds));
     terminalNameMap = Object.fromEntries(terminalRows.map((t) => [t.id, t.name]));
   }
   const byTerminalAgg: Record<string, { count: number; amount: number }> = {};
   for (const order of completedOrders) {
-    const name = order.terminalId ? (terminalNameMap[order.terminalId] ?? "Sconosciuta") : "Senza cassa";
+    const name = order.terminalId !== null && order.terminalId !== undefined ? (terminalNameMap[order.terminalId] ?? "Sconosciuta") : "Senza cassa";
     const entry = byTerminalAgg[name] ?? { count: 0, amount: 0 };
     entry.count += 1;
     entry.amount += order.totalAmount;
@@ -130,8 +130,8 @@ async function getShiftFullStats(db: DbClient, shiftId: string) {
     .leftJoin(categories, eq(products.categoryId, categories.id))
     .where(inArray(orderItems.orderId, orderIds));
 
-  const categoryIds = [...new Set(itemRows.map((i) => i.categoryId).filter((id): id is string => Boolean(id)))];
-  const categoryCenterMap: Record<string, string> = {};
+  const categoryIds = [...new Set(itemRows.map((i) => i.categoryId).filter((id): id is number => id !== null && id !== undefined))];
+  const categoryCenterMap: Record<number, number> = {};
   if (categoryIds.length > 0) {
     const pcCatRows = await db
       .select({ categoryId: productionCenterCategories.categoryId, productionCenterId: productionCenterCategories.productionCenterId })
@@ -143,10 +143,10 @@ async function getShiftFullStats(db: DbClient, shiftId: string) {
   }
 
   const centerIds = [...new Set([
-    ...itemRows.map((i) => i.productionCenterId).filter((id): id is string => Boolean(id)),
+    ...itemRows.map((i) => i.productionCenterId).filter((id): id is number => id !== null && id !== undefined),
     ...Object.values(categoryCenterMap),
   ])];
-  let centerNameMap: Record<string, string> = {};
+  let centerNameMap: Record<number, string> = {};
   if (centerIds.length > 0) {
     const centerRows = await db.select().from(productionCenters).where(inArray(productionCenters.id, centerIds));
     centerNameMap = Object.fromEntries(centerRows.map((c) => [c.id, c.name]));
@@ -158,13 +158,13 @@ async function getShiftFullStats(db: DbClient, shiftId: string) {
     byCategory[cat].quantity += item.quantity;
     byCategory[cat].amount += item.unitPrice * item.quantity;
 
-    const pid = item.productId;
+    const pid = String(item.productId);
     if (!byProduct[pid]) byProduct[pid] = { name: item.itemName, quantity: 0, amount: 0 };
     byProduct[pid].quantity += item.quantity;
     byProduct[pid].amount += item.unitPrice * item.quantity;
 
-    const centerId = item.productionCenterId ?? (item.categoryId ? categoryCenterMap[item.categoryId] : undefined);
-    const centerName = centerId ? (centerNameMap[centerId] ?? "Senza centro") : "Senza centro";
+    const centerId = item.productionCenterId ?? (item.categoryId !== null && item.categoryId !== undefined ? categoryCenterMap[item.categoryId] : undefined);
+    const centerName = centerId !== undefined && centerId !== null ? (centerNameMap[centerId] ?? "Senza centro") : "Senza centro";
     if (!byProductionCenter[centerName]) byProductionCenter[centerName] = { quantity: 0, amount: 0 };
     byProductionCenter[centerName].quantity += item.quantity;
     byProductionCenter[centerName].amount += item.unitPrice * item.quantity;
@@ -293,12 +293,13 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["stats"], summary: "Stats for a specific shift" },
   }, async (request, reply) => {
     const { shiftId } = request.params as { shiftId: string };
+    const numShiftId = parseInt(shiftId, 10);
     const db = fastify.ctx.db;
 
     const completedOrders = await db
       .select()
       .from(orders)
-      .where(and(eq(orders.shiftId, shiftId), inArray(orders.status, [...PAID_STATUSES])));
+      .where(and(eq(orders.shiftId, numShiftId), inArray(orders.status, [...PAID_STATUSES])));
 
     const orderIds = completedOrders.map((o) => o.id);
     const totalSales = completedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
@@ -420,12 +421,13 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     },
   }, async (request, reply) => {
     const { shiftId } = request.params as { shiftId: string };
+    const numShiftId = parseInt(shiftId, 10);
     const db = fastify.ctx.db;
 
-    const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId)).limit(1);
+    const [shift] = await db.select().from(shifts).where(eq(shifts.id, numShiftId)).limit(1);
     if (!shift) return reply.status(404).send({ error: "Shift not found" });
 
-    const shiftOrders = await db.select().from(orders).where(eq(orders.shiftId, shiftId));
+    const shiftOrders = await db.select().from(orders).where(eq(orders.shiftId, numShiftId));
 
     const completedOrders = shiftOrders.filter((o) => PAID_STATUSES.includes(o.status as typeof PAID_STATUSES[number]));
     const cancelledOrders = shiftOrders.filter((o) => o.status === "cancelled");
@@ -492,7 +494,7 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       byCategory[cat].quantity += item.quantity;
       byCategory[cat].amount += item.unitPrice * item.quantity;
 
-      const pid = item.productId;
+      const pid = String(item.productId);
       if (!byProduct[pid]) byProduct[pid] = { name: item.itemName, quantity: 0, amount: 0 };
       byProduct[pid].quantity += item.quantity;
       byProduct[pid].amount += item.unitPrice * item.quantity;
@@ -523,7 +525,7 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["stats"], summary: "Full stats breakdown for a shift, including hourly and production center data" },
   }, async (request, reply) => {
     const { shiftId } = request.params as { shiftId: string };
-    const stats = await getShiftFullStats(fastify.ctx.db, shiftId);
+    const stats = await getShiftFullStats(fastify.ctx.db, parseInt(shiftId, 10));
     if (!stats) return reply.status(404).send({ error: "Shift not found" });
     return reply.send(stats);
   });
@@ -544,7 +546,7 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     const { shiftId } = request.params as { shiftId: string };
     const { db, printerService } = fastify.ctx;
 
-    const stats = await getShiftFullStats(db, shiftId);
+    const stats = await getShiftFullStats(db, parseInt(shiftId, 10));
     if (!stats) return reply.status(404).send({ error: "Shift not found" });
 
     const activePrinters = await db.select().from(printers).where(eq(printers.active, true));

@@ -14,24 +14,24 @@ export function PrintersTab() {
   const [editTarget, setEditTarget] = useState<Printer | null>(null);
   const [form, setForm] = useState({ name: "", host: "", port: "", receiptEnabled: false, kitchenEnabled: false, printMode: "text" as "text" | "image" });
   const [saving, setSaving] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [testingId, setTestingId] = useState<string | null>(null);
-  const [testResult, setTestResult] = useState<Record<string, string>>({});
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [testingId, setTestingId] = useState<number | null>(null);
+  const [testResult, setTestResult] = useState<Record<number, string>>({});
   const [discovering, setDiscovering] = useState(false);
   const [discoverModalOpen, setDiscoverModalOpen] = useState(false);
   const [subnetInput, setSubnetInput] = useState("");
   const [discoverResult, setDiscoverResult] = useState<{ subnet: string; found: Array<{ host: string; port: number }> } | null>(null);
 
   // Per-printer assigned production centers
-  const [printerCenters, setPrinterCenters] = useState<Record<string, ProductionCenter[]>>({});
-  const [loadedPrinterCenters, setLoadedPrinterCenters] = useState<Set<string>>(new Set());
-  const [centerDropdown, setCenterDropdown] = useState<string | null>(null);
+  const [printerCenters, setPrinterCenters] = useState<Record<number, ProductionCenter[]>>({});
+  const [loadedPrinterCenters, setLoadedPrinterCenters] = useState<Set<number>>(new Set());
+  const [centerDropdown, setCenterDropdown] = useState<number | null>(null);
 
   useEffect(() => {
     adminApi.printers.list().then(setPrinters).catch(console.error);
   }, []);
 
-  async function loadPrinterCenters(printerId: string) {
+  async function loadPrinterCenters(printerId: number) {
     if (loadedPrinterCenters.has(printerId)) return;
     const centers = await adminApi.printers.getProductionCenters(printerId);
     setPrinterCenters((prev) => ({ ...prev, [printerId]: centers }));
@@ -42,14 +42,14 @@ export function PrintersTab() {
     printers.forEach((p) => { void loadPrinterCenters(p.id); });
   }, [printers]);
 
-  async function handleAssignCenter(printerId: string, centerId: string) {
+  async function handleAssignCenter(printerId: number, centerId: number) {
     await adminApi.productionCenters.assignPrinter(centerId, printerId);
     const centers = await adminApi.printers.getProductionCenters(printerId);
     setPrinterCenters((prev) => ({ ...prev, [printerId]: centers }));
     setCenterDropdown(null);
   }
 
-  async function handleRemoveCenter(printerId: string, centerId: string) {
+  async function handleRemoveCenter(printerId: number, centerId: number) {
     await adminApi.productionCenters.removePrinter(centerId, printerId);
     const centers = await adminApi.printers.getProductionCenters(printerId);
     setPrinterCenters((prev) => ({ ...prev, [printerId]: centers }));
@@ -93,12 +93,12 @@ export function PrintersTab() {
       setModalOpen(false);
     } finally { setSaving(false); }
   }
-  async function handleDelete(id: string) {
+  async function handleDelete(id: number) {
     await adminApi.printers.delete(id);
     removePrinter(id);
     setDeleteId(null);
   }
-  async function handleTestPrint(id: string) {
+  async function handleTestPrint(id: number) {
     setTestingId(id);
     try {
       const result = await adminApi.printers.testPrint(id);

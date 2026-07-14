@@ -1,6 +1,6 @@
 export type OrderItemRow = {
-  id: string;
-  productId: string;
+  id: number;
+  productId: number;
   quantity: number;
   name: string;
   unitPrice: number;
@@ -9,14 +9,14 @@ export type OrderItemRow = {
 };
 
 export type OrderItemOptionRow = {
-  orderItemId: string;
-  optionId: string;
+  orderItemId: number;
+  optionId: number;
   optionName: string;
   priceDelta: number;
 };
 
 export type PrinterRow = {
-  id: string;
+  id: number;
   host: string | null;
   port: number | null;
   kitchenEnabled: boolean;
@@ -36,12 +36,12 @@ export type RestaurantInfo = {
 };
 
 export type ReceiptJobData = {
-  orderId: string;
+  orderId: number;
   amount: number;
   currency: string;
   method: string;
   paidAt: Date;
-  terminalId?: string;
+  terminalId?: number;
 };
 
 export type ReceiptContext = {
@@ -53,7 +53,7 @@ export type ReceiptContext = {
     fiscalDocNumber: string | null;
     fiscalDocDate: string | null;
     fiscalRtSerial: string | null;
-    terminalId: string | null;
+    terminalId: number | null;
     tableId: string | null;
     customerName: string | null;
   } | undefined;
@@ -62,11 +62,11 @@ export type ReceiptContext = {
   paymentMethodName: string;
   orderTerminalName: string | undefined;
   resolvedLogoPath: string | null;
-  productCategoryMap: Record<string, string | null>;
-  categoryNameMap: Record<string, string>;
-  productPrintModeMap: Record<string, string>;
-  categoryCentersMap: Record<string, string[]>;
-  categoryFirstCenterMap: Record<string, string>;
-  centerNameMap: Record<string, string>;
-  centerPrintModeMap: Record<string, string>;
+  productCategoryMap: Record<number, number | null>;
+  categoryNameMap: Record<number, string>;
+  productPrintModeMap: Record<number, string>;
+  categoryCentersMap: Record<number, number[]>;
+  categoryFirstCenterMap: Record<number, number>;
+  centerNameMap: Record<number, string>;
+  centerPrintModeMap: Record<number, string>;
 };

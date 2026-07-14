@@ -2,8 +2,8 @@ import { sqliteTable, text, real, integer } from "drizzle-orm/sqlite-core";
 import { products } from "./catalog.js";
 
 export const optionGroups = sqliteTable("option_groups", {
-  id:           text("id").primaryKey(),
-  productId:    text("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  id:           integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
+  productId:    integer("product_id", { mode: "number" }).notNull().references(() => products.id, { onDelete: "cascade" }),
   name:         text("name").notNull(),
   type:         text("type").notNull(),   // 'single' | 'multi' | 'removal'
   required:     integer("required", { mode: "boolean" }).notNull().default(false),
@@ -13,8 +13,8 @@ export const optionGroups = sqliteTable("option_groups", {
 });
 
 export const options = sqliteTable("options", {
-  id:            text("id").primaryKey(),
-  optionGroupId: text("option_group_id").notNull().references(() => optionGroups.id, { onDelete: "cascade" }),
+  id:            integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
+  optionGroupId: integer("option_group_id", { mode: "number" }).notNull().references(() => optionGroups.id, { onDelete: "cascade" }),
   name:          text("name").notNull(),
   priceDelta:    real("price_delta").notNull().default(0),
   prefix:        text("prefix").notNull().default("+"),  // "+" | "-" | ">>"

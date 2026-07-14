@@ -7,7 +7,7 @@ export interface ReceiptRenderData {
   blocks: ReceiptBlock[];
   canvasWidth: number;
   logoPath?: string | null;
-  orderId: string;
+  orderId: number;
   receiptDisplay?: string;
   items: { name: string; quantity: number; unitPrice: number; category?: string }[];
   showItemCategory?: boolean;
@@ -232,7 +232,7 @@ export async function renderReceiptImage(data: ReceiptRenderData): Promise<Buffe
         }
         break;
       case "order-number":
-        ctx.fillText(`Ordine #${data.receiptDisplay ?? data.orderId.slice(-6).toUpperCase()}`, x, y);
+        ctx.fillText(`Ordine #${data.receiptDisplay ?? String(data.orderId)}`, x, y);
         y += lineH;
         break;
       case "timestamp":

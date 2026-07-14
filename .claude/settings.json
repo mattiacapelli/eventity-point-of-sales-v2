@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db \"SELECT key, value FROM app_settings WHERE key = 'initialized';\")",
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db \".tables\")",
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db \"SELECT * FROM app_settings LIMIT 5;\")",
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db \"SELECT count\\(*\\) FROM users; SELECT count\\(*\\) FROM payment_methods;\")",
+      "Bash(node -e ' *)",
+      "Bash(node_modules/.bin/tsx -e ' *)",
+      "Bash(../../node_modules/.bin/tsx -e ' *)",
+      "Bash(rm -f /tmp/test-rel.db)",
+      "Bash(../../node_modules/.bin/tsx src/seed-demo.ts)",
+      "Bash(../../node_modules/.bin/tsx --input-type=module)",
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db \"SELECT sql FROM sqlite_master WHERE name='production_center_printers'\")",
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db \"SELECT sql FROM sqlite_master WHERE name='receipt_templates'\")",
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db \"SELECT id, name FROM receipt_templates\")",
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db \"SELECT name FROM categories WHERE id='7eff3bd5-2075-4119-ae9e-e0ddb7e1f5cb'\")",
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db \"PRAGMA foreign_key_list\\(products\\)\")",
+      "Bash(../../node_modules/.bin/tsc --noEmit)",
+      "Bash(pnpm --filter @eventity/pos exec tsc --noEmit)",
+      "Bash(grep -rn \"\\\\\"ne\\\\\"\\\\|{ ne\\\\|,ne,\" /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/src --include=\"*.ts\")",
+      "Bash(xargs ls)",
+      "Bash(git -C /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2 status)",
+      "Bash(git reset *)",
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/data/pos.db \"SELECT COUNT\\(*\\) as total, COUNT\\(shift_id\\) as with_shift FROM orders WHERE status='completed';\")",
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/data/pos.db \".tables\")",
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db ' *)",
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db \"SELECT id, name FROM categories LIMIT 10;\")",
+      "Bash(grep -vi \"BASE\\\\`\")",
+      "Bash(pnpm run *)",
+      "Bash(pnpm turbo *)",
+      "Bash(grep -rn \"sql\\\\`\\\\|rawQuery\\\\|execute\\\\|query\\(\" /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/modules --include=\"*.ts\")",
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db \"SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;\")",
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db \"SELECT COUNT\\(*\\) as sessions FROM sessions; SELECT username, role FROM users;\")",
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db \"SELECT username, role, pin FROM users;\")",
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db 'UPDATE users SET pin = '\\\\''$argon2id$v=19$m=65536,t=3,p=4$/BsYDv/9r+mbbJT/CHsVEA$HSv8c/1MWRv1SS+wYnNLBhgMG6Aq7/zZQsmtzAlEBHY'\\\\'' WHERE username = '\\\\''festivalmen_admin'\\\\''; SELECT username, substr\\(pin,1,20\\) FROM users;')"
+    ]
+  }
+}

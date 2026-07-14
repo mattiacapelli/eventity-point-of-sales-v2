@@ -1,9 +1,10 @@
 import type { InputHTMLAttributes, SelectHTMLAttributes } from "react";
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
-  const { style, ...rest } = props;
+  const { style, className, ...rest } = props;
   return (
     <input
+      className={["input-field", className].filter(Boolean).join(" ")}
       style={{
         width: "100%",
         height: "42px",
@@ -19,9 +20,10 @@ export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
 }
 
 export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  const { style, children, ...rest } = props;
+  const { style, children, className, ...rest } = props;
   return (
     <select
+      className={["input-field", className].filter(Boolean).join(" ")}
       style={{
         width: "100%",
         height: "42px",

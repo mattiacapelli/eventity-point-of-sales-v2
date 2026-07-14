@@ -2,7 +2,6 @@ import "@fastify/swagger";
 import type { FastifyPluginAsync } from "fastify";
 import { eq, inArray, appSettings } from "@pos/db";
 import { receiptTemplates } from "@pos/db";
-import { randomUUID } from "node:crypto";
 import { requireRole, AuthError, renderReceiptImage } from "@pos/core";
 import { mkdirSync, unlinkSync, existsSync, readdirSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
@@ -67,9 +66,7 @@ const receiptTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
       printMethod?: string;
       role?: string;
     };
-    const id = randomUUID();
-    await fastify.ctx.db.insert(receiptTemplates).values({
-      id,
+    const [row] = await fastify.ctx.db.insert(receiptTemplates).values({
       name:              body.name,
       headerText:        body.headerText ?? null,
       footerText:        body.footerText ?? null,
@@ -85,8 +82,7 @@ const receiptTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
       logoPath:          null,
       printMethod:       body.printMethod ?? "single",
       role:              body.role ?? "master",
-    });
-    const [row] = await fastify.ctx.db.select().from(receiptTemplates).where(eq(receiptTemplates.id, id));
+    }).returning();
     return reply.status(201).send(row);
   });
 
@@ -94,6 +90,7 @@ const receiptTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["receipt-templates"], summary: "Update a receipt template" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const body = request.body as Partial<{
       name: string;
       headerText: string | null;
@@ -111,7 +108,7 @@ const receiptTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
       role: string;
     }>;
 
-    const [existing] = await fastify.ctx.db.select().from(receiptTemplates).where(eq(receiptTemplates.id, id));
+    const [existing] = await fastify.ctx.db.select().from(receiptTemplates).where(eq(receiptTemplates.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     const update: {
@@ -146,9 +143,9 @@ const receiptTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.role !== undefined) update.role = body.role;
 
     if (Object.keys(update).length > 0) {
-      await fastify.ctx.db.update(receiptTemplates).set(update).where(eq(receiptTemplates.id, id));
+      await fastify.ctx.db.update(receiptTemplates).set(update).where(eq(receiptTemplates.id, numId));
     }
-    const [row] = await fastify.ctx.db.select().from(receiptTemplates).where(eq(receiptTemplates.id, id));
+    const [row] = await fastify.ctx.db.select().from(receiptTemplates).where(eq(receiptTemplates.id, numId));
     return reply.send(row);
   });
 
@@ -167,7 +164,7 @@ const receiptTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
       blocks: body.blocks,
       canvasWidth: body.canvasWidth ?? 576,
       logoPath,
-      orderId: "PREVIEW123",
+      orderId: 1,
       items: [
         { name: "Esempio prodotto 1", quantity: 2, unitPrice: 5.50, category: "Bevande" },
         { name: "Esempio prodotto 2", quantity: 1, unitPrice: 12.00, category: "Primi Piatti" },

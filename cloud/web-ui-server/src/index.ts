@@ -2,8 +2,10 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import rateLimit from "@fastify/rate-limit";
+import multipart from "@fastify/multipart";
+import fastifyStatic from "@fastify/static";
 import { mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { loadConfig } from "./config.js";
 import { createDb } from "./db/client.js";
 import { sql } from "drizzle-orm";
@@ -13,6 +15,9 @@ import adminTenantsRoutes from "./routes/admin-tenants.routes.js";
 import adminUsersRoutes from "./routes/admin-users.routes.js";
 import adminAuditRoutes from "./routes/admin-audit.routes.js";
 import adminExportRoutes from "./routes/admin-export.routes.js";
+import adminMenuImportRoutes from "./routes/admin-menu-import.routes.js";
+import adminCatalogRoutes from "./routes/admin-catalog.routes.js";
+import adminBrandingRoutes from "./routes/admin-branding.routes.js";
 import tenantMenuRoutes from "./routes/tenant-menu.routes.js";
 import tenantOrdersRoutes from "./routes/tenant-orders.routes.js";
 
@@ -23,6 +28,7 @@ async function main() {
   const isDev = process.env["NODE_ENV"] !== "production";
 
   try { mkdirSync(dirname(config.dbPath), { recursive: true }); } catch { /* already exists */ }
+  try { mkdirSync(resolve(config.dataDir, "images/tenants"), { recursive: true }); } catch { /* already exists */ }
   const db = createDb(config.dbPath);
   await seedSuperAdmin(db, config);
 
@@ -36,12 +42,21 @@ async function main() {
   await fastify.register(cors, { origin: config.corsOrigin });
   await fastify.register(jwt, { secret: config.jwtSecret });
   await fastify.register(rateLimit, { global: false });
+  await fastify.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } });
+  await fastify.register(fastifyStatic, {
+    root: resolve(config.dataDir),
+    prefix: "/api/static/",
+    decorateReply: false,
+  });
 
   await fastify.register(adminAuthRoutes, { db });
   await fastify.register(adminTenantsRoutes, { db });
   await fastify.register(adminUsersRoutes, { db });
   await fastify.register(adminAuditRoutes, { db });
   await fastify.register(adminExportRoutes, { db });
+  await fastify.register(adminMenuImportRoutes, { db });
+  await fastify.register(adminCatalogRoutes, { db });
+  await fastify.register(adminBrandingRoutes, { db, dataDir: config.dataDir });
   await fastify.register(tenantMenuRoutes, { db });
   await fastify.register(tenantOrdersRoutes, { db });
 

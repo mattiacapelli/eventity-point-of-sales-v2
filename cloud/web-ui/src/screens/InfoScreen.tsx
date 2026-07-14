@@ -23,7 +23,7 @@ const labelStyle: React.CSSProperties = {
   display: "block",
 };
 
-export function InfoScreen({ initial, onSubmit }: { initial: OrderInfo; onSubmit: (info: OrderInfo) => void }) {
+export function InfoScreen({ initial, logoUrl, onSubmit }: { initial: OrderInfo; logoUrl?: string | null; onSubmit: (info: OrderInfo) => void }) {
   const [tableId, setTableId] = useState(initial.tableId);
   const [customerName, setCustomerName] = useState(initial.customerName);
 
@@ -32,20 +32,26 @@ export function InfoScreen({ initial, onSubmit }: { initial: OrderInfo; onSubmit
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
       <Header />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "var(--sp-xl) var(--sp-lg)", gap: "var(--sp-xl)" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "var(--sp-xl) var(--sp-lg)", gap: "var(--sp-xl)" }}>
         <div
           style={{
             width: "180px",
             height: "180px",
             borderRadius: "50%",
-            background: "var(--color-brand)",
+            background: logoUrl ? "var(--color-white)" : "linear-gradient(160deg, var(--color-brand) 0%, var(--color-brand-dark) 100%)",
+            boxShadow: "var(--shadow-lg)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            padding: "var(--sp-lg)",
+            padding: logoUrl ? "var(--sp-md)" : "var(--sp-lg)",
+            overflow: "hidden",
           }}
         >
-          <img src="/logo.svg" alt="epos" style={{ width: "100%", height: "auto" }} />
+          {logoUrl ? (
+            <img src={logoUrl} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+          ) : (
+            <img src="/logo.svg" alt="epos" style={{ width: "100%", height: "auto" }} />
+          )}
         </div>
 
         <div style={{ width: "100%", maxWidth: "360px", display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
@@ -53,6 +59,7 @@ export function InfoScreen({ initial, onSubmit }: { initial: OrderInfo; onSubmit
             <label style={labelStyle} htmlFor="tableId">Tavolo</label>
             <input
               id="tableId"
+              className="input-field"
               style={inputStyle}
               value={tableId}
               onChange={(e) => setTableId(e.target.value)}
@@ -66,6 +73,7 @@ export function InfoScreen({ initial, onSubmit }: { initial: OrderInfo; onSubmit
             <label style={labelStyle} htmlFor="customerName">Nome e Cognome</label>
             <input
               id="customerName"
+              className="input-field"
               style={inputStyle}
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}

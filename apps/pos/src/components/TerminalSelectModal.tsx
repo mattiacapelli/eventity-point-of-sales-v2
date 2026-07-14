@@ -9,7 +9,7 @@ interface Props {
 
 export function TerminalSelectModal({ onSelected }: Props) {
   const [terminals, setTerminals] = useState<Terminal[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [newName, setNewName] = useState("");

@@ -389,6 +389,466 @@ function dropPaymentsMethodCheck(sqlite: Database.Database): void {
   `);
 }
 
+// Migrate all entity PKs from TEXT UUID to INTEGER AUTOINCREMENT.
+// Idempotent: checks if id column is already INTEGER before running.
+function migrateUuidToInt(sqlite: Database.Database): void {
+  const row = sqlite.prepare("SELECT typeof(id) as t FROM users LIMIT 1").get() as { t?: string } | undefined;
+  if (!row || row.t === "integer") return; // already migrated or table empty — check by schema
+  // Check schema: if id column is already INTEGER, skip
+  const usersSchema = sqlite.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get() as { sql?: string } | undefined;
+  if (usersSchema?.sql?.includes("INTEGER PRIMARY KEY")) return;
+
+  sqlite.pragma("foreign_keys = OFF");
+
+  // Rebuild order: leaf tables first, then tables they reference, roots last.
+  // Each rebuild: rename old → create new with INTEGER PK → copy data → drop old → rename new.
+
+  // 1. order_item_options (refs order_items)
+  sqlite.exec(`
+    ALTER TABLE order_item_options RENAME TO _oio_old;
+    CREATE TABLE order_item_options (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_item_id  INTEGER NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,
+      option_id      INTEGER NOT NULL,
+      option_name    TEXT NOT NULL,
+      price_delta    REAL NOT NULL DEFAULT 0
+    );
+    INSERT INTO order_item_options(order_item_id, option_id, option_name, price_delta)
+      SELECT order_item_id, option_id, option_name, price_delta FROM _oio_old;
+    DROP TABLE _oio_old;
+  `);
+
+  // 2. options (refs option_groups)
+  sqlite.exec(`
+    ALTER TABLE options RENAME TO _opts_old;
+    CREATE TABLE options (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      option_group_id INTEGER NOT NULL REFERENCES option_groups(id) ON DELETE CASCADE,
+      name            TEXT NOT NULL,
+      price_delta     REAL NOT NULL DEFAULT 0,
+      prefix          TEXT NOT NULL DEFAULT '+',
+      active          INTEGER NOT NULL DEFAULT 1,
+      sort_order      INTEGER NOT NULL DEFAULT 0
+    );
+    INSERT INTO options(option_group_id, name, price_delta, prefix, active, sort_order)
+      SELECT option_group_id, name, price_delta, COALESCE(prefix,'+'), active, sort_order FROM _opts_old;
+    DROP TABLE _opts_old;
+  `);
+
+  // 3. product_grid_layouts (refs products)
+  sqlite.exec(`
+    ALTER TABLE product_grid_layouts RENAME TO _pgl_old;
+    CREATE TABLE product_grid_layouts (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      scope      TEXT NOT NULL,
+      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      slot_x     INTEGER NOT NULL DEFAULT 0,
+      slot_y     INTEGER NOT NULL DEFAULT 0,
+      span_w     INTEGER NOT NULL DEFAULT 1,
+      span_h     INTEGER NOT NULL DEFAULT 1,
+      UNIQUE(scope, product_id)
+    );
+    INSERT INTO product_grid_layouts(scope, product_id, slot_x, slot_y, span_w, span_h)
+      SELECT scope, product_id, slot_x, slot_y, span_w, span_h FROM _pgl_old;
+    DROP TABLE _pgl_old;
+  `);
+
+  // 4. sessions (refs users)
+  sqlite.exec(`
+    ALTER TABLE sessions RENAME TO _sess_old;
+    CREATE TABLE sessions (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token      TEXT NOT NULL UNIQUE,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+    INSERT INTO sessions(user_id, token, created_at, expires_at)
+      SELECT user_id, token, created_at, expires_at FROM _sess_old;
+    DROP TABLE _sess_old;
+    CREATE INDEX IF NOT EXISTS idx_sessions_token     ON sessions(token);
+    CREATE INDEX IF NOT EXISTS idx_sessions_user_id   ON sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+  `);
+
+  // 5. kitchen_templates (refs production_centers)
+  sqlite.exec(`
+    ALTER TABLE kitchen_templates RENAME TO _kt_old;
+    CREATE TABLE kitchen_templates (
+      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+      name                 TEXT NOT NULL,
+      production_center_id INTEGER REFERENCES production_centers(id) ON DELETE SET NULL,
+      active               INTEGER NOT NULL DEFAULT 1,
+      print_mode           TEXT NOT NULL DEFAULT 'text',
+      canvas_width         INTEGER NOT NULL DEFAULT 576,
+      blocks               TEXT,
+      logo_path            TEXT
+    );
+    INSERT INTO kitchen_templates(name, production_center_id, active, print_mode, canvas_width, blocks, logo_path)
+      SELECT name, production_center_id, active, print_mode, canvas_width, blocks, logo_path FROM _kt_old;
+    DROP TABLE _kt_old;
+  `);
+
+  // 6. shift_report_templates
+  sqlite.exec(`
+    ALTER TABLE shift_report_templates RENAME TO _srt_old;
+    CREATE TABLE shift_report_templates (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      name         TEXT NOT NULL,
+      active       INTEGER NOT NULL DEFAULT 1,
+      print_mode   TEXT NOT NULL DEFAULT 'image',
+      canvas_width INTEGER NOT NULL DEFAULT 576,
+      blocks       TEXT,
+      logo_path    TEXT
+    );
+    INSERT INTO shift_report_templates(name, active, print_mode, canvas_width, blocks, logo_path)
+      SELECT name, active, print_mode, canvas_width, blocks, logo_path FROM _srt_old;
+    DROP TABLE _srt_old;
+  `);
+
+  // 7. receipt_templates
+  sqlite.exec(`
+    ALTER TABLE receipt_templates RENAME TO _rt_old;
+    CREATE TABLE receipt_templates (
+      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+      name                 TEXT NOT NULL,
+      header_text          TEXT,
+      footer_text          TEXT,
+      show_logo            INTEGER NOT NULL DEFAULT 0,
+      show_order_number    INTEGER NOT NULL DEFAULT 1,
+      show_timestamp       INTEGER NOT NULL DEFAULT 1,
+      show_payment_method  INTEGER NOT NULL DEFAULT 1,
+      show_item_category   INTEGER NOT NULL DEFAULT 0,
+      active               INTEGER NOT NULL DEFAULT 1,
+      print_mode           TEXT NOT NULL DEFAULT 'text',
+      canvas_width         INTEGER NOT NULL DEFAULT 576,
+      logo_path            TEXT,
+      blocks               TEXT,
+      print_method         TEXT NOT NULL DEFAULT 'single',
+      role                 TEXT NOT NULL DEFAULT 'master'
+    );
+    INSERT INTO receipt_templates(name, header_text, footer_text, show_logo, show_order_number, show_timestamp, show_payment_method, show_item_category, active, print_mode, canvas_width, logo_path, blocks, print_method, role)
+      SELECT name, header_text, footer_text, show_logo, show_order_number, show_timestamp, show_payment_method, COALESCE(show_item_category,0), active, COALESCE(print_mode,'text'), COALESCE(canvas_width,576), logo_path, blocks, COALESCE(print_method,'single'), COALESCE(role,'master') FROM _rt_old;
+    DROP TABLE _rt_old;
+  `);
+
+  // 8. inventory_movements (refs inventory_items, orders)
+  sqlite.exec(`
+    ALTER TABLE inventory_movements RENAME TO _im_old;
+    CREATE TABLE inventory_movements (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      item_id    INTEGER NOT NULL REFERENCES inventory_items(id),
+      type       TEXT NOT NULL CHECK(type IN ('sale','restock','manual','waste')),
+      quantity   REAL NOT NULL,
+      reason     TEXT,
+      order_id   INTEGER REFERENCES orders(id),
+      created_at INTEGER NOT NULL
+    );
+    INSERT INTO inventory_movements(item_id, type, quantity, reason, order_id, created_at)
+      SELECT item_id, type, quantity, reason, order_id, created_at FROM _im_old;
+    DROP TABLE _im_old;
+    CREATE INDEX IF NOT EXISTS idx_inventory_movements_item  ON inventory_movements(item_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_inventory_movements_order ON inventory_movements(order_id);
+  `);
+
+  // 9. order_items (refs orders, products)
+  sqlite.exec(`
+    ALTER TABLE order_items RENAME TO _oi_old;
+    CREATE TABLE order_items (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id   INTEGER NOT NULL REFERENCES orders(id),
+      product_id INTEGER NOT NULL,
+      name       TEXT NOT NULL,
+      quantity   INTEGER NOT NULL,
+      unit_price REAL NOT NULL,
+      notes      TEXT
+    );
+    INSERT INTO order_items(order_id, product_id, name, quantity, unit_price, notes)
+      SELECT order_id, product_id, name, quantity, unit_price, notes FROM _oi_old;
+    DROP TABLE _oi_old;
+    CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
+  `);
+
+  // 10. payments (refs orders, terminals)
+  sqlite.exec(`
+    ALTER TABLE payments RENAME TO _pay_old;
+    CREATE TABLE payments (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id    INTEGER NOT NULL REFERENCES orders(id),
+      method      TEXT NOT NULL,
+      status      TEXT NOT NULL DEFAULT 'pending'
+                  CHECK(status IN ('pending','completed','failed','refunded')),
+      amount      REAL NOT NULL,
+      currency    TEXT NOT NULL DEFAULT 'EUR',
+      reference   TEXT,
+      terminal_id INTEGER REFERENCES terminals(id),
+      created_at  INTEGER NOT NULL,
+      synced_at   INTEGER
+    );
+    INSERT INTO payments(order_id, method, status, amount, currency, reference, terminal_id, created_at, synced_at)
+      SELECT order_id, method, status, amount, currency, reference, terminal_id, created_at, synced_at FROM _pay_old;
+    DROP TABLE _pay_old;
+    CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments(order_id);
+  `);
+
+  // 11. option_groups (refs products)
+  sqlite.exec(`
+    ALTER TABLE option_groups RENAME TO _og_old;
+    CREATE TABLE option_groups (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id  INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      name        TEXT NOT NULL,
+      type        TEXT NOT NULL CHECK(type IN ('single','multi','removal')),
+      required    INTEGER NOT NULL DEFAULT 0,
+      min_sel     INTEGER NOT NULL DEFAULT 0,
+      max_sel     INTEGER NOT NULL DEFAULT 1,
+      sort_order  INTEGER NOT NULL DEFAULT 0
+    );
+    INSERT INTO option_groups(product_id, name, type, required, min_sel, max_sel, sort_order)
+      SELECT product_id, name, type, required, min_sel, max_sel, sort_order FROM _og_old;
+    DROP TABLE _og_old;
+  `);
+
+  // 12. product_ingredients (refs products, inventory_items)
+  sqlite.exec(`
+    ALTER TABLE product_ingredients RENAME TO _pi_old;
+    CREATE TABLE product_ingredients (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id        INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      inventory_item_id INTEGER NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
+      quantity          REAL NOT NULL DEFAULT 1
+    );
+    INSERT INTO product_ingredients(product_id, inventory_item_id, quantity)
+      SELECT product_id, inventory_item_id, quantity FROM _pi_old;
+    DROP TABLE _pi_old;
+  `);
+
+  // 13. inventory_items (refs products, production_centers)
+  sqlite.exec(`
+    ALTER TABLE inventory_items RENAME TO _ii_old;
+    CREATE TABLE inventory_items (
+      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+      name                 TEXT NOT NULL,
+      sku                  TEXT,
+      unit                 TEXT NOT NULL DEFAULT 'pz',
+      current_stock        REAL NOT NULL DEFAULT 0,
+      min_stock            REAL NOT NULL DEFAULT 0,
+      production_center_id INTEGER,
+      product_id           INTEGER REFERENCES products(id) ON DELETE SET NULL,
+      reset_on_shift_open  INTEGER NOT NULL DEFAULT 0,
+      created_at           INTEGER NOT NULL,
+      updated_at           INTEGER NOT NULL
+    );
+    INSERT INTO inventory_items(name, sku, unit, current_stock, min_stock, production_center_id, product_id, reset_on_shift_open, created_at, updated_at)
+      SELECT name, sku, unit, current_stock, min_stock, production_center_id, product_id, COALESCE(reset_on_shift_open,0), created_at, updated_at FROM _ii_old;
+    DROP TABLE _ii_old;
+  `);
+
+  // 14. junction tables: drop and recreate with INTEGER FKs
+  sqlite.exec(`DROP TABLE IF EXISTS terminal_categories;`);
+  sqlite.exec(`
+    CREATE TABLE terminal_categories (
+      terminal_id INTEGER NOT NULL REFERENCES terminals(id) ON DELETE CASCADE,
+      category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+      sort_order  INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (terminal_id, category_id)
+    );
+  `);
+
+  sqlite.exec(`DROP TABLE IF EXISTS terminal_printers;`);
+  sqlite.exec(`
+    CREATE TABLE terminal_printers (
+      terminal_id INTEGER NOT NULL REFERENCES terminals(id) ON DELETE CASCADE,
+      printer_id  INTEGER NOT NULL REFERENCES printers(id) ON DELETE CASCADE,
+      PRIMARY KEY (terminal_id, printer_id)
+    );
+  `);
+
+  sqlite.exec(`DROP TABLE IF EXISTS production_center_printers;`);
+  sqlite.exec(`
+    CREATE TABLE production_center_printers (
+      production_center_id INTEGER NOT NULL REFERENCES production_centers(id) ON DELETE CASCADE,
+      printer_id           INTEGER NOT NULL REFERENCES printers(id) ON DELETE CASCADE,
+      PRIMARY KEY (production_center_id, printer_id)
+    );
+  `);
+
+  sqlite.exec(`DROP TABLE IF EXISTS production_center_categories;`);
+  sqlite.exec(`
+    CREATE TABLE production_center_categories (
+      production_center_id INTEGER NOT NULL REFERENCES production_centers(id) ON DELETE CASCADE,
+      category_id          INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+      PRIMARY KEY (production_center_id, category_id)
+    );
+  `);
+
+  // 15. orders (refs shifts, terminals)
+  sqlite.exec(`
+    ALTER TABLE orders RENAME TO _ord_old;
+    CREATE TABLE orders (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      table_id        TEXT,
+      customer_name   TEXT,
+      event_id        TEXT,
+      shift_id        INTEGER,
+      terminal_id     INTEGER REFERENCES terminals(id),
+      status          TEXT NOT NULL DEFAULT 'pending'
+                      CHECK(status IN ('pending','confirmed','preparing','ready','completed','cancelled')),
+      total_amount    REAL NOT NULL DEFAULT 0,
+      discount_amount REAL NOT NULL DEFAULT 0,
+      discount_type   TEXT,
+      notes           TEXT,
+      pax             INTEGER,
+      receipt_number  INTEGER,
+      fiscal_doc_number TEXT,
+      fiscal_doc_date TEXT,
+      fiscal_rt_serial TEXT,
+      created_at      INTEGER NOT NULL,
+      updated_at      INTEGER NOT NULL,
+      synced_at       INTEGER
+    );
+    INSERT INTO orders(table_id, customer_name, event_id, shift_id, terminal_id, status, total_amount, discount_amount, discount_type, notes, pax, receipt_number, fiscal_doc_number, fiscal_doc_date, fiscal_rt_serial, created_at, updated_at, synced_at)
+      SELECT table_id, customer_name, event_id, shift_id, terminal_id, status, total_amount, COALESCE(discount_amount,0), discount_type, notes, pax, receipt_number, fiscal_doc_number, fiscal_doc_date, fiscal_rt_serial, created_at, updated_at, synced_at FROM _ord_old;
+    DROP TABLE _ord_old;
+    CREATE INDEX IF NOT EXISTS idx_orders_status     ON orders(status);
+    CREATE INDEX IF NOT EXISTS idx_orders_shift_id   ON orders(shift_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
+    CREATE INDEX IF NOT EXISTS orders_shift_id_idx   ON orders(shift_id);
+    CREATE INDEX IF NOT EXISTS orders_created_at_idx ON orders(created_at);
+    CREATE INDEX IF NOT EXISTS orders_status_idx     ON orders(status);
+  `);
+
+  // 16. shifts (refs users)
+  sqlite.exec(`
+    ALTER TABLE shifts RENAME TO _sh_old;
+    CREATE TABLE shifts (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id      INTEGER NOT NULL,
+      opened_at    INTEGER NOT NULL,
+      closed_at    INTEGER,
+      opening_cash REAL NOT NULL DEFAULT 0,
+      closing_cash REAL,
+      total_sales  REAL NOT NULL DEFAULT 0,
+      total_orders INTEGER NOT NULL DEFAULT 0,
+      notes        TEXT,
+      z_report_fiscal TEXT
+    );
+    INSERT INTO shifts(user_id, opened_at, closed_at, opening_cash, closing_cash, total_sales, total_orders, notes, z_report_fiscal)
+      SELECT user_id, opened_at, closed_at, opening_cash, closing_cash, total_sales, total_orders, notes, z_report_fiscal FROM _sh_old;
+    DROP TABLE _sh_old;
+  `);
+
+  // 17. printers
+  sqlite.exec(`
+    ALTER TABLE printers RENAME TO _pr_old;
+    CREATE TABLE printers (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      name             TEXT NOT NULL,
+      type             TEXT NOT NULL DEFAULT 'escpos',
+      connection_type  TEXT NOT NULL DEFAULT 'network',
+      host             TEXT,
+      port             INTEGER,
+      active           INTEGER NOT NULL DEFAULT 1,
+      receipt_enabled  INTEGER NOT NULL DEFAULT 0,
+      kitchen_enabled  INTEGER NOT NULL DEFAULT 0,
+      print_mode       TEXT NOT NULL DEFAULT 'text'
+    );
+    INSERT INTO printers(name, type, connection_type, host, port, active, receipt_enabled, kitchen_enabled, print_mode)
+      SELECT name, COALESCE(type,'escpos'), COALESCE(connection_type,'network'), host, port, active, COALESCE(receipt_enabled,0), COALESCE(kitchen_enabled,0), COALESCE(print_mode,'text') FROM _pr_old;
+    DROP TABLE _pr_old;
+    CREATE UNIQUE INDEX IF NOT EXISTS printers_host_port_uniq ON printers(host, port);
+  `);
+
+  // 18. terminals
+  sqlite.exec(`
+    ALTER TABLE terminals RENAME TO _term_old;
+    CREATE TABLE terminals (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      name             TEXT NOT NULL,
+      active           INTEGER NOT NULL DEFAULT 1,
+      created_at       INTEGER NOT NULL,
+      last_seen_at     INTEGER,
+      default_view_mode TEXT
+    );
+    INSERT INTO terminals(name, active, created_at, last_seen_at, default_view_mode)
+      SELECT name, active, created_at, last_seen_at, default_view_mode FROM _term_old;
+    DROP TABLE _term_old;
+  `);
+
+  // 19. categories
+  sqlite.exec(`
+    ALTER TABLE categories RENAME TO _cat_old;
+    CREATE TABLE categories (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT NOT NULL,
+      color      TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      active     INTEGER NOT NULL DEFAULT 1
+    );
+    INSERT INTO categories(name, color, sort_order, active)
+      SELECT name, color, COALESCE(sort_order,0), COALESCE(active,1) FROM _cat_old;
+    DROP TABLE _cat_old;
+  `);
+
+  // 20. production_centers
+  sqlite.exec(`
+    ALTER TABLE production_centers RENAME TO _pc_old;
+    CREATE TABLE production_centers (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      name             TEXT NOT NULL,
+      color            TEXT,
+      receipt_print_mode TEXT NOT NULL DEFAULT 'included',
+      sort_order       INTEGER NOT NULL DEFAULT 0
+    );
+    INSERT INTO production_centers(name, color, receipt_print_mode, sort_order)
+      SELECT name, color, COALESCE(receipt_print_mode,'included'), COALESCE(sort_order,0) FROM _pc_old;
+    DROP TABLE _pc_old;
+  `);
+
+  // 21. products (refs categories, production_centers)
+  sqlite.exec(`
+    ALTER TABLE products RENAME TO _prod_old;
+    CREATE TABLE products (
+      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+      name                 TEXT NOT NULL,
+      price                REAL NOT NULL,
+      category_id          INTEGER REFERENCES categories(id),
+      production_center_id INTEGER REFERENCES production_centers(id),
+      active               INTEGER NOT NULL DEFAULT 1,
+      color                TEXT,
+      description          TEXT,
+      image_data           TEXT,
+      sort_order           INTEGER NOT NULL DEFAULT 0,
+      vat_rate             INTEGER NOT NULL DEFAULT 10,
+      receipt_print_mode   TEXT NOT NULL DEFAULT 'inherit',
+      created_at           INTEGER,
+      updated_at           INTEGER
+    );
+    INSERT INTO products(name, price, active, color, description, image_data, sort_order, vat_rate, receipt_print_mode, created_at, updated_at)
+      SELECT name, price, active, color, description, image_data, COALESCE(sort_order,0), COALESCE(vat_rate,10), COALESCE(receipt_print_mode,'inherit'), created_at, updated_at FROM _prod_old;
+    DROP TABLE _prod_old;
+  `);
+
+  // 22. users
+  sqlite.exec(`
+    ALTER TABLE users RENAME TO _usr_old;
+    CREATE TABLE users (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT NOT NULL,
+      username   TEXT NOT NULL UNIQUE,
+      role       TEXT NOT NULL CHECK(role IN ('admin','cashier','kitchen','waiter','viewer')),
+      pin        TEXT,
+      active     INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL
+    );
+    INSERT INTO users(name, username, role, pin, active, created_at)
+      SELECT name, username, role, pin, active, created_at FROM _usr_old;
+    DROP TABLE _usr_old;
+  `);
+
+  sqlite.pragma("foreign_keys = ON");
+}
+
 export function runMigrations(dbPath: string): void {
   const sqlite = new Database(dbPath);
   sqlite.pragma("journal_mode = WAL");
@@ -399,5 +859,6 @@ export function runMigrations(dbPath: string): void {
   for (const stmt of EXTRA_COLUMNS.trim().split("\n")) {
     try { sqlite.exec(stmt); } catch { /* column already exists */ }
   }
+  migrateUuidToInt(sqlite);
   sqlite.close();
 }

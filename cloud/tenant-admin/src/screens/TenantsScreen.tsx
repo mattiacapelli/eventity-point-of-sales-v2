@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { BuildingStorefrontIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import type { CurrentUser, Tenant } from "../core/types.js";
 import { listTenants, createTenant, clearToken } from "../core/api-client.js";
 import { TenantDetail } from "./TenantDetail.js";
@@ -78,7 +79,7 @@ export function TenantsScreen({ currentUser, onLogout }: { currentUser: CurrentU
     <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
       <header
         style={{
-          background: "var(--color-brand)",
+          background: "linear-gradient(160deg, var(--color-brand) 0%, var(--color-brand-dark) 100%)",
           color: "var(--color-white)",
           padding: "var(--sp-lg)",
           display: "flex",
@@ -97,7 +98,7 @@ export function TenantsScreen({ currentUser, onLogout }: { currentUser: CurrentU
         </div>
       </header>
 
-      <div style={{ flex: 1, maxWidth: "960px", width: "100%", margin: "0 auto", padding: "var(--sp-lg)", display: "grid", gridTemplateColumns: selected ? "1fr 1fr" : "1fr", gap: "var(--sp-lg)", alignItems: "start" }}>
+      <div style={{ flex: 1, maxWidth: "1280px", width: "100%", margin: "0 auto", padding: "var(--sp-lg)", display: "grid", gridTemplateColumns: selected ? "1fr 1.2fr" : "1fr", gap: "var(--sp-lg)", alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-md)" }}>
           <Input
             value={search}
@@ -128,8 +129,9 @@ export function TenantsScreen({ currentUser, onLogout }: { currentUser: CurrentU
               <Button variant="secondary" onClick={load}>Riprova</Button>
             </div>
           ) : tenants.length === 0 ? (
-            <div style={{ textAlign: "center", color: "var(--color-gray-400)", padding: "var(--sp-xl) 0" }}>
-              {search ? "Nessun tenant corrisponde alla ricerca" : "Nessun tenant creato"}
+            <div style={{ textAlign: "center", padding: "var(--sp-xl) 0", display: "flex", flexDirection: "column", gap: "var(--sp-sm)", alignItems: "center", color: "var(--color-gray-400)" }}>
+              {search ? <MagnifyingGlassIcon width={32} height={32} color="var(--color-gray-300)" /> : <BuildingStorefrontIcon width={32} height={32} color="var(--color-gray-300)" />}
+              <span>{search ? "Nessun tenant corrisponde alla ricerca" : "Nessun tenant creato"}</span>
             </div>
           ) : (
             <>
@@ -138,6 +140,7 @@ export function TenantsScreen({ currentUser, onLogout }: { currentUser: CurrentU
                   <button
                     key={t.id}
                     onClick={() => setSelectedId(t.id)}
+                    className="hoverable"
                     style={{
                       display: "flex",
                       alignItems: "center",

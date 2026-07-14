@@ -1,12 +1,15 @@
 import { sqliteTable, text, real, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const tenants = sqliteTable("tenants", {
-  id:        text("id").primaryKey(),
-  slug:      text("slug").notNull(),
-  name:      text("name").notNull(),
-  apiKey:    text("api_key").notNull(),
-  active:    integer("active", { mode: "boolean" }).notNull().default(true),
-  createdAt: integer("created_at").notNull(),
+  id:          text("id").primaryKey(),
+  slug:        text("slug").notNull(),
+  name:        text("name").notNull(),
+  apiKey:      text("api_key").notNull(),
+  active:      integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt:   integer("created_at").notNull(),
+  logoPath:    text("logo_path"),
+  colorBrand:  text("color_brand"),
+  colorAccent: text("color_accent"),
 }, (t) => ({
   slugUniq: uniqueIndex("tenants_slug_uniq").on(t.slug),
 }));

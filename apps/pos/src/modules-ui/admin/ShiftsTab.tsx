@@ -10,7 +10,7 @@ import { Modal } from "../../components/ui/Modal.js";
 import { inputStyle, labelStyle, tableHeaderStyle, tableCellStyle } from "./shared.js";
 import { wsClient } from "../../core/ws-client.js";
 
-function ZReportModal({ shiftId, onClose }: { shiftId: string | null; onClose: () => void }) {
+function ZReportModal({ shiftId, onClose }: { shiftId: number | null; onClose: () => void }) {
   const [report, setReport] = useState<ZReport | null>(null);
   const [restaurant, setRestaurant] = useState<RestaurantInfo | null>(null);
   const [loading_, setLoading_] = useState(false);
@@ -129,7 +129,7 @@ function ZReportModal({ shiftId, onClose }: { shiftId: string | null; onClose: (
 
 export function ShiftsTab() {
   const [history, setHistory] = useState<Array<{
-    id: string; userId: string; openedAt: number; closedAt: number | null;
+    id: number; userId: number; openedAt: number; closedAt: number | null;
     openingCash: number; closingCash: number | null; totalSales: number; totalOrders: number; notes: string | null;
   }>>([]);
   const { currentShift, setCurrentShift } = useShiftStore();
@@ -139,7 +139,7 @@ export function ShiftsTab() {
   const [openingCash, setOpeningCash] = useState("0");
   const [closingCash, setClosingCash] = useState("0");
   const [saving, setSaving] = useState(false);
-  const [zReportShiftId, setZReportShiftId] = useState<string | null>(null);
+  const [zReportShiftId, setZReportShiftId] = useState<number | null>(null);
   const { session } = useStore();
 
   async function loadShifts() {

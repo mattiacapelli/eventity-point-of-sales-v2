@@ -181,7 +181,7 @@ function ExtrasPopover(props: ExtrasPopoverProps) {
 
 interface VariantDialogProps {
   cartKey: string;
-  productId: string;
+  productId: number;
   productName: string;
   unitPrice: number;
   existingNotes?: string;
@@ -193,7 +193,7 @@ function VariantDialog({ cartKey, productId, productName, unitPrice, existingNot
   const updateItemNotes = useStore((s) => s.updateItemNotes);
   const [groups, setGroups] = useState<OptionGroupWithOptions[] | null>(null);
   const [loadErr, setLoadErr] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const [freeNote, setFreeNote] = useState(existingNotes ?? "");
 
   useEffect(() => {
@@ -209,7 +209,7 @@ function VariantDialog({ cartKey, productId, productName, unitPrice, existingNot
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  function toggle(optId: string, groupType: string, maxSel: number) {
+  function toggle(optId: number, groupType: string, maxSel: number) {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(optId)) {
@@ -454,7 +454,7 @@ export function CartPanel() {
   const extrasRef = useRef<HTMLDivElement>(null);
 
   // Variant popover
-  const [variantTarget, setVariantTarget] = useState<{ cartKey: string; productId: string; name: string; unitPrice: number } | null>(null);
+  const [variantTarget, setVariantTarget] = useState<{ cartKey: string; productId: number; name: string; unitPrice: number } | null>(null);
 
   const subtotal = cartTotal();
   const discountNum = parseFloat(discountInput) || 0;
@@ -470,7 +470,7 @@ export function CartPanel() {
     setOpenExtras((prev) => (prev === kind ? null : kind));
   }, []);
 
-  function openVariant(item: { cartKey: string; productId: string; name: string; unitPrice: number }) {
+  function openVariant(item: { cartKey: string; productId: number; name: string; unitPrice: number }) {
     setOpenExtras(null);
     setVariantTarget((prev) => prev?.cartKey === item.cartKey ? null : item);
   }
@@ -560,7 +560,7 @@ export function CartPanel() {
           flexShrink: 0,
         }}>
           <span style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "#92400e" }}>
-            ✏️ Modifica ordine #{editingOrderId.slice(-6).toUpperCase()}
+            ✏️ Modifica ordine #{editingOrderId}
           </span>
           <button
             onClick={() => { setEditingOrderId(null); clearCart(); }}

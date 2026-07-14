@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { claimEvent, eq, appSettings } from "@pos/db";
 import type { DbClient } from "@pos/db";
 import type { IEventBus } from "@pos/event-bus";
@@ -65,13 +64,13 @@ export class OrderService {
     });
   }
 
-  async getById(id: string): Promise<Order> {
+  async getById(id: number): Promise<Order> {
     const order = await this.repo.findById(id);
     if (order === null) throw new OrderNotFoundError(id);
     return order;
   }
 
-  async list(filters?: { status?: OrderStatus; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number }): Promise<Order[]> {
+  async list(filters?: { status?: OrderStatus; shiftId?: number; terminalId?: number; from?: number; to?: number; limit?: number; offset?: number }): Promise<Order[]> {
     return this.repo.findAll(filters);
   }
 
@@ -83,7 +82,7 @@ export class OrderService {
     const order = await this.repo.create(input);
 
     this.eventBus.emit("ORDER_CREATED", {
-      traceId: randomUUID(),
+      traceId: crypto.randomUUID(),
       order,
       input,
       timestamp: new Date(),
@@ -93,7 +92,7 @@ export class OrderService {
   }
 
   /** The ONLY method that writes order status to the DB. */
-  async updateStatus(id: string, newStatus: OrderStatus): Promise<Order> {
+  async updateStatus(id: number, newStatus: OrderStatus): Promise<Order> {
     const current = await this.getById(id);
     const allowed = ORDER_STATUS_TRANSITIONS[current.status];
 
@@ -108,13 +107,13 @@ export class OrderService {
 
     if (newStatus === "cancelled") {
       this.eventBus.emit("ORDER_CANCELLED", {
-        traceId: randomUUID(),
+        traceId: crypto.randomUUID(),
         orderId: id,
         timestamp: new Date(),
       });
     } else {
       this.eventBus.emit("ORDER_UPDATED", {
-        traceId: randomUUID(),
+        traceId: crypto.randomUUID(),
         order: updated,
         input: { id, status: newStatus },
         previousStatus: current.status,
@@ -125,13 +124,13 @@ export class OrderService {
     return updated;
   }
 
-  async updateDetails(id: string, data: { tableId?: string | null; customerName?: string | null }): Promise<Order> {
+  async updateDetails(id: number, data: { tableId?: string | null; customerName?: string | null }): Promise<Order> {
     const current = await this.getById(id); // throws OrderNotFoundError if missing
     const updated = await this.repo.updateDetails(id, data);
     if (updated === null) throw new OrderNotFoundError(id);
 
     this.eventBus.emit("ORDER_UPDATED", {
-      traceId: randomUUID(),
+      traceId: crypto.randomUUID(),
       order: updated,
       input: { id, ...data },
       previousStatus: current.status,
@@ -141,7 +140,7 @@ export class OrderService {
     return updated;
   }
 
-  async updateItems(id: string, items: Array<{ productId: string; name: string; quantity: number; selectedOptionIds?: string[] | undefined; notes?: string | undefined }>): Promise<Order> {
+  async updateItems(id: number, items: Array<{ productId: number; name: string; quantity: number; selectedOptionIds?: number[] | undefined; notes?: string | undefined }>): Promise<Order> {
     const current = await this.getById(id);
     if (current.status === "completed" || current.status === "cancelled") {
       throw new OrderValidationError(`Cannot edit items on order in status "${current.status}"`);
@@ -149,7 +148,7 @@ export class OrderService {
     const updated = await this.repo.replaceItems(id, items);
     if (updated === null) throw new OrderNotFoundError(id);
     this.eventBus.emit("ORDER_UPDATED", {
-      traceId: randomUUID(),
+      traceId: crypto.randomUUID(),
       order: updated,
       input: { id },
       previousStatus: current.status,
@@ -158,7 +157,7 @@ export class OrderService {
     return updated;
   }
 
-  async cancel(id: string, reason?: string): Promise<Order> {
+  async cancel(id: number, reason?: string): Promise<Order> {
     const current = await this.getById(id);
 
     if (!ORDER_STATUS_TRANSITIONS[current.status].includes("cancelled")) {
@@ -171,7 +170,7 @@ export class OrderService {
     if (updated === null) throw new OrderNotFoundError(id);
 
     this.eventBus.emit("ORDER_CANCELLED", {
-      traceId: randomUUID(),
+      traceId: crypto.randomUUID(),
       orderId: id,
       ...(reason !== undefined ? { reason } : {}),
       timestamp: new Date(),
@@ -182,7 +181,7 @@ export class OrderService {
 }
 
 export class OrderNotFoundError extends Error {
-  constructor(id: string) {
+  constructor(id: number | string) {
     super(`Order "${id}" not found`);
     this.name = "OrderNotFoundError";
   }

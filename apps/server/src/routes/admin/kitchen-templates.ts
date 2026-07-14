@@ -2,7 +2,6 @@ import "@fastify/swagger";
 import type { FastifyPluginAsync } from "fastify";
 import { eq } from "@pos/db";
 import { kitchenTemplates } from "@pos/db";
-import { randomUUID } from "node:crypto";
 import { requireRole, AuthError, renderKitchenImage, pngToEscposRaster } from "@pos/core";
 import { mkdirSync, unlinkSync, existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
@@ -50,15 +49,13 @@ const kitchenTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const body = request.body as {
       name: string;
-      productionCenterId?: string | null;
+      productionCenterId?: number | null;
       printMode?: "text" | "image";
       canvasWidth?: number;
       blocks?: KitchenBlock[];
     };
-    const id = randomUUID();
     const blocks = body.blocks ?? DEFAULT_BLOCKS;
-    await fastify.ctx.db.insert(kitchenTemplates).values({
-      id,
+    const [row] = await fastify.ctx.db.insert(kitchenTemplates).values({
       name: body.name,
       productionCenterId: body.productionCenterId ?? null,
       active: true,
@@ -66,8 +63,7 @@ const kitchenTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
       canvasWidth: body.canvasWidth ?? 576,
       blocks: JSON.stringify(blocks),
       logoPath: null,
-    });
-    const [row] = await fastify.ctx.db.select().from(kitchenTemplates).where(eq(kitchenTemplates.id, id));
+    }).returning();
     return reply.status(201).send(row);
   });
 
@@ -75,21 +71,22 @@ const kitchenTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["kitchen-templates"], summary: "Update a kitchen template" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const body = request.body as Partial<{
       name: string;
-      productionCenterId: string | null;
+      productionCenterId: number | null;
       active: boolean;
       printMode: "text" | "image";
       canvasWidth: number;
       blocks: KitchenBlock[];
     }>;
 
-    const [existing] = await fastify.ctx.db.select().from(kitchenTemplates).where(eq(kitchenTemplates.id, id));
+    const [existing] = await fastify.ctx.db.select().from(kitchenTemplates).where(eq(kitchenTemplates.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     const update: {
       name?: string;
-      productionCenterId?: string | null;
+      productionCenterId?: number | null;
       active?: boolean;
       printMode?: string;
       canvasWidth?: number;
@@ -103,9 +100,9 @@ const kitchenTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.blocks !== undefined) update.blocks = JSON.stringify(body.blocks);
 
     if (Object.keys(update).length > 0) {
-      await fastify.ctx.db.update(kitchenTemplates).set(update).where(eq(kitchenTemplates.id, id));
+      await fastify.ctx.db.update(kitchenTemplates).set(update).where(eq(kitchenTemplates.id, numId));
     }
-    const [row] = await fastify.ctx.db.select().from(kitchenTemplates).where(eq(kitchenTemplates.id, id));
+    const [row] = await fastify.ctx.db.select().from(kitchenTemplates).where(eq(kitchenTemplates.id, numId));
     return reply.send(row);
   });
 
@@ -113,7 +110,7 @@ const kitchenTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["kitchen-templates"], summary: "Delete a kitchen template" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    await fastify.ctx.db.delete(kitchenTemplates).where(eq(kitchenTemplates.id, id));
+    await fastify.ctx.db.delete(kitchenTemplates).where(eq(kitchenTemplates.id, parseInt(id, 10)));
     return reply.status(204).send();
   });
 
@@ -121,7 +118,7 @@ const kitchenTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["kitchen-templates"], summary: "Get PNG preview of a kitchen template" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const [template] = await fastify.ctx.db.select().from(kitchenTemplates).where(eq(kitchenTemplates.id, id));
+    const [template] = await fastify.ctx.db.select().from(kitchenTemplates).where(eq(kitchenTemplates.id, parseInt(id, 10)));
     if (!template) return reply.status(404).send({ error: "Not found" });
 
     const blocks: KitchenBlock[] = template.blocks
@@ -133,7 +130,7 @@ const kitchenTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
       canvasWidth: template.canvasWidth ?? 576,
       logoPath: template.logoPath ?? null,
       centerName: "Cucina",
-      orderId: "preview-order-id",
+      orderId: 1,
       receiptDisplay: "0001",
       tableId: "5",
       customerName: "Mario Rossi",
@@ -159,7 +156,7 @@ const kitchenTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
       canvasWidth: body.canvasWidth ?? 576,
       logoPath: body.logoPath ?? null,
       centerName: "Cucina",
-      orderId: "preview-order-id",
+      orderId: 1,
       receiptDisplay: "0001",
       tableId: "5",
       customerName: "Mario Rossi",
@@ -180,7 +177,8 @@ const kitchenTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["kitchen-templates"], summary: "Upload logo for a kitchen template" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const [existing] = await fastify.ctx.db.select().from(kitchenTemplates).where(eq(kitchenTemplates.id, id));
+    const numId = parseInt(id, 10);
+    const [existing] = await fastify.ctx.db.select().from(kitchenTemplates).where(eq(kitchenTemplates.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     const data = await request.file();
@@ -195,14 +193,14 @@ const kitchenTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
 
     const LOGOS_DIR = resolve(kitchenLogosDir(fastify.ctx.config.dataDir));
     ensureDir(LOGOS_DIR);
-    const filename = `${id}${ext}`;
+    const filename = `${numId}${ext}`;
     const relPath = `logos/kitchen/${filename}`;
     const absPath = join(LOGOS_DIR, filename);
     const buffer = await data.toBuffer();
     await writeFile(absPath, buffer);
 
-    await fastify.ctx.db.update(kitchenTemplates).set({ logoPath: relPath }).where(eq(kitchenTemplates.id, id));
-    const [row] = await fastify.ctx.db.select().from(kitchenTemplates).where(eq(kitchenTemplates.id, id));
+    await fastify.ctx.db.update(kitchenTemplates).set({ logoPath: relPath }).where(eq(kitchenTemplates.id, numId));
+    const [row] = await fastify.ctx.db.select().from(kitchenTemplates).where(eq(kitchenTemplates.id, numId));
     return reply.send(row);
   });
 
@@ -210,14 +208,15 @@ const kitchenTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["kitchen-templates"], summary: "Remove logo from a kitchen template" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const [existing] = await fastify.ctx.db.select().from(kitchenTemplates).where(eq(kitchenTemplates.id, id));
+    const numId2 = parseInt(id, 10);
+    const [existing] = await fastify.ctx.db.select().from(kitchenTemplates).where(eq(kitchenTemplates.id, numId2));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     if (existing.logoPath) {
       const absPath = resolve(join(fastify.ctx.config.dataDir, existing.logoPath));
       if (existsSync(absPath)) { try { unlinkSync(absPath); } catch { /* ignore */ } }
     }
-    await fastify.ctx.db.update(kitchenTemplates).set({ logoPath: null }).where(eq(kitchenTemplates.id, id));
+    await fastify.ctx.db.update(kitchenTemplates).set({ logoPath: null }).where(eq(kitchenTemplates.id, numId2));
     return reply.status(204).send();
   });
 };

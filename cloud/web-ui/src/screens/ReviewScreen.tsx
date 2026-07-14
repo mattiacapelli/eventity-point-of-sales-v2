@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ShoppingBagIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import type { CartLine, OrderInfo, Product } from "../core/types.js";
 import { Header } from "../components/Header.js";
 import { Footer } from "../components/Footer.js";
@@ -56,8 +57,12 @@ export function ReviewScreen({
 
       <div className="scrollable" style={{ flex: 1, minHeight: 0, padding: "var(--sp-lg)" }}>
         {lines.length === 0 ? (
-          <div style={{ textAlign: "center", color: "var(--color-gray-400)", padding: "var(--sp-xxl) 0" }}>
-            Il carrello è vuoto
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--sp-md)", color: "var(--color-gray-400)", padding: "var(--sp-xxl) 0" }}>
+            <ShoppingBagIcon width={40} height={40} color="var(--color-gray-300)" />
+            <span>Il carrello è vuoto</span>
+            <Button variant="outline" style={{ width: "auto", padding: "10px 20px" }} onClick={onBack}>
+              Torna al menu
+            </Button>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-sm)" }}>
@@ -96,13 +101,14 @@ export function ReviewScreen({
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                padding: "var(--sp-md) var(--sp-md) 0",
+                padding: "var(--sp-md)",
                 marginTop: "var(--sp-sm)",
-                borderTop: "1px solid var(--color-gray-200)",
+                background: "rgba(48,107,52,0.06)",
+                borderRadius: "var(--radius-md)",
               }}
             >
-              <span style={{ fontSize: "var(--text-md)", fontWeight: 700 }}>Totale</span>
-              <span style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-brand)" }}>{formatEur(total)}</span>
+              <span style={{ fontSize: "var(--text-md)", fontWeight: 700, color: "var(--color-gray-700)" }}>Totale</span>
+              <span style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-brand)" }}>{formatEur(total)}</span>
             </div>
           </div>
         )}
@@ -110,7 +116,8 @@ export function ReviewScreen({
 
       <div style={{ padding: "0 var(--sp-lg) var(--sp-lg)", display: "flex", flexDirection: "column", gap: "var(--sp-sm)" }}>
         {error && (
-          <div style={{ padding: "10px 14px", borderRadius: "var(--radius-md)", background: "rgba(239,68,68,0.1)", color: "var(--color-danger)", fontSize: "var(--text-sm)", fontWeight: 600 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 14px", borderRadius: "var(--radius-md)", background: "rgba(239,68,68,0.1)", color: "var(--color-danger)", fontSize: "var(--text-sm)", fontWeight: 600 }}>
+            <ExclamationTriangleIcon width={18} height={18} style={{ flexShrink: 0 }} />
             {error}
           </div>
         )}

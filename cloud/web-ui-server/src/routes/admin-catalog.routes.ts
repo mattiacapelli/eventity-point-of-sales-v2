@@ -1,0 +1,123 @@
+import type { FastifyPluginAsync } from "fastify";
+import { z } from "zod";
+import { eq, and } from "drizzle-orm";
+import type { DbClient } from "../db/client.js";
+import { tenants, categories, products } from "../db/client.js";
+import { requireAuth, requireTenantRole, writeAuditLog } from "../auth/authorize.js";
+
+const reorderBodySchema = z.object({
+  order: z.array(z.string().min(1)).min(1),
+});
+
+const renameBodySchema = z.object({
+  name: z.string().trim().min(1).max(200),
+});
+
+const adminCatalogRoutes: FastifyPluginAsync<{ db: DbClient }> = async (fastify, opts) => {
+  const { db } = opts;
+
+  fastify.addHook("onRequest", requireAuth(db));
+
+  fastify.get(
+    "/admin/tenants/:id/categories",
+    { onRequest: [requireTenantRole(db, "operator")] },
+    async (request, reply) => {
+      const { id: tenantId } = request.params as { id: string };
+      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+      if (!tenant) return reply.status(404).send({ error: "Tenant not found" });
+
+      const rows = await db.select().from(categories).where(eq(categories.tenantId, tenantId));
+      return reply.send(rows.sort((a, b) => a.sortOrder - b.sortOrder));
+    },
+  );
+
+  fastify.patch(
+    "/admin/tenants/:id/categories/reorder",
+    { onRequest: [requireTenantRole(db, "owner")] },
+    async (request, reply) => {
+      const { id: tenantId } = request.params as { id: string };
+      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+      if (!tenant) return reply.status(404).send({ error: "Tenant not found" });
+
+      const parsed = reorderBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid payload", details: parsed.error.flatten() });
+      }
+      const { order } = parsed.data;
+
+      const existing = await db.select().from(categories).where(eq(categories.tenantId, tenantId));
+      const existingIds = new Set(existing.map((c) => c.id));
+
+      if (order.length !== existing.length || !order.every((id) => existingIds.has(id))) {
+        return reply.status(400).send({ error: "order must contain exactly the tenant's existing category ids" });
+      }
+
+      db.transaction((tx) => {
+        order.forEach((categoryId, index) => {
+          tx.update(categories)
+            .set({ sortOrder: index })
+            .where(and(eq(categories.id, categoryId), eq(categories.tenantId, tenantId)))
+            .run();
+        });
+      });
+
+      await writeAuditLog(db, {
+        userId: request.currentUser!.id,
+        tenantId,
+        action: "category.reorder",
+        metadata: { order },
+      });
+
+      return reply.send({ ok: true });
+    },
+  );
+
+  fastify.get(
+    "/admin/tenants/:id/products",
+    { onRequest: [requireTenantRole(db, "operator")] },
+    async (request, reply) => {
+      const { id: tenantId } = request.params as { id: string };
+      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+      if (!tenant) return reply.status(404).send({ error: "Tenant not found" });
+
+      const rows = await db.select().from(products).where(eq(products.tenantId, tenantId));
+      return reply.send(rows.sort((a, b) => a.sortOrder - b.sortOrder));
+    },
+  );
+
+  fastify.patch(
+    "/admin/tenants/:id/products/:productId",
+    { onRequest: [requireTenantRole(db, "owner")] },
+    async (request, reply) => {
+      const { id: tenantId, productId } = request.params as { id: string; productId: string };
+      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+      if (!tenant) return reply.status(404).send({ error: "Tenant not found" });
+
+      const parsed = renameBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid payload", details: parsed.error.flatten() });
+      }
+
+      const [product] = await db.select().from(products).where(
+        and(eq(products.id, productId), eq(products.tenantId, tenantId)),
+      );
+      if (!product) return reply.status(404).send({ error: "Product not found" });
+
+      await db.update(products)
+        .set({ name: parsed.data.name })
+        .where(and(eq(products.id, productId), eq(products.tenantId, tenantId)));
+
+      await writeAuditLog(db, {
+        userId: request.currentUser!.id,
+        tenantId,
+        action: "product.rename",
+        metadata: { productId, oldName: product.name, newName: parsed.data.name },
+      });
+
+      const [updated] = await db.select().from(products).where(eq(products.id, productId));
+      return reply.send(updated);
+    },
+  );
+};
+
+export default adminCatalogRoutes;

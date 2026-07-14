@@ -36,7 +36,7 @@ export function BackupTab() {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
   const loadBackups = async () => {
     setLoading(true);
@@ -65,7 +65,7 @@ export function BackupTab() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     try {
       await adminApi.backups.delete(id);
       setBackups((prev) => prev.filter((b) => b.id !== id));

@@ -94,10 +94,10 @@ export function registerOrderRoutes(
     },
   }, async (request, reply) => {
     const q = request.query as { status?: string; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number };
-    const filters: { status?: OrderStatus; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number } = {};
+    const filters: { status?: OrderStatus; shiftId?: number; terminalId?: number; from?: number; to?: number; limit?: number; offset?: number } = {};
     if (q.status !== undefined) filters.status = q.status as OrderStatus;
-    if (q.shiftId !== undefined) filters.shiftId = q.shiftId;
-    if (q.terminalId !== undefined) filters.terminalId = q.terminalId;
+    if (q.shiftId !== undefined) filters.shiftId = parseInt(q.shiftId, 10);
+    if (q.terminalId !== undefined) filters.terminalId = parseInt(q.terminalId, 10);
     if (q.from !== undefined) filters.from = q.from;
     if (q.to !== undefined) filters.to = q.to;
     if (q.limit !== undefined) filters.limit = q.limit;
@@ -120,7 +120,7 @@ export function registerOrderRoutes(
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
     try {
-      const order = await service.getById(id);
+      const order = await service.getById(parseInt(id, 10));
       return reply.send(serializeOrder(order));
     } catch (err) {
       if (err instanceof OrderNotFoundError) return reply.status(404).send({ error: err.message });
@@ -153,7 +153,8 @@ export function registerOrderRoutes(
       },
     },
   }, async (request, reply) => {
-    const terminalId = (request.headers["x-terminal-id"] as string | undefined) ?? undefined;
+    const terminalIdHeader = (request.headers["x-terminal-id"] as string | undefined) ?? undefined;
+    const terminalId = terminalIdHeader !== undefined ? parseInt(terminalIdHeader, 10) : undefined;
     try {
       const input = request.body as Parameters<typeof service.create>[0];
       const order = await service.create({
@@ -193,7 +194,7 @@ export function registerOrderRoutes(
     const { id } = request.params as { id: string };
     const { status } = request.body as { status: OrderStatus };
     try {
-      const order = await service.updateStatus(id, status);
+      const order = await service.updateStatus(parseInt(id, 10), status);
       return reply.send(serializeOrder(order));
     } catch (err) {
       if (err instanceof OrderNotFoundError) return reply.status(404).send({ error: err.message });
@@ -224,7 +225,7 @@ export function registerOrderRoutes(
     const { id } = request.params as { id: string };
     const body = request.body as { tableId?: string | null; customerName?: string | null };
     try {
-      const order = await service.updateDetails(id, body);
+      const order = await service.updateDetails(parseInt(id, 10), body);
       return reply.send(serializeOrder(order));
     } catch (err) {
       if (err instanceof OrderNotFoundError) return reply.status(404).send({ error: err.message });
@@ -253,9 +254,9 @@ export function registerOrderRoutes(
     },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { items } = request.body as { items: Array<{ productId: string; name: string; quantity: number; selectedOptionIds?: string[]; notes?: string }> };
+    const { items } = request.body as { items: Array<{ productId: number; name: string; quantity: number; selectedOptionIds?: number[]; notes?: string }> };
     try {
-      const order = await service.updateItems(id, items);
+      const order = await service.updateItems(parseInt(id, 10), items);
       return reply.send(serializeOrder(order));
     } catch (err) {
       if (err instanceof OrderNotFoundError) return reply.status(404).send({ error: err.message });
@@ -284,7 +285,7 @@ export function registerOrderRoutes(
     const { id } = request.params as { id: string };
     const { reason } = (request.body ?? {}) as { reason?: string };
     try {
-      const order = await service.cancel(id, reason);
+      const order = await service.cancel(parseInt(id, 10), reason);
       return reply.send(serializeOrder(order));
     } catch (err) {
       if (err instanceof OrderNotFoundError) return reply.status(404).send({ error: err.message });
@@ -309,10 +310,11 @@ export function registerOrderRoutes(
   }, async (request, reply) => {
     if (!ctx) return reply.status(503).send({ error: "Printer service unavailable" });
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
 
     let order: Order;
     try {
-      order = await service.getById(id);
+      order = await service.getById(numId);
     } catch (err) {
       if (err instanceof OrderNotFoundError) return reply.status(404).send({ error: err.message });
       throw err;
@@ -327,8 +329,8 @@ export function registerOrderRoutes(
     const templates = await db.select().from(receiptTemplates).where(eq(receiptTemplates.active, true));
     const template = templates[0];
 
-    const items = await db.select().from(orderItems).where(eq(orderItems.orderId, id));
-    const pmts = await db.select().from(payments).where(eq(payments.orderId, id));
+    const items = await db.select().from(orderItems).where(eq(orderItems.orderId, numId));
+    const pmts = await db.select().from(payments).where(eq(payments.orderId, numId));
     const payment = pmts[0];
 
     const [multiTerminalRow] = await db.select().from(appSettings).where(eq(appSettings.key, "multi_terminal_enabled")).limit(1);
@@ -342,7 +344,7 @@ export function registerOrderRoutes(
     const lines: ReceiptLine[] = [];
     lines.push({ type: "header", content: template?.headerText ?? "Ristampa scontrino" });
     lines.push({ type: "divider" });
-    lines.push({ type: "item", left: "Ordine", right: `#${id.slice(-6).toUpperCase()}` });
+    lines.push({ type: "item", left: "Ordine", right: `#${String(numId)}` });
     if (terminalName) lines.push({ type: "item", left: "Cassa", right: terminalName });
     if (order.tableId) lines.push({ type: "item", left: "Tavolo", right: order.tableId });
     if (order.customerName) lines.push({ type: "item", left: "Cliente", right: order.customerName });
@@ -392,8 +394,9 @@ export function registerOrderRoutes(
   }, async (request, reply) => {
     if (!ctx) return reply.status(503).send({ error: "Printer service unavailable" });
     const { id } = request.params as { id: string };
+    const numId2 = parseInt(id, 10);
 
-    const [orderRow] = await ctx.db.select().from(orders).where(eq(orders.id, id));
+    const [orderRow] = await ctx.db.select().from(orders).where(eq(orders.id, numId2));
     if (!orderRow) return reply.status(404).send({ error: "Order not found" });
 
     const { db, printerService, logger } = ctx;
@@ -408,13 +411,13 @@ export function registerOrderRoutes(
     const sMap = Object.fromEntries(settingRows.map((r) => [r.key, r.value]));
     const receiptDisplay = formatReceiptNumber(
       orderRow.receiptNumber ?? undefined,
-      id,
+      numId2,
       sMap["receipt_number_prefix"] ?? "",
       parseInt(sMap["receipt_number_padding"] ?? "0", 10),
     );
 
-    const items = await db.select().from(orderItems).where(eq(orderItems.orderId, id)) as Array<{
-      id: string; productId: string; name: string; quantity: number; unitPrice: number; notes: string | null;
+    const items = await db.select().from(orderItems).where(eq(orderItems.orderId, numId2)) as Array<{
+      id: number; productId: number; name: string; quantity: number; unitPrice: number; notes: string | null;
     }>;
 
     if (items.length === 0) return reply.send({ ok: true });
@@ -422,9 +425,9 @@ export function registerOrderRoutes(
     // Load options
     const itemIds = items.map((i) => i.id);
     const optionRows = await db.select().from(orderItemOptions).where(inArray(orderItemOptions.orderItemId, itemIds)) as Array<{
-      orderItemId: string; optionId: string; optionName: string; priceDelta: number;
+      orderItemId: number; optionId: number; optionName: string; priceDelta: number;
     }>;
-    const optsByItemId = new Map<string, Array<{ optionName: string; priceDelta: number }>>();
+    const optsByItemId = new Map<number, Array<{ optionName: string; priceDelta: number }>>();
     for (const opt of optionRows) {
       const arr = optsByItemId.get(opt.orderItemId) ?? [];
       arr.push({ optionName: opt.optionName, priceDelta: opt.priceDelta });
@@ -442,12 +445,12 @@ export function registerOrderRoutes(
       : [];
     const productCatMap = new Map(productCatRows.map((r) => [r.id, r.categoryId]));
 
-    const catIds = [...new Set(productCatRows.map((r) => r.categoryId).filter((id): id is string => id !== null))];
+    const catIds = [...new Set(productCatRows.map((r) => r.categoryId).filter((cid): cid is number => cid !== null && cid !== undefined))];
     const pcCatRows = catIds.length > 0
       ? await db.select({ categoryId: productionCenterCategories.categoryId, productionCenterId: productionCenterCategories.productionCenterId })
           .from(productionCenterCategories).where(inArray(productionCenterCategories.categoryId, catIds))
       : [];
-    const catToCenters = new Map<string, string[]>();
+    const catToCenters = new Map<number, number[]>();
     for (const r of pcCatRows) {
       const arr = catToCenters.get(r.categoryId) ?? [];
       arr.push(r.productionCenterId);
@@ -463,15 +466,15 @@ export function registerOrderRoutes(
 
     for (const item of items) {
       const categoryId = productCatMap.get(item.productId) ?? null;
-      if (!categoryId) { unroutedItems.push(item); continue; }
+      if (categoryId === null || categoryId === undefined) { unroutedItems.push(item); continue; }
       const centerIdList = catToCenters.get(categoryId) ?? [];
       if (centerIdList.length === 0) { unroutedItems.push(item); continue; }
       for (const centerId of centerIdList) {
-        const existing = centerItems.get(centerId);
+        const existing = centerItems.get(String(centerId));
         if (existing) {
           existing.items.push(item);
         } else {
-          centerItems.set(centerId, { centerName: centerNameMap.get(centerId) ?? "Cucina", items: [item] });
+          centerItems.set(String(centerId), { centerName: centerNameMap.get(centerId) ?? "Cucina", items: [item] });
         }
       }
     }
@@ -481,9 +484,10 @@ export function registerOrderRoutes(
     const tableId = orderRow.tableId ?? null;
     const customerName = orderRow.customerName ?? null;
 
-    for (const [centerId, { centerName, items: centerGroupItems }] of centerItems) {
+    for (const [centerIdStr, { centerName, items: centerGroupItems }] of centerItems) {
       let targetPrinters: typeof allKitchenPrinters;
-      if (centerId !== "__generale__") {
+      if (centerIdStr !== "__generale__") {
+        const centerId = parseInt(centerIdStr, 10);
         const dedicatedRows = await db.select({ printerId: productionCenterPrinters.printerId })
           .from(productionCenterPrinters)
           .where(eq(productionCenterPrinters.productionCenterId, centerId));
@@ -510,7 +514,8 @@ export function registerOrderRoutes(
         try {
           if ((printer as unknown as { printMode: string }).printMode === "image") {
             const templateRows = await db.select().from(kitchenTemplates).where(eq(kitchenTemplates.active, true));
-            const template = templateRows.find((t) => t.productionCenterId === centerId) ?? templateRows[0];
+            const numCenterId = centerIdStr !== "__generale__" ? parseInt(centerIdStr, 10) : null;
+            const template = (numCenterId !== null ? templateRows.find((t) => t.productionCenterId === numCenterId) : undefined) ?? templateRows[0];
             if (template?.blocks) {
               const blocks = typeof template.blocks === "string" ? JSON.parse(template.blocks) : template.blocks;
               const pngBuffer = await renderKitchenImage({
@@ -518,7 +523,7 @@ export function registerOrderRoutes(
                 canvasWidth: template.canvasWidth ?? 576,
                 logoPath: template.logoPath ?? null,
                 centerName,
-                orderId: id,
+                orderId: numId2,
                 receiptDisplay,
                 tableId,
                 customerName,
@@ -530,7 +535,7 @@ export function registerOrderRoutes(
               continue;
             }
           }
-          const content = formatKitchenTicket({ orderId: id, receiptDisplay, tableId, customerName, centerName, timestamp: now, orderNotes: orderRow.notes, pax: orderRow.pax, items: ticketItems });
+          const content = formatKitchenTicket({ orderId: numId2, receiptDisplay, tableId, customerName, centerName, timestamp: now, orderNotes: orderRow.notes, pax: orderRow.pax, items: ticketItems });
           await printerService.printDirect({ printerId: printer.id, content, type: "kitchen", printerConfig });
         } catch (err) {
           logger.error({ err, printerId: printer.id, orderId: id }, "Reprint kitchen ticket failed");

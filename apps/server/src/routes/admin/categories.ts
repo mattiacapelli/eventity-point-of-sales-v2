@@ -2,7 +2,6 @@ import "@fastify/swagger";
 import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
 import { eq, asc } from "@pos/db";
 import { categories } from "@pos/db";
-import { randomUUID } from "node:crypto";
 import { requireRole, AuthError } from "@pos/core";
 
 async function adminOnly(request: FastifyRequest, reply: FastifyReply) {
@@ -40,16 +39,13 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
       sortOrder?: number;
       active?: boolean;
     };
-    const id = randomUUID();
-    await fastify.ctx.db.insert(categories).values({
-      id,
+    const [row] = await fastify.ctx.db.insert(categories).values({
       name:      body.name,
       color:     body.color ?? null,
       sortOrder: body.sortOrder ?? 0,
       active:    body.active ?? true,
-    });
-    const [row] = await fastify.ctx.db.select().from(categories).where(eq(categories.id, id));
-    fastify.ctx.eventBus.emit("CATEGORY_CREATED", { traceId: randomUUID(), id, timestamp: new Date() });
+    }).returning();
+    fastify.ctx.eventBus.emit("CATEGORY_CREATED", { traceId: crypto.randomUUID(), id: row!.id, timestamp: new Date() });
     return reply.status(201).send(row);
   });
 
@@ -58,6 +54,7 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const body = request.body as Partial<{
       name: string;
       color: string | null;
@@ -76,11 +73,11 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.active !== undefined) update.active = body.active;
 
     if (Object.keys(update).length > 0) {
-      await fastify.ctx.db.update(categories).set(update).where(eq(categories.id, id));
+      await fastify.ctx.db.update(categories).set(update).where(eq(categories.id, numId));
     }
-    const [row] = await fastify.ctx.db.select().from(categories).where(eq(categories.id, id));
+    const [row] = await fastify.ctx.db.select().from(categories).where(eq(categories.id, numId));
     if (!row) return reply.status(404).send({ error: "Not found" });
-    fastify.ctx.eventBus.emit("CATEGORY_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
+    fastify.ctx.eventBus.emit("CATEGORY_UPDATED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
     return reply.send(row);
   });
 
@@ -90,7 +87,7 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const { ids } = request.body as { ids: string[] };
     for (let i = 0; i < ids.length; i++) {
-      await fastify.ctx.db.update(categories).set({ sortOrder: i }).where(eq(categories.id, ids[i]!));
+      await fastify.ctx.db.update(categories).set({ sortOrder: i }).where(eq(categories.id, parseInt(ids[i]!, 10)));
     }
     return reply.status(204).send();
   });
@@ -100,8 +97,9 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    await fastify.ctx.db.delete(categories).where(eq(categories.id, id));
-    fastify.ctx.eventBus.emit("CATEGORY_DELETED", { traceId: randomUUID(), id, timestamp: new Date() });
+    const numId = parseInt(id, 10);
+    await fastify.ctx.db.delete(categories).where(eq(categories.id, numId));
+    fastify.ctx.eventBus.emit("CATEGORY_DELETED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
     return reply.status(204).send();
   });
 };

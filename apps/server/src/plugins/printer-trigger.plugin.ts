@@ -104,7 +104,10 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
     if (payload.type !== "receipt") return;
 
     const multiTerminalEnabled = await loadMultiTerminalEnabled(db);
-    const terminalId = (payload.payload as { terminalId?: string }).terminalId ?? null;
+    const rawTerminalId = (payload.payload as { terminalId?: number | string }).terminalId;
+    const terminalId: number | null = rawTerminalId !== undefined
+      ? (typeof rawTerminalId === "string" ? parseInt(rawTerminalId, 10) : rawTerminalId)
+      : null;
     const printer    = await resolveReceiptPrinter(db, multiTerminalEnabled, terminalId);
 
     if (!printer) {
@@ -112,9 +115,16 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
       return;
     }
 
+    const rawPayload = payload.payload as { orderId: number | string; amount: number; currency: string; method: string; paidAt: Date | string; terminalId?: number | string };
     const p: ReceiptJobData = {
-      ...(payload.payload as ReceiptJobData),
-      paidAt: new Date((payload.payload as { paidAt: Date | string }).paidAt),
+      orderId: typeof rawPayload.orderId === "string" ? parseInt(rawPayload.orderId, 10) : rawPayload.orderId,
+      amount: rawPayload.amount,
+      currency: rawPayload.currency,
+      method: rawPayload.method,
+      paidAt: new Date(rawPayload.paidAt),
+      ...(rawPayload.terminalId !== undefined ? {
+        terminalId: typeof rawPayload.terminalId === "string" ? parseInt(rawPayload.terminalId, 10) : rawPayload.terminalId,
+      } : {}),
     };
 
     const ctx = await loadReceiptContext(db, p, multiTerminalEnabled, fastify.ctx.config.dataDir);

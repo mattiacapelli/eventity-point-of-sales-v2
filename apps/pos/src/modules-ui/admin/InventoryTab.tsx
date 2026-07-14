@@ -25,7 +25,7 @@ export function InventoryTab() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<InventoryItemRecord | null>(null);
   const [adjustTarget, setAdjustTarget] = useState<InventoryItemRecord | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState({
@@ -69,7 +69,7 @@ export function InventoryTab() {
       unit: item.unit,
       currentStock: String(item.currentStock),
       minStock: String(item.minStock),
-      productId: item.productId ?? "",
+      productId: item.productId !== null ? String(item.productId) : "",
       resetOnShiftOpen: item.resetOnShiftOpen === 1,
     });
     setModalOpen(true);
@@ -84,7 +84,7 @@ export function InventoryTab() {
           sku: form.sku === "" ? null : form.sku,
           unit: form.unit,
           minStock: Number(form.minStock),
-          productId: form.productId === "" ? null : form.productId,
+          productId: form.productId === "" ? null : parseInt(form.productId, 10),
           resetOnShiftOpen: form.resetOnShiftOpen,
         });
         setItems((prev) => prev.map((i) => i.id === editTarget.id ? updated : i));
@@ -95,7 +95,7 @@ export function InventoryTab() {
           unit: form.unit,
           currentStock: Number(form.currentStock),
           minStock: Number(form.minStock),
-          productId: form.productId === "" ? null : form.productId,
+          productId: form.productId === "" ? null : parseInt(form.productId, 10),
           resetOnShiftOpen: form.resetOnShiftOpen,
         });
         setItems((prev) => [...prev, created]);
@@ -104,7 +104,7 @@ export function InventoryTab() {
     } finally { setSaving(false); }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: number) {
     await adminApi.inventory.deleteItem(id);
     setItems((prev) => prev.filter((i) => i.id !== id));
     setDeleteId(null);
@@ -199,7 +199,7 @@ export function InventoryTab() {
               value={form.productId}
               onChange={(e) => {
                 const pid = e.target.value;
-                const prod = products.find((p) => p.id === pid);
+                const prod = products.find((p) => String(p.id) === pid);
                 setForm((f) => ({
                   ...f,
                   productId: pid,

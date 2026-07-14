@@ -46,7 +46,7 @@ export class FiscalService {
     return this.adapter.ping();
   }
 
-  async emitFiscalDocument(orderId: string, paymentMethod: "cash" | "card" | "digital_wallet" | "tab", amount: number): Promise<void> {
+  async emitFiscalDocument(orderId: number, paymentMethod: "cash" | "card" | "digital_wallet" | "tab", amount: number): Promise<void> {
     if (!this.enabled || !this.adapter) {
       this.logger.debug({ orderId }, "Fiscal disabled — skipping document emission");
       return;
@@ -76,7 +76,7 @@ export class FiscalService {
     }
   }
 
-  async emitVoidDocument(orderId: string): Promise<void> {
+  async emitVoidDocument(orderId: number): Promise<void> {
     if (!this.enabled || !this.adapter) return;
 
     const order = await this.repo.getOrderWithItems(orderId);
@@ -94,7 +94,7 @@ export class FiscalService {
     }
   }
 
-  async emitZReport(shiftId: string): Promise<object> {
+  async emitZReport(shiftId: number): Promise<object> {
     if (!this.enabled || !this.adapter) {
       throw new FiscalError("Fiscal module is disabled — cannot emit Z-report");
     }

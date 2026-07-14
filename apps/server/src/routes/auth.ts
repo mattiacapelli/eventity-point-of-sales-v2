@@ -91,7 +91,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         await fastify.authService.logout(token);
         fastify.ctx.eventBus.emit("USER_LOGGED_OUT", {
           traceId: crypto.randomUUID(),
-          userId: request.session?.userId ?? "unknown",
+          userId: request.session?.userId ?? 0,
           timestamp: new Date(),
         });
       }

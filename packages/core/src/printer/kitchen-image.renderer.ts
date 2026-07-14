@@ -15,7 +15,7 @@ export interface KitchenRenderData {
   canvasWidth: number;
   logoPath?: string | null;
   centerName: string;
-  orderId: string;
+  orderId: number;
   receiptDisplay?: string | undefined;
   tableId?: string | null;
   customerName?: string | null;
@@ -146,7 +146,7 @@ export async function renderKitchenImage(data: KitchenRenderData): Promise<Buffe
         y += lineH;
         break;
       case "order-number":
-        ctx.fillText(`#${data.receiptDisplay ?? data.orderId.slice(-6).toUpperCase()}`, x, y);
+        ctx.fillText(`#${data.receiptDisplay ?? String(data.orderId)}`, x, y);
         y += lineH;
         break;
       case "table-number":

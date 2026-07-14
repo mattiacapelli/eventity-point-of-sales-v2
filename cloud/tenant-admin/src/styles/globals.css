@@ -115,3 +115,62 @@ img { max-width: 100%; display: block; }
 }
 
 .scrollable-x::-webkit-scrollbar { display: none; } /* Chrome/Safari */
+
+/* ── Shared interaction helpers ── */
+
+.btn-primary {
+  transition: background var(--transition), transform var(--transition), opacity var(--transition);
+}
+.btn-primary:hover:not(:disabled) { background: var(--color-brand-dark); }
+.btn-primary:active:not(:disabled) { transform: scale(0.98); }
+
+.btn-outline {
+  transition: background var(--transition), transform var(--transition);
+}
+.btn-outline:hover:not(:disabled) { background: rgba(48,107,52,0.06); }
+.btn-outline:active:not(:disabled) { transform: scale(0.98); }
+
+.input-field {
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.input-field:focus {
+  outline: none;
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px rgba(48,107,52,0.12);
+}
+
+.hoverable {
+  transition: box-shadow var(--transition), border-color var(--transition), background var(--transition);
+  cursor: pointer;
+}
+.hoverable:hover { box-shadow: var(--shadow-md); border-color: var(--color-brand); }
+
+@keyframes pop-in {
+  0% { opacity: 0; transform: scale(0.7); }
+  60% { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: var(--color-white);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}

@@ -2,7 +2,6 @@
  * Seed script — popola categories, products e production centers.
  * Esegui con: pnpm --filter @pos/server exec tsx src/seed.ts
  */
-import { randomUUID } from "node:crypto";
 import { createDbClient, runMigrations } from "@pos/db";
 import {
   categories,
@@ -26,13 +25,21 @@ const CATS = [
   { name: "Dessert" },
 ] as const;
 
-const catIds: Record<string, string> = {};
+const catIds: Record<string, number> = {};
 
 for (const cat of CATS) {
-  const id = randomUUID();
-  await db.insert(categories).values({ id, name: cat.name }).onConflictDoNothing();
-  catIds[cat.name] = id;
-  console.log(`  category: ${cat.name} → ${id}`);
+  const [row] = await db.insert(categories).values({ name: cat.name }).onConflictDoNothing().returning({ id: categories.id });
+  if (row) {
+    catIds[cat.name] = row.id;
+    console.log(`  category: ${cat.name} → ${row.id}`);
+  } else {
+    // Already exists — look it up
+    const existing = await db.select({ id: categories.id }).from(categories).where((await import("@pos/db")).eq(categories.name, cat.name)).limit(1);
+    if (existing[0]) {
+      catIds[cat.name] = existing[0].id;
+      console.log(`  category: ${cat.name} → ${existing[0].id} (existing)`);
+    }
+  }
 }
 
 // ── Products ──────────────────────────────────────────────────────────────────
@@ -73,15 +80,15 @@ const PRODS: { name: string; price: number; category: string }[] = [
 for (const p of PRODS) {
   const catId = catIds[p.category];
   if (!catId) { console.warn(`  SKIP: no category for ${p.name}`); continue; }
-  const id = randomUUID();
-  await db.insert(products).values({
-    id,
+  const [row] = await db.insert(products).values({
     name: p.name,
     price: p.price,
     categoryId: catId,
     active: true,
-  }).onConflictDoNothing();
-  console.log(`  product: ${p.name} (€${p.price}) → ${id}`);
+  }).onConflictDoNothing().returning({ id: products.id });
+  if (row) {
+    console.log(`  product: ${p.name} (€${p.price}) → ${row.id}`);
+  }
 }
 
 // ── Production Centers ────────────────────────────────────────────────────────
@@ -93,15 +100,16 @@ const CENTERS: { name: string; categories: string[] }[] = [
 ];
 
 for (const center of CENTERS) {
-  const id = randomUUID();
-  await db.insert(productionCenters).values({ id, name: center.name }).onConflictDoNothing();
-  console.log(`  center: ${center.name} → ${id}`);
+  const [centerRow] = await db.insert(productionCenters).values({ name: center.name }).onConflictDoNothing().returning({ id: productionCenters.id });
+  const centerId = centerRow?.id;
+  if (!centerId) { console.warn(`  SKIP center (already exists?): ${center.name}`); continue; }
+  console.log(`  center: ${center.name} → ${centerId}`);
 
   for (const catName of center.categories) {
     const catId = catIds[catName];
     if (!catId) continue;
     await db.insert(productionCenterCategories)
-      .values({ productionCenterId: id, categoryId: catId })
+      .values({ productionCenterId: centerId, categoryId: catId })
       .onConflictDoNothing();
     console.log(`    mapped: ${center.name} ↔ ${catName}`);
   }

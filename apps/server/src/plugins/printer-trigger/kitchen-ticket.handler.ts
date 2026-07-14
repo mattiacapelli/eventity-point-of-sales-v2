@@ -14,7 +14,7 @@ export async function printKitchenTickets(
   printerService: PrinterService,
   logger: Logger,
   eventBus: EventBus,
-  orderId: string,
+  orderId: number,
   items: OrderItemRow[],
   dataDir: string,
   receiptDisplay?: string,
@@ -37,7 +37,7 @@ export async function printKitchenTickets(
   const optionRows = itemIds.length > 0
     ? await db.select().from(orderItemOptions).where(inArray(orderItemOptions.orderItemId, itemIds)) as unknown as OrderItemOptionRow[]
     : [];
-  const optionsByItemId = new Map<string, OrderItemOptionRow[]>();
+  const optionsByItemId = new Map<number, OrderItemOptionRow[]>();
   for (const opt of optionRows) {
     const arr = optionsByItemId.get(opt.orderItemId) ?? [];
     arr.push(opt);
@@ -50,7 +50,7 @@ export async function printKitchenTickets(
     : [];
   const productCatMap = new Map(productCatRows.map((r) => [r.id, r.categoryId ?? null]));
 
-  const categoryIds = [...new Set(productCatRows.map((r) => r.categoryId).filter((c): c is string => c !== null))];
+  const categoryIds = [...new Set(productCatRows.map((r) => r.categoryId).filter((c): c is number => c !== null && c !== undefined))];
   const pcCatRows   = categoryIds.length > 0
     ? await db.select({
         categoryId:        productionCenterCategories.categoryId,
@@ -58,7 +58,7 @@ export async function printKitchenTickets(
       }).from(productionCenterCategories).where(inArray(productionCenterCategories.categoryId, categoryIds))
     : [];
 
-  const catToCenters = new Map<string, string[]>();
+  const catToCenters = new Map<number, number[]>();
   for (const r of pcCatRows) {
     const arr = catToCenters.get(r.categoryId) ?? [];
     arr.push(r.productionCenterId);
@@ -72,12 +72,12 @@ export async function printKitchenTickets(
   const centerNameMap = new Map(centerNameRows.map((r) => [r.id, r.name]));
 
   // Group items by production center
-  const centerItems = new Map<string, { centerName: string; items: OrderItemRow[] }>();
+  const centerItems = new Map<number | "__generale__", { centerName: string; items: OrderItemRow[] }>();
   const unroutedItems: OrderItemRow[] = [];
 
   for (const item of items) {
     const categoryId     = productCatMap.get(item.productId) ?? null;
-    if (!categoryId) { unroutedItems.push(item); continue; }
+    if (categoryId === null) { unroutedItems.push(item); continue; }
     const centerIdsForCat = catToCenters.get(categoryId);
     if (!centerIdsForCat || centerIdsForCat.length === 0) { unroutedItems.push(item); continue; }
     for (const centerId of centerIdsForCat) {
@@ -104,7 +104,7 @@ export async function printKitchenTickets(
 
   for (const [centerId, { centerName, items: centerGroupItems }] of centerItems) {
     let targetPrinters: PrinterRow[];
-    if (centerId !== "__generale__") {
+    if (centerId !== "__generale__" && typeof centerId === "number") {
       const dedicatedRows = await db
         .select({ printerId: productionCenterPrinters.printerId })
         .from(productionCenterPrinters)
@@ -133,7 +133,8 @@ export async function printKitchenTickets(
       try {
         if (printer.printMode === "image") {
           const templateRows = await db.select().from(kitchenTemplates).where(eq(kitchenTemplates.active, true));
-          const template     = templateRows.find((t) => t.productionCenterId === centerId) ?? templateRows[0];
+          const numCenterId  = typeof centerId === "number" ? centerId : null;
+          const template     = (numCenterId !== null ? templateRows.find((t) => t.productionCenterId === numCenterId) : undefined) ?? templateRows[0];
 
           if (template?.blocks) {
             let blocks: KitchenBlock[];

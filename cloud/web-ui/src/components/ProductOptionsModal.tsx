@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CheckCircleIcon } from "@heroicons/react/24/solid";
 import type { Product } from "../core/types.js";
 import { Button } from "./Button.js";
 
@@ -66,8 +67,12 @@ export function ProductOptionsModal({ product, onClose, onConfirm }: {
           width: "100%", maxWidth: "480px", maxHeight: "85vh",
           background: "var(--color-white)", borderRadius: "var(--radius-xl) var(--radius-xl) 0 0",
           display: "flex", flexDirection: "column",
+          animation: "fade-in 0.2s ease",
         }}
       >
+        <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 0" }}>
+          <div style={{ width: "36px", height: "4px", borderRadius: "var(--radius-pill)", background: "var(--color-gray-200)" }} />
+        </div>
         <div style={{ padding: "var(--sp-lg)", borderBottom: "1px solid var(--color-gray-100)" }}>
           <div style={{ fontSize: "var(--text-lg)", fontWeight: 700 }}>{product.name}</div>
           <div style={{ fontSize: "var(--text-sm)", color: "var(--color-brand)", fontWeight: 600, marginTop: "4px" }}>
@@ -102,15 +107,20 @@ export function ProductOptionsModal({ product, onClose, onConfirm }: {
                         textAlign: "left",
                       }}
                     >
-                      <span
-                        style={{
-                          fontSize: "var(--text-sm)",
-                          fontWeight: 600,
-                          color: isRemoval && isSelected ? "var(--color-danger)" : "var(--color-gray-800)",
-                          textDecoration: isRemoval && isSelected ? "line-through" : "none",
-                        }}
-                      >
-                        {option.name}
+                      <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        {isSelected && (
+                          <CheckCircleIcon width={18} height={18} color={isRemoval ? "var(--color-danger)" : "var(--color-brand)"} style={{ flexShrink: 0 }} />
+                        )}
+                        <span
+                          style={{
+                            fontSize: "var(--text-sm)",
+                            fontWeight: 600,
+                            color: isRemoval && isSelected ? "var(--color-danger)" : "var(--color-gray-800)",
+                            textDecoration: isRemoval && isSelected ? "line-through" : "none",
+                          }}
+                        >
+                          {option.name}
+                        </span>
                       </span>
                       {option.prefix !== ">>" && option.priceDelta !== 0 && (
                         <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: option.prefix === "-" ? "var(--color-danger)" : "var(--color-brand)" }}>

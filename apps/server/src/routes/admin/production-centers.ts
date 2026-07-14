@@ -2,7 +2,6 @@ import "@fastify/swagger";
 import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
 import { eq, and, asc } from "@pos/db";
 import { productionCenters, productionCenterCategories, productionCenterPrinters, categories, printers } from "@pos/db";
-import { randomUUID } from "node:crypto";
 import { requireRole, AuthError } from "@pos/core";
 
 async function adminOnly(request: FastifyRequest, reply: FastifyReply) {
@@ -35,19 +34,13 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const body = request.body as { name: string; color?: string; receiptPrintMode?: "included" | "separate"; sortOrder?: number };
-    const id = randomUUID();
-    await fastify.ctx.db.insert(productionCenters).values({
-      id,
+    const [row] = await fastify.ctx.db.insert(productionCenters).values({
       name: body.name,
       color: body.color ?? null,
       receiptPrintMode: body.receiptPrintMode ?? "included",
       sortOrder: body.sortOrder ?? 0,
-    });
-    const [row] = await fastify.ctx.db
-      .select({ id: productionCenters.id, name: productionCenters.name, color: productionCenters.color, receiptPrintMode: productionCenters.receiptPrintMode, sortOrder: productionCenters.sortOrder })
-      .from(productionCenters)
-      .where(eq(productionCenters.id, id));
-    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_CREATED", { traceId: randomUUID(), id, timestamp: new Date() });
+    }).returning();
+    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_CREATED", { traceId: crypto.randomUUID(), id: row!.id, timestamp: new Date() });
     return reply.status(201).send(row);
   });
 
@@ -56,9 +49,10 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const body = request.body as { name?: string; color?: string | null; receiptPrintMode?: "included" | "separate"; sortOrder?: number };
 
-    const [existing] = await fastify.ctx.db.select().from(productionCenters).where(eq(productionCenters.id, id));
+    const [existing] = await fastify.ctx.db.select().from(productionCenters).where(eq(productionCenters.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     const update: { name?: string; color?: string | null; receiptPrintMode?: "included" | "separate"; sortOrder?: number } = {};
@@ -68,14 +62,14 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.sortOrder !== undefined) update.sortOrder = body.sortOrder;
 
     if (Object.keys(update).length > 0) {
-      await fastify.ctx.db.update(productionCenters).set(update).where(eq(productionCenters.id, id));
+      await fastify.ctx.db.update(productionCenters).set(update).where(eq(productionCenters.id, numId));
     }
 
     const [row] = await fastify.ctx.db
       .select({ id: productionCenters.id, name: productionCenters.name, color: productionCenters.color, receiptPrintMode: productionCenters.receiptPrintMode, sortOrder: productionCenters.sortOrder })
       .from(productionCenters)
-      .where(eq(productionCenters.id, id));
-    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
+      .where(eq(productionCenters.id, numId));
+    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_UPDATED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
     return reply.send(row);
   });
 
@@ -84,8 +78,9 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    await fastify.ctx.db.delete(productionCenters).where(eq(productionCenters.id, id));
-    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_DELETED", { traceId: randomUUID(), id, timestamp: new Date() });
+    const numId = parseInt(id, 10);
+    await fastify.ctx.db.delete(productionCenters).where(eq(productionCenters.id, numId));
+    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_DELETED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
     return reply.status(204).send();
   });
 
@@ -95,7 +90,7 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const { ids } = request.body as { ids: string[] };
     for (let i = 0; i < ids.length; i++) {
-      await fastify.ctx.db.update(productionCenters).set({ sortOrder: i }).where(eq(productionCenters.id, ids[i]!));
+      await fastify.ctx.db.update(productionCenters).set({ sortOrder: i }).where(eq(productionCenters.id, parseInt(ids[i]!, 10)));
     }
     return reply.status(204).send();
   });
@@ -104,11 +99,12 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["production-centers"], summary: "List categories assigned to a production center" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const rows = await fastify.ctx.db
       .select({ id: categories.id, name: categories.name })
       .from(productionCenterCategories)
       .innerJoin(categories, eq(productionCenterCategories.categoryId, categories.id))
-      .where(eq(productionCenterCategories.productionCenterId, id));
+      .where(eq(productionCenterCategories.productionCenterId, numId));
     return reply.send(rows);
   });
 
@@ -117,11 +113,13 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as { categoryId: string };
+    const numId = parseInt(id, 10);
+    const body = request.body as { categoryId: number | string };
+    const numCategoryId = typeof body.categoryId === "string" ? parseInt(body.categoryId, 10) : body.categoryId;
     await fastify.ctx.db
       .insert(productionCenterCategories)
-      .values({ productionCenterId: id, categoryId: body.categoryId });
-    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
+      .values({ productionCenterId: numId, categoryId: numCategoryId });
+    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_UPDATED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
     return reply.status(201).send();
   });
 
@@ -130,15 +128,17 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id, categoryId } = request.params as { id: string; categoryId: string };
+    const numId = parseInt(id, 10);
+    const numCategoryId = parseInt(categoryId, 10);
     await fastify.ctx.db
       .delete(productionCenterCategories)
       .where(
         and(
-          eq(productionCenterCategories.productionCenterId, id),
-          eq(productionCenterCategories.categoryId, categoryId),
+          eq(productionCenterCategories.productionCenterId, numId),
+          eq(productionCenterCategories.categoryId, numCategoryId),
         ),
       );
-    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
+    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_UPDATED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
     return reply.status(204).send();
   });
 
@@ -146,11 +146,12 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["production-centers"], summary: "List printers assigned to a production center" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const rows = await fastify.ctx.db
       .select({ id: printers.id, name: printers.name, host: printers.host, port: printers.port, kitchenEnabled: printers.kitchenEnabled, active: printers.active })
       .from(productionCenterPrinters)
       .innerJoin(printers, eq(productionCenterPrinters.printerId, printers.id))
-      .where(eq(productionCenterPrinters.productionCenterId, id));
+      .where(eq(productionCenterPrinters.productionCenterId, numId));
     return reply.send(rows);
   });
 
@@ -159,11 +160,13 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id, printerId } = request.params as { id: string; printerId: string };
+    const numId = parseInt(id, 10);
+    const numPrinterId = parseInt(printerId, 10);
     await fastify.ctx.db
       .insert(productionCenterPrinters)
-      .values({ productionCenterId: id, printerId })
+      .values({ productionCenterId: numId, printerId: numPrinterId })
       .onConflictDoNothing();
-    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
+    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_UPDATED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
     return reply.status(201).send();
   });
 
@@ -172,15 +175,17 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id, printerId } = request.params as { id: string; printerId: string };
+    const numId = parseInt(id, 10);
+    const numPrinterId = parseInt(printerId, 10);
     await fastify.ctx.db
       .delete(productionCenterPrinters)
       .where(
         and(
-          eq(productionCenterPrinters.productionCenterId, id),
-          eq(productionCenterPrinters.printerId, printerId),
+          eq(productionCenterPrinters.productionCenterId, numId),
+          eq(productionCenterPrinters.printerId, numPrinterId),
         ),
       );
-    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
+    fastify.ctx.eventBus.emit("PRODUCTION_CENTER_UPDATED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
     return reply.status(204).send();
   });
 };

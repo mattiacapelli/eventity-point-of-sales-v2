@@ -29,7 +29,7 @@ export async function loadMultiTerminalEnabled(db: DbClient): Promise<boolean> {
 export async function resolveReceiptPrinter(
   db: DbClient,
   multiTerminalEnabled: boolean,
-  terminalId: string | null,
+  terminalId: number | null,
 ): Promise<PrinterRow | undefined> {
   if (multiTerminalEnabled && terminalId) {
     const tpRows = await db.select().from(terminalPrinters).where(eq(terminalPrinters.terminalId, terminalId));
@@ -104,13 +104,13 @@ export async function loadReceiptContext(
 
   const items = rawItems as OrderItemRow[];
 
-  let productCategoryMap: Record<string, string | null> = {};
-  let categoryNameMap: Record<string, string> = {};
-  let productPrintModeMap: Record<string, string> = {};
-  let categoryCentersMap: Record<string, string[]> = {};
-  let categoryFirstCenterMap: Record<string, string> = {};
-  let centerNameMap: Record<string, string> = {};
-  let centerPrintModeMap: Record<string, string> = {};
+  let productCategoryMap: Record<number, number | null> = {};
+  let categoryNameMap: Record<number, string> = {};
+  let productPrintModeMap: Record<number, string> = {};
+  let categoryCentersMap: Record<number, number[]> = {};
+  let categoryFirstCenterMap: Record<number, number> = {};
+  let centerNameMap: Record<number, string> = {};
+  let centerPrintModeMap: Record<number, string> = {};
 
   if (items.length > 0) {
     const productIds  = [...new Set(items.map((i) => i.productId))];
@@ -121,7 +121,7 @@ export async function loadReceiptContext(
     productCategoryMap  = Object.fromEntries(productRows.map((pr) => [pr.id, pr.categoryId ?? null]));
     productPrintModeMap = Object.fromEntries(productRows.map((pr) => [pr.id, pr.receiptPrintMode]));
 
-    const categoryIds = [...new Set(productRows.map((pr) => pr.categoryId).filter(Boolean))] as string[];
+    const categoryIds = [...new Set(productRows.map((pr) => pr.categoryId).filter((id): id is number => id !== null && id !== undefined))];
     if (categoryIds.length > 0) {
       const categoryRows = await db.select({ id: categories.id, name: categories.name }).from(categories).where(inArray(categories.id, categoryIds));
       categoryNameMap = Object.fromEntries(categoryRows.map((c) => [c.id, c.name]));
@@ -135,7 +135,7 @@ export async function loadReceiptContext(
         const arr = categoryCentersMap[r.categoryId] ?? [];
         arr.push(r.productionCenterId);
         categoryCentersMap[r.categoryId] = arr;
-        if (!categoryFirstCenterMap[r.categoryId]) categoryFirstCenterMap[r.categoryId] = r.productionCenterId;
+        if (categoryFirstCenterMap[r.categoryId] === undefined) categoryFirstCenterMap[r.categoryId] = r.productionCenterId;
       }
 
       const centerIds = [...new Set(Object.values(categoryCentersMap).flat())];

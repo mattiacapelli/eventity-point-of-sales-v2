@@ -37,14 +37,14 @@ export function ProductionCentersTab() {
   }
 
   // Per-center assigned categories (loaded lazily)
-  const [centerCategories, setCenterCategories] = useState<Record<string, Category[]>>({});
-  const [loadedCenters, setLoadedCenters] = useState<Set<string>>(new Set());
+  const [centerCategories, setCenterCategories] = useState<Record<number, Category[]>>({});
+  const [loadedCenters, setLoadedCenters] = useState<Set<number>>(new Set());
 
   // Per-center assigned printers
-  const [centerPrinters, setCenterPrinters] = useState<Record<string, Array<Pick<Printer, "id" | "name" | "host" | "port" | "kitchenEnabled" | "active">>>>({});
-  const [loadedPrinterCenters, setLoadedPrinterCenters] = useState<Set<string>>(new Set());
+  const [centerPrinters, setCenterPrinters] = useState<Record<number, Array<Pick<Printer, "id" | "name" | "host" | "port" | "kitchenEnabled" | "active">>>>({});
+  const [loadedPrinterCenters, setLoadedPrinterCenters] = useState<Set<number>>(new Set());
   const [allPrinters, setAllPrinters] = useState<Printer[]>([]);
-  const [printerDropdown, setPrinterDropdown] = useState<string | null>(null);
+  const [printerDropdown, setPrinterDropdown] = useState<number | null>(null);
 
   // Modal: new center
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -60,19 +60,19 @@ export function ProductionCentersTab() {
   const [editSaving, setEditSaving] = useState(false);
 
   // Delete center
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   // Dropdown for adding category to a center
-  const [addDropdown, setAddDropdown] = useState<string | null>(null);
+  const [addDropdown, setAddDropdown] = useState<number | null>(null);
 
-  async function loadCenterCategories(centerId: string) {
+  async function loadCenterCategories(centerId: number) {
     if (loadedCenters.has(centerId)) return;
     const cats = await adminApi.productionCenters.getCategories(centerId);
     setCenterCategories((prev) => ({ ...prev, [centerId]: cats }));
     setLoadedCenters((prev) => new Set(prev).add(centerId));
   }
 
-  async function loadCenterPrinters(centerId: string) {
+  async function loadCenterPrinters(centerId: number) {
     if (loadedPrinterCenters.has(centerId)) return;
     const prs = await adminApi.productionCenters.getPrinters(centerId);
     setCenterPrinters((prev) => ({ ...prev, [centerId]: prs }));
@@ -129,34 +129,34 @@ export function ProductionCentersTab() {
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: number) {
     await adminApi.productionCenters.delete(id);
     removeProductionCenter(id);
     setCenterCategories((prev) => { const next = { ...prev }; delete next[id]; return next; });
     setDeleteId(null);
   }
 
-  async function handleAssignCategory(centerId: string, categoryId: string) {
+  async function handleAssignCategory(centerId: number, categoryId: number) {
     await adminApi.productionCenters.assignCategory(centerId, categoryId);
     const cats = await adminApi.productionCenters.getCategories(centerId);
     setCenterCategories((prev) => ({ ...prev, [centerId]: cats }));
     setAddDropdown(null);
   }
 
-  async function handleRemoveCategory(centerId: string, categoryId: string) {
+  async function handleRemoveCategory(centerId: number, categoryId: number) {
     await adminApi.productionCenters.removeCategory(centerId, categoryId);
     const cats = await adminApi.productionCenters.getCategories(centerId);
     setCenterCategories((prev) => ({ ...prev, [centerId]: cats }));
   }
 
-  async function handleAssignPrinter(centerId: string, printerId: string) {
+  async function handleAssignPrinter(centerId: number, printerId: number) {
     await adminApi.productionCenters.assignPrinter(centerId, printerId);
     const prs = await adminApi.productionCenters.getPrinters(centerId);
     setCenterPrinters((prev) => ({ ...prev, [centerId]: prs }));
     setPrinterDropdown(null);
   }
 
-  async function handleRemovePrinter(centerId: string, printerId: string) {
+  async function handleRemovePrinter(centerId: number, printerId: number) {
     await adminApi.productionCenters.removePrinter(centerId, printerId);
     const prs = await adminApi.productionCenters.getPrinters(centerId);
     setCenterPrinters((prev) => ({ ...prev, [centerId]: prs }));

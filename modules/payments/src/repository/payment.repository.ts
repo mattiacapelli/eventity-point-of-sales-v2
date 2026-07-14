@@ -1,11 +1,10 @@
-import { randomUUID } from "node:crypto";
 import { eq, desc, payments } from "@pos/db";
 import type { DbClient } from "@pos/db";
 import type { Payment, CreatePaymentInput } from "@pos/shared-types";
 
 type DbPaymentRow = {
-  id: string;
-  orderId: string;
+  id: number;
+  orderId: number;
   method: string;
   status: "pending" | "completed" | "failed" | "refunded";
   amount: number;
@@ -19,11 +18,9 @@ export class PaymentRepository {
   constructor(private readonly db: DbClient) {}
 
   async create(input: CreatePaymentInput): Promise<Payment> {
-    const id = randomUUID();
     const now = new Date();
 
-    await this.db.insert(payments).values({
-      id,
+    const [row] = await this.db.insert(payments).values({
       orderId: input.orderId,
       method: input.method,
       status: "completed",
@@ -32,13 +29,12 @@ export class PaymentRepository {
       reference: input.reference ?? null,
       terminalId: input.terminalId ?? null,
       createdAt: now,
-    });
+    }).returning();
 
-    const [row] = await this.db.select().from(payments).where(eq(payments.id, id)).limit(1);
     return this.toPayment(row as unknown as DbPaymentRow);
   }
 
-  async findByOrderId(orderId: string): Promise<Payment[]> {
+  async findByOrderId(orderId: number): Promise<Payment[]> {
     const rows = await this.db
       .select()
       .from(payments)
@@ -47,12 +43,12 @@ export class PaymentRepository {
     return (rows as unknown as DbPaymentRow[]).map(this.toPayment);
   }
 
-  async findById(id: string): Promise<Payment | undefined> {
+  async findById(id: number): Promise<Payment | undefined> {
     const [row] = await this.db.select().from(payments).where(eq(payments.id, id)).limit(1);
     return row ? this.toPayment(row as unknown as DbPaymentRow) : undefined;
   }
 
-  async updateStatus(id: string, status: DbPaymentRow["status"]): Promise<Payment | undefined> {
+  async updateStatus(id: number, status: DbPaymentRow["status"]): Promise<Payment | undefined> {
     await this.db.update(payments).set({ status }).where(eq(payments.id, id));
     return this.findById(id);
   }

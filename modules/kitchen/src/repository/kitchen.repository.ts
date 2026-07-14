@@ -3,7 +3,7 @@ import type { DbClient } from "@pos/db";
 import type { Order, OrderItem, OrderStatus } from "@pos/shared-types";
 
 type DbOrderRow = {
-  id: string;
+  id: number;
   tableId: string | null;
   eventId: string | null;
   status: string;
@@ -14,9 +14,9 @@ type DbOrderRow = {
 };
 
 type DbItemRow = {
-  id: string;
-  orderId: string;
-  productId: string;
+  id: number;
+  orderId: number;
+  productId: number;
   name: string;
   quantity: number;
   unitPrice: number;
@@ -40,7 +40,7 @@ export class KitchenRepository {
     );
   }
 
-  async findById(id: string): Promise<Order | undefined> {
+  async findById(id: number): Promise<Order | undefined> {
     const [row] = await this.db.select().from(orders).where(eq(orders.id, id)).limit(1);
     if (!row) return undefined;
     return this.hydrateOrder(row as unknown as DbOrderRow);

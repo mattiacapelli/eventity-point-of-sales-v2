@@ -15,7 +15,7 @@ export function registerFiscalRoutes(fastify: FastifyInstance, service: FiscalSe
   fastify.post("/fiscal/z-report", {
     schema: { tags: ["fiscal"], summary: "Emit fiscal Z-report for a shift" },
   }, async (request, reply) => {
-    const { shiftId } = request.body as { shiftId: string };
+    const { shiftId } = request.body as { shiftId: number };
     if (!shiftId) return reply.status(400).send({ error: "shiftId required" });
     try {
       const result = await service.emitZReport(shiftId);
@@ -29,7 +29,7 @@ export function registerFiscalRoutes(fastify: FastifyInstance, service: FiscalSe
   fastify.post("/fiscal/void", {
     schema: { tags: ["fiscal"], summary: "Void a fiscal document for an order" },
   }, async (request, reply) => {
-    const { orderId } = request.body as { orderId: string };
+    const { orderId } = request.body as { orderId: number };
     if (!orderId) return reply.status(400).send({ error: "orderId required" });
     try {
       await service.emitVoidDocument(orderId);

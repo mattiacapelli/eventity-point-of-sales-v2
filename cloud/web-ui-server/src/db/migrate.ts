@@ -99,10 +99,24 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_tenant ON audit_log(tenant_id, created_
 CREATE INDEX IF NOT EXISTS idx_audit_log_user   ON audit_log(user_id, created_at);
 `;
 
+function addColumnIfMissing(sqlite: Database.Database, table: string, column: string, ddl: string): void {
+  const columns = sqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!columns.some((c) => c.name === column)) {
+    sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+  }
+}
+
 export function runMigrations(dbPath: string): void {
   const sqlite = new Database(dbPath);
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
   sqlite.exec(DDL);
+
+  // tenants.logo_path/color_brand/color_accent were added after the initial DDL above;
+  // CREATE TABLE IF NOT EXISTS does not retrofit columns onto an already-existing table.
+  addColumnIfMissing(sqlite, "tenants", "logo_path", "logo_path TEXT");
+  addColumnIfMissing(sqlite, "tenants", "color_brand", "color_brand TEXT");
+  addColumnIfMissing(sqlite, "tenants", "color_accent", "color_accent TEXT");
+
   sqlite.close();
 }

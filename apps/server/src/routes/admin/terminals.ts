@@ -1,11 +1,10 @@
 import "@fastify/swagger";
 import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
 import { eq, and, inArray, terminals, terminalPrinters, terminalCategories, printers, categories } from "@pos/db";
-import { randomUUID } from "node:crypto";
 import { requireRole, AuthError } from "@pos/core";
 import type { Terminal } from "@pos/shared-types";
 
-function toTerminal(row: { id: string; name: string; active: boolean | number; createdAt: number; lastSeenAt: number | null; defaultViewMode: string | null }): Terminal {
+function toTerminal(row: { id: number; name: string; active: boolean | number; createdAt: number; lastSeenAt: number | null; defaultViewMode: string | null }): Terminal {
   return {
     id: row.id,
     name: row.name,
@@ -45,11 +44,9 @@ const terminalsRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const body = request.body as { name: string };
     if (!body.name?.trim()) return reply.status(400).send({ error: "name is required" });
-    const id = randomUUID();
     const now = Date.now();
-    await fastify.ctx.db.insert(terminals).values({ id, name: body.name.trim(), active: true, createdAt: now, lastSeenAt: null });
-    const [row] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, id));
-    fastify.ctx.eventBus.emit("TERMINAL_CREATED", { traceId: randomUUID(), id, timestamp: new Date() });
+    const [row] = await fastify.ctx.db.insert(terminals).values({ name: body.name.trim(), active: true, createdAt: now, lastSeenAt: null }).returning();
+    fastify.ctx.eventBus.emit("TERMINAL_CREATED", { traceId: crypto.randomUUID(), id: row!.id, timestamp: new Date() });
     return reply.status(201).send(toTerminal(row!));
   });
 
@@ -59,8 +56,9 @@ const terminalsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const body = request.body as Partial<{ name: string; active: boolean; defaultViewMode: string | null }>;
-    const [existing] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, id));
+    const [existing] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     const update: Partial<{ name: string; active: boolean; defaultViewMode: string | null }> = {};
@@ -69,10 +67,10 @@ const terminalsRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.defaultViewMode !== undefined) update.defaultViewMode = body.defaultViewMode;
 
     if (Object.keys(update).length > 0) {
-      await fastify.ctx.db.update(terminals).set(update).where(eq(terminals.id, id));
+      await fastify.ctx.db.update(terminals).set(update).where(eq(terminals.id, numId));
     }
-    const [row] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, id));
-    fastify.ctx.eventBus.emit("TERMINAL_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
+    const [row] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, numId));
+    fastify.ctx.eventBus.emit("TERMINAL_UPDATED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
     return reply.send(toTerminal(row!));
   });
 
@@ -82,9 +80,10 @@ const terminalsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    await fastify.ctx.db.delete(terminalPrinters).where(eq(terminalPrinters.terminalId, id));
-    await fastify.ctx.db.delete(terminals).where(eq(terminals.id, id));
-    fastify.ctx.eventBus.emit("TERMINAL_DELETED", { traceId: randomUUID(), id, timestamp: new Date() });
+    const numId = parseInt(id, 10);
+    await fastify.ctx.db.delete(terminalPrinters).where(eq(terminalPrinters.terminalId, numId));
+    await fastify.ctx.db.delete(terminals).where(eq(terminals.id, numId));
+    fastify.ctx.eventBus.emit("TERMINAL_DELETED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
     return reply.status(204).send();
   });
 
@@ -93,7 +92,8 @@ const terminalsRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["terminals"], summary: "List printers assigned to a terminal" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const tpRows = await fastify.ctx.db.select().from(terminalPrinters).where(eq(terminalPrinters.terminalId, id));
+    const numId = parseInt(id, 10);
+    const tpRows = await fastify.ctx.db.select().from(terminalPrinters).where(eq(terminalPrinters.terminalId, numId));
     if (tpRows.length === 0) return reply.send([]);
     const printerIds = tpRows.map((r) => r.printerId);
     const rows = await fastify.ctx.db.select().from(printers).where(inArray(printers.id, printerIds));
@@ -106,15 +106,17 @@ const terminalsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id, printerId } = request.params as { id: string; printerId: string };
-    const [terminal] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, id));
+    const numId = parseInt(id, 10);
+    const numPrinterId = parseInt(printerId, 10);
+    const [terminal] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, numId));
     if (!terminal) return reply.status(404).send({ error: "Terminal not found" });
-    const [printer] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, printerId));
+    const [printer] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, numPrinterId));
     if (!printer) return reply.status(404).send({ error: "Printer not found" });
 
     const [existing] = await fastify.ctx.db.select().from(terminalPrinters)
-      .where(and(eq(terminalPrinters.terminalId, id), eq(terminalPrinters.printerId, printerId)));
+      .where(and(eq(terminalPrinters.terminalId, numId), eq(terminalPrinters.printerId, numPrinterId)));
     if (!existing) {
-      await fastify.ctx.db.insert(terminalPrinters).values({ terminalId: id, printerId });
+      await fastify.ctx.db.insert(terminalPrinters).values({ terminalId: numId, printerId: numPrinterId });
     }
     return reply.status(204).send();
   });
@@ -126,7 +128,7 @@ const terminalsRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const { id, printerId } = request.params as { id: string; printerId: string };
     await fastify.ctx.db.delete(terminalPrinters)
-      .where(and(eq(terminalPrinters.terminalId, id), eq(terminalPrinters.printerId, printerId)));
+      .where(and(eq(terminalPrinters.terminalId, parseInt(id, 10)), eq(terminalPrinters.printerId, parseInt(printerId, 10))));
     return reply.status(204).send();
   });
 
@@ -135,14 +137,15 @@ const terminalsRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["terminals"], summary: "List categories visible on a terminal, ordered" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const tcRows = await fastify.ctx.db.select().from(terminalCategories)
-      .where(eq(terminalCategories.terminalId, id))
+      .where(eq(terminalCategories.terminalId, numId))
       .orderBy(terminalCategories.sortOrder);
     if (tcRows.length === 0) return reply.send([]);
     const categoryIds = tcRows.map((r) => r.categoryId);
     const rows = await fastify.ctx.db.select().from(categories).where(inArray(categories.id, categoryIds));
-    const byId = Object.fromEntries(rows.map((c) => [c.id, c]));
-    return reply.send(tcRows.map((r) => byId[r.categoryId]).filter(Boolean));
+    const byId = new Map(rows.map((c) => [c.id, c]));
+    return reply.send(tcRows.map((r) => byId.get(r.categoryId)).filter(Boolean));
   });
 
   // POST /admin/terminals/:id/categories/:categoryId
@@ -151,16 +154,18 @@ const terminalsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id, categoryId } = request.params as { id: string; categoryId: string };
-    const [terminal] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, id));
+    const numId = parseInt(id, 10);
+    const numCategoryId = parseInt(categoryId, 10);
+    const [terminal] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, numId));
     if (!terminal) return reply.status(404).send({ error: "Terminal not found" });
-    const [category] = await fastify.ctx.db.select().from(categories).where(eq(categories.id, categoryId));
+    const [category] = await fastify.ctx.db.select().from(categories).where(eq(categories.id, numCategoryId));
     if (!category) return reply.status(404).send({ error: "Category not found" });
 
     const [existing] = await fastify.ctx.db.select().from(terminalCategories)
-      .where(and(eq(terminalCategories.terminalId, id), eq(terminalCategories.categoryId, categoryId)));
+      .where(and(eq(terminalCategories.terminalId, numId), eq(terminalCategories.categoryId, numCategoryId)));
     if (!existing) {
-      const current = await fastify.ctx.db.select().from(terminalCategories).where(eq(terminalCategories.terminalId, id));
-      await fastify.ctx.db.insert(terminalCategories).values({ terminalId: id, categoryId, sortOrder: current.length });
+      const current = await fastify.ctx.db.select().from(terminalCategories).where(eq(terminalCategories.terminalId, numId));
+      await fastify.ctx.db.insert(terminalCategories).values({ terminalId: numId, categoryId: numCategoryId, sortOrder: current.length });
     }
     return reply.status(204).send();
   });
@@ -172,7 +177,7 @@ const terminalsRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const { id, categoryId } = request.params as { id: string; categoryId: string };
     await fastify.ctx.db.delete(terminalCategories)
-      .where(and(eq(terminalCategories.terminalId, id), eq(terminalCategories.categoryId, categoryId)));
+      .where(and(eq(terminalCategories.terminalId, parseInt(id, 10)), eq(terminalCategories.categoryId, parseInt(categoryId, 10))));
     return reply.status(204).send();
   });
 
@@ -182,11 +187,12 @@ const terminalsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const { categoryIds } = request.body as { categoryIds: string[] };
     for (let i = 0; i < categoryIds.length; i++) {
       await fastify.ctx.db.update(terminalCategories)
         .set({ sortOrder: i })
-        .where(and(eq(terminalCategories.terminalId, id), eq(terminalCategories.categoryId, categoryIds[i]!)));
+        .where(and(eq(terminalCategories.terminalId, numId), eq(terminalCategories.categoryId, parseInt(categoryIds[i]!, 10))));
     }
     return reply.status(204).send();
   });
@@ -196,10 +202,11 @@ const terminalsRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["terminals"], summary: "Update terminal last seen timestamp" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const [existing] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, id));
+    const numId = parseInt(id, 10);
+    const [existing] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, numId));
     if (!existing) return reply.status(404).send({ error: "Terminal not found" });
-    await fastify.ctx.db.update(terminals).set({ lastSeenAt: Date.now() }).where(eq(terminals.id, id));
-    const [row] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, id));
+    await fastify.ctx.db.update(terminals).set({ lastSeenAt: Date.now() }).where(eq(terminals.id, numId));
+    const [row] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, numId));
     return reply.send(toTerminal(row!));
   });
 };

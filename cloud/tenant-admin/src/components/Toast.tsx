@@ -46,6 +46,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               color: "var(--color-white)",
               background: t.kind === "success" ? "var(--color-brand)" : "var(--color-danger)",
               maxWidth: "320px",
+              animation: "toast-in 0.25s ease",
             }}
           >
             {t.message}

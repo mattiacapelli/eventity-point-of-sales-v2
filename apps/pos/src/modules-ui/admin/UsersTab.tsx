@@ -23,7 +23,7 @@ export function UsersTab() {
   const [newRole, setNewRole] = useState<UserRole>("cashier");
   const [newPin, setNewPin] = useState("");
   const [savingNew, setSavingNew] = useState(false);
-  const [resetPinId, setResetPinId] = useState<string | null>(null);
+  const [resetPinId, setResetPinId] = useState<number | null>(null);
   const [resetPinValue, setResetPinValue] = useState("");
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export function UsersTab() {
     }
   }
 
-  async function handleResetPin(id: string) {
+  async function handleResetPin(id: number) {
     if (!resetPinValue.trim()) return;
     try {
       await adminApi.users.resetPin(id, resetPinValue.trim());

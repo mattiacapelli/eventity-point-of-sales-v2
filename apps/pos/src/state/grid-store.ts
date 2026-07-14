@@ -47,8 +47,8 @@ interface GridStore extends GridPrefs {
   applyServerPrefs: (serverPrefs: Partial<GridPrefs>) => void;
   loadLayout: (scope: string) => Promise<void>;
   saveLayout: (scope: string, slots: ProductGridSlot[]) => void;
-  updateSlot: (scope: string, productId: string, update: Partial<Omit<ProductGridSlot, "productId">>) => void;
-  removeSlot: (scope: string, productId: string) => void;
+  updateSlot: (scope: string, productId: number, update: Partial<Omit<ProductGridSlot, "productId">>) => void;
+  removeSlot: (scope: string, productId: number) => void;
 }
 
 export const useGridStore = create<GridStore>((set, get) => ({

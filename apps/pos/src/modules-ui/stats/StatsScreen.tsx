@@ -142,7 +142,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 // ─── Print report button ───────────────────────────────────────────────────────
 
-function PrintReportButton({ shiftId }: { shiftId: string }) {
+function PrintReportButton({ shiftId }: { shiftId: number }) {
   const [printing, setPrinting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
@@ -181,7 +181,7 @@ function formatShiftLabel(shift: Shift): string {
 function ShiftTab() {
   const currentShift = useShiftStore((s) => s.currentShift);
   const [history, setHistory] = useState<Shift[]>([]);
-  const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null);
+  const [selectedShiftId, setSelectedShiftId] = useState<number | null>(null);
   const [stats, setStats] = useState<ShiftFullStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -218,7 +218,7 @@ function ShiftTab() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--sp-md)" }}>
         <select
           value={selectedShiftId ?? ""}
-          onChange={(e) => setSelectedShiftId(e.target.value)}
+          onChange={(e) => setSelectedShiftId(e.target.value ? parseInt(e.target.value, 10) : null)}
           style={{ height: "36px", padding: "0 10px", borderRadius: "var(--radius-md)", border: "2px solid var(--color-gray-200)", fontFamily: "var(--font)", fontSize: "var(--text-sm)" }}
         >
           {history.map((s) => (

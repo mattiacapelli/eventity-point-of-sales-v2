@@ -1,5 +1,5 @@
 export interface Terminal {
-  id: string;
+  id: number;
   name: string;
   active: boolean;
   createdAt: number;

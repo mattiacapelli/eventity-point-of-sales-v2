@@ -26,8 +26,8 @@ export class FiscalRepository {
     };
   }
 
-  async getOrderWithItems(orderId: string): Promise<{
-    id: string;
+  async getOrderWithItems(orderId: number): Promise<{
+    id: number;
     fiscalDocNumber: string | null;
     items: { name: string; quantity: number; unitPrice: number; vatRate: number }[];
   } | null> {
@@ -60,7 +60,7 @@ export class FiscalRepository {
     };
   }
 
-  async saveFiscalData(orderId: string, data: { fiscalDocNumber: string; fiscalDocDate: string; fiscalRtSerial: string }): Promise<void> {
+  async saveFiscalData(orderId: number, data: { fiscalDocNumber: string; fiscalDocDate: string; fiscalRtSerial: string }): Promise<void> {
     await this.db.update(orders).set({
       fiscalDocNumber: data.fiscalDocNumber,
       fiscalDocDate: data.fiscalDocDate,
@@ -69,13 +69,13 @@ export class FiscalRepository {
     }).where(eq(orders.id, orderId));
   }
 
-  async saveZReport(shiftId: string, data: object): Promise<void> {
+  async saveZReport(shiftId: number, data: object): Promise<void> {
     await this.db.update(shifts)
       .set({ zReportFiscal: JSON.stringify(data) })
       .where(eq(shifts.id, shiftId));
   }
 
-  async getZReportFiscal(shiftId: string): Promise<string | null> {
+  async getZReportFiscal(shiftId: number): Promise<string | null> {
     const [row] = await this.db.select({ zReportFiscal: shifts.zReportFiscal }).from(shifts).where(eq(shifts.id, shiftId)).limit(1);
     return row?.zReportFiscal ?? null;
   }

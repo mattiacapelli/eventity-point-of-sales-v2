@@ -90,7 +90,7 @@ function PayModal({ order, onClose, onPaid }: PayModalProps) {
           }}
         >
           <div style={{ color: "var(--color-gray-500)", fontSize: "var(--text-sm)", marginBottom: "var(--sp-sm)" }}>
-            Ordine #{order.id.slice(-6).toUpperCase()}
+            Ordine #{order.id}
           </div>
           {order.items.map((item) => (
             <div
@@ -258,7 +258,7 @@ export function PaymentScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState<Order | null>(null);
-  const [paidId, setPaidId] = useState<string | null>(null);
+  const [paidId, setPaidId] = useState<number | null>(null);
   const upsertOrder = useStore((s) => s.upsertOrder);
   const removeOrder = useStore((s) => s.removeOrder);
 
@@ -369,7 +369,7 @@ export function PaymentScreen() {
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-sm)", marginBottom: "4px" }}>
                       <span style={{ fontWeight: 700, fontSize: "var(--text-md)" }}>
-                        #{order.id.slice(-6).toUpperCase()}
+                        #{order.id}
                       </span>
                       <Badge variant={order.status} size="sm" />
                     </div>

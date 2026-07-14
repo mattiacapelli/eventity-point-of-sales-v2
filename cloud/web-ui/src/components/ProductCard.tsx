@@ -1,3 +1,4 @@
+import { CakeIcon } from "@heroicons/react/24/outline";
 import type { Product } from "../core/types.js";
 
 function formatEur(n: number): string {
@@ -16,10 +17,12 @@ export function ProductCard({ product, categoryLabel, quantity, onChange, onOpen
 
   return (
     <div
+      className="hoverable"
       style={{
         background: "var(--color-white)",
         borderRadius: "var(--radius-lg)",
         border: `1.5px solid ${selected ? "var(--color-brand)" : "var(--color-gray-200)"}`,
+        boxShadow: selected ? "var(--shadow-sm)" : "none",
         padding: "var(--sp-md)",
         display: "flex",
         flexDirection: "column",
@@ -27,17 +30,33 @@ export function ProductCard({ product, categoryLabel, quantity, onChange, onOpen
         minHeight: "116px",
       }}
     >
-      <div style={{ flex: 1 }}>
-        {categoryLabel && (
-          <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-gray-400)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "2px" }}>
-            {categoryLabel}
-          </div>
-        )}
-        <div style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-900)", lineHeight: 1.3 }}>
-          {product.name}
+      <div style={{ flex: 1, display: "flex", gap: "10px" }}>
+        <div
+          style={{
+            flexShrink: 0,
+            width: "40px",
+            height: "40px",
+            borderRadius: "var(--radius-md)",
+            background: "rgba(48,107,52,0.08)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <CakeIcon width={20} height={20} color="var(--color-brand)" />
         </div>
-        <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-brand)", marginTop: "4px" }}>
-          {formatEur(product.price)}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {categoryLabel && (
+            <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-gray-400)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "2px" }}>
+              {categoryLabel}
+            </div>
+          )}
+          <div className="line-clamp-2" style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-900)", lineHeight: 1.3 }}>
+            {product.name}
+          </div>
+          <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-brand)", marginTop: "4px" }}>
+            {formatEur(product.price)}
+          </div>
         </div>
       </div>
 

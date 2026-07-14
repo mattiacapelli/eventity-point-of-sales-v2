@@ -26,21 +26,21 @@ const GROUP_TYPE_COLORS: Record<string, string> = {
 function OptionGroupsPanel({ product }: { product: Product }) {
   const { optionGroupsByProduct, setOptionGroups, upsertOptionGroup, removeOptionGroup, upsertOption, removeOption } = useAdminStore();
   const groups: OptionGroupWithOptions[] = optionGroupsByProduct[product.id] ?? [];
-  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const [loadedFor, setLoadedFor] = useState<number | null>(null);
 
   // Modal: create/edit group
   const [groupModal, setGroupModal] = useState(false);
   const [editGroup, setEditGroup] = useState<OptionGroupWithOptions | null>(null);
   const [groupForm, setGroupForm] = useState({ name: "", type: "single" as "single" | "multi" | "removal", required: false, maxSel: 1 });
   const [savingGroup, setSavingGroup] = useState(false);
-  const [deleteGroupId, setDeleteGroupId] = useState<string | null>(null);
+  const [deleteGroupId, setDeleteGroupId] = useState<number | null>(null);
 
   // Modal: create/edit option
-  const [optionModal, setOptionModal] = useState<{ groupId: string } | null>(null);
+  const [optionModal, setOptionModal] = useState<{ groupId: number } | null>(null);
   const [editOption, setEditOption] = useState<Option | null>(null);
   const [optionForm, setOptionForm] = useState({ name: "", priceDelta: "0", prefix: "+" as "+" | "-" | ">>" });
   const [savingOption, setSavingOption] = useState(false);
-  const [deleteOption_, setDeleteOption_] = useState<{ groupId: string; optionId: string } | null>(null);
+  const [deleteOption_, setDeleteOption_] = useState<{ groupId: number; optionId: number } | null>(null);
 
   useEffect(() => {
     if (loadedFor === product.id) return;
@@ -84,18 +84,18 @@ function OptionGroupsPanel({ product }: { product: Product }) {
       setGroupModal(false);
     } finally { setSavingGroup(false); }
   }
-  async function handleDeleteGroup(id: string) {
+  async function handleDeleteGroup(id: number) {
     await adminApi.optionGroups.delete(id);
     removeOptionGroup(product.id, id);
     setDeleteGroupId(null);
   }
 
-  function openCreateOption(groupId: string) {
+  function openCreateOption(groupId: number) {
     setEditOption(null);
     setOptionForm({ name: "", priceDelta: "0", prefix: "+" });
     setOptionModal({ groupId });
   }
-  function openEditOption(groupId: string, o: Option) {
+  function openEditOption(groupId: number, o: Option) {
     setEditOption(o);
     setOptionForm({ name: o.name, priceDelta: String(o.priceDelta), prefix: o.prefix ?? "+" });
     setOptionModal({ groupId });
@@ -115,7 +115,7 @@ function OptionGroupsPanel({ product }: { product: Product }) {
       setOptionModal(null);
     } finally { setSavingOption(false); }
   }
-  async function handleDeleteOption(groupId: string, optionId: string) {
+  async function handleDeleteOption(groupId: number, optionId: number) {
     await adminApi.optionGroups.deleteOption(optionId);
     removeOption(product.id, groupId, optionId);
     setDeleteOption_(null);
@@ -382,13 +382,13 @@ function IngredientsModal({ product, onClose }: { product: Product | null; onClo
     if (!product || !selectedItemId) return;
     setAdding(true);
     try {
-      const created = await adminApi.inventory.createIngredient({ productId: product.id, inventoryItemId: selectedItemId, quantity: parseFloat(qty) || 1 });
+      const created = await adminApi.inventory.createIngredient({ productId: product.id, inventoryItemId: parseInt(selectedItemId, 10), quantity: parseFloat(qty) || 1 });
       setIngredients((prev) => [...prev, created]);
       setSelectedItemId(""); setQty("1");
     } finally { setAdding(false); }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: number) {
     await adminApi.inventory.deleteIngredient(id);
     setIngredients((prev) => prev.filter((i) => i.id !== id));
   }
@@ -592,8 +592,8 @@ export function ProductsTab() {
   const [form, setForm] = useState<ProductFormData>({ name: "", price: "", categoryId: "", productionCenterId: "", active: true, color: "", imageData: null, description: "", vatRate: "10", receiptPrintMode: "inherit" });
   const [saving, setSaving] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [expandedProductId, setExpandedProductId] = useState<number | null>(null);
   const [ingredientsProduct, setIngredientsProduct] = useState<Product | null>(null);
   const [productSearch, setProductSearch] = useState("");
   const [productCategoryFilter, setProductCategoryFilter] = useState("");
@@ -609,8 +609,8 @@ export function ProductsTab() {
     setForm({
       name: p.name,
       price: String(p.price),
-      categoryId: p.categoryId ?? "",
-      productionCenterId: p.productionCenterId ?? "",
+      categoryId: p.categoryId !== null ? String(p.categoryId) : "",
+      productionCenterId: p.productionCenterId !== null ? String(p.productionCenterId) : "",
       active: p.active,
       color: p.color ?? "",
       imageData: p.imageData ?? null,
@@ -671,8 +671,8 @@ export function ProductsTab() {
         const updated = await adminApi.products.update(editTarget.id, {
           name: form.name,
           price,
-          categoryId: form.categoryId === "" ? null : form.categoryId,
-          productionCenterId: form.productionCenterId === "" ? null : form.productionCenterId,
+          categoryId: form.categoryId === "" ? null : parseInt(form.categoryId, 10),
+          productionCenterId: form.productionCenterId === "" ? null : parseInt(form.productionCenterId, 10),
           active: form.active,
           color: form.color === "" ? null : form.color,
           description: form.description === "" ? null : form.description,
@@ -684,8 +684,8 @@ export function ProductsTab() {
         const created = await adminApi.products.create({
           name: form.name,
           price,
-          ...(form.categoryId !== "" ? { categoryId: form.categoryId } : {}),
-          ...(form.productionCenterId !== "" ? { productionCenterId: form.productionCenterId } : {}),
+          ...(form.categoryId !== "" ? { categoryId: parseInt(form.categoryId, 10) } : {}),
+          ...(form.productionCenterId !== "" ? { productionCenterId: parseInt(form.productionCenterId, 10) } : {}),
           active: form.active,
           color: form.color === "" ? null : form.color,
           ...(form.description !== "" ? { description: form.description } : {}),
@@ -700,7 +700,7 @@ export function ProductsTab() {
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: number) {
     await adminApi.products.delete(id);
     removeProduct(id);
     setDeleteId(null);
@@ -765,7 +765,7 @@ export function ProductsTab() {
             )}
             {products.filter((p) => {
               if (productSearch && !p.name.toLowerCase().includes(productSearch.toLowerCase())) return false;
-              if (productCategoryFilter && p.categoryId !== productCategoryFilter) return false;
+              if (productCategoryFilter && String(p.categoryId) !== productCategoryFilter) return false;
               return true;
             }).map((p) => {
               const isExpanded = expandedProductId === p.id;

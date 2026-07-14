@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import * as argon2 from "argon2";
 import { eq, lt, and, users, sessions } from "@pos/db";
 import type { DbClient } from "@pos/db";
@@ -41,7 +40,7 @@ export class AuthService {
       throw new AuthError("Invalid credentials");
     }
 
-    return this.createSession(user as { id: string; role: string; username: string; name: string });
+    return this.createSession(user as { id: number; role: string; username: string; name: string });
   }
 
   async loginByPin(pin: string): Promise<LoginResult> {
@@ -64,11 +63,11 @@ export class AuthService {
     const matched = results.find((r) => r !== null);
     if (!matched) throw new AuthError("Invalid credentials");
 
-    return this.createSession(matched as { id: string; role: string; username: string; name: string });
+    return this.createSession(matched as { id: number; role: string; username: string; name: string });
   }
 
-  private async createSession(user: { id: string; role: string; username: string; name: string }): Promise<LoginResult> {
-    const token = randomUUID();
+  private async createSession(user: { id: number; role: string; username: string; name: string }): Promise<LoginResult> {
+    const token = crypto.randomUUID();
     const now = new Date();
     const expiresAt = new Date(now.getTime() + this.sessionTtlSeconds * 1000);
 
@@ -76,18 +75,17 @@ export class AuthService {
     // This ensures a deactivated or compromised account cannot keep old tokens alive.
     await this.db.delete(sessions).where(eq(sessions.userId, user.id));
 
-    await this.db.insert(sessions).values({
-      id: randomUUID(),
+    const [sessionRow] = await this.db.insert(sessions).values({
       userId: user.id,
       token,
       createdAt: now,
       expiresAt,
-    });
+    }).returning();
 
     return {
       token,
       session: {
-        sessionId: token,
+        sessionId: sessionRow!.id,
         userId: user.id,
         role: user.role as UserRole,
         username: user.username,
@@ -128,7 +126,7 @@ export class AuthService {
       role: user.role as UserRole,
       username: user.username,
       name: user.name,
-    };
+    } satisfies SessionContext;
   }
 
   async logout(token: string): Promise<void> {
@@ -139,7 +137,7 @@ export class AuthService {
     await this.db.delete(sessions).where(lt(sessions.expiresAt, new Date()));
   }
 
-  async changePin(userId: string, currentPin: string, newPin: string): Promise<void> {
+  async changePin(userId: number, currentPin: string, newPin: string): Promise<void> {
     const [user] = await this.db
       .select()
       .from(users)
@@ -161,24 +159,22 @@ export class AuthService {
     username: string;
     role: UserRole;
     pin: string;
-  }): Promise<string> {
+  }): Promise<number> {
     const hashedPin = await argon2.hash(input.pin);
-    const id = randomUUID();
 
-    await this.db.insert(users).values({
-      id,
+    const [row] = await this.db.insert(users).values({
       name: input.name,
       username: input.username,
       role: input.role,
       pin: hashedPin,
       active: true,
       createdAt: new Date(),
-    });
+    }).returning({ id: users.id });
 
-    return id;
+    return row!.id;
   }
 
-  async listUsers(): Promise<Array<{ id: string; name: string; username: string; role: UserRole; active: boolean; createdAt: Date }>> {
+  async listUsers(): Promise<Array<{ id: number; name: string; username: string; role: UserRole; active: boolean; createdAt: Date }>> {
     const rows = await this.db.select().from(users);
     return rows.map((u) => ({
       id: u.id,
@@ -190,12 +186,12 @@ export class AuthService {
     }));
   }
 
-  async updateUser(id: string, patch: Partial<{ name: string; username: string; role: UserRole; active: boolean }>): Promise<void> {
+  async updateUser(id: number, patch: Partial<{ name: string; username: string; role: UserRole; active: boolean }>): Promise<void> {
     if (Object.keys(patch).length === 0) return;
     await this.db.update(users).set(patch).where(eq(users.id, id));
   }
 
-  async resetPin(id: string, newPin: string): Promise<void> {
+  async resetPin(id: number, newPin: string): Promise<void> {
     const hashedPin = await argon2.hash(newPin);
     await this.db.update(users).set({ pin: hashedPin }).where(eq(users.id, id));
   }

@@ -87,7 +87,7 @@ export function KitchenOrderCard({ order, onUpdated }: Props) {
             {elapsedLabel(order.createdAt)}
           </div>
           <div style={{ color: "var(--color-white)", fontSize: "var(--text-lg)", fontWeight: 700, marginTop: "2px" }}>
-            #{order.id.slice(-6).toUpperCase()}
+            #{order.id}
           </div>
           {order.tableId && (
             <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>

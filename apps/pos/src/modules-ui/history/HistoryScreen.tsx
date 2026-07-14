@@ -45,13 +45,13 @@ function CancelModal({
   onClose,
 }: {
   order: Order | null;
-  onConfirm: (id: string, reason?: string, refundPaymentId?: string) => Promise<void>;
+  onConfirm: (id: number, reason?: string, refundPaymentId?: number) => Promise<void>;
   onClose: () => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [reason, setReason] = useState("");
   const [withRefund, setWithRefund] = useState(false);
-  const [paymentId, setPaymentId] = useState<string | null>(null);
+  const [paymentId, setPaymentId] = useState<number | null>(null);
   const [paymentAmount, setPaymentAmount] = useState(0);
 
   // Se l'ordine è completed carica il pagamento per proporre il rimborso
@@ -84,7 +84,7 @@ function CancelModal({
     <Modal open={order !== null} onClose={onClose} title="Annulla ordine">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-md)" }}>
         <p style={{ margin: 0, color: "var(--color-gray-700)", fontSize: "var(--text-sm)" }}>
-          Confermi l'annullamento dell'ordine <strong>#{order?.id.slice(-6).toUpperCase() ?? ""}</strong>?
+          Confermi l'annullamento dell'ordine <strong>#{order?.id ?? ""}</strong>?
         </p>
         {isPaid && (
           <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: "var(--radius-md)", padding: "12px 14px" }}>
@@ -126,7 +126,7 @@ function EditItemsModal({
   onSaved: () => void;
   onClose: () => void;
 }) {
-  type EditItem = { productId: string; name: string; quantity: number; unitPrice: number };
+  type EditItem = { productId: number; name: string; quantity: number; unitPrice: number };
   const [items, setItems] = useState<EditItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -206,9 +206,9 @@ function RefundModal({
   onConfirm,
   onClose,
 }: {
-  paymentId: string | null;
+  paymentId: number | null;
   amount: number;
-  onConfirm: (paymentId: string, reason?: string) => Promise<void>;
+  onConfirm: (paymentId: number, reason?: string) => Promise<void>;
   onClose: () => void;
 }) {
   const [loading, setLoading] = useState(false);
@@ -267,8 +267,8 @@ function OrderRow({
 }: {
   order: Order;
   isAdmin: boolean;
-  onReprint: (id: string) => void;
-  onReprintKitchen: (id: string) => void;
+  onReprint: (id: number) => void;
+  onReprintKitchen: (id: number) => void;
   onCancel: (order: Order) => void;
   onRefund: (order: Order) => void;
   onEdit: (order: Order) => void;
@@ -364,7 +364,7 @@ function displayOrderNum(order: Order, prefix: string, padding: number): string 
     const padded = padding > 0 ? String(order.receiptNumber).padStart(padding, "0") : String(order.receiptNumber);
     return `${prefix}${padded}`;
   }
-  return order.id.slice(-6).toUpperCase();
+  return String(order.id);
 }
 
 export function HistoryScreen() {
@@ -396,7 +396,7 @@ export function HistoryScreen() {
 
   // Modals
   const [cancelOrder, setCancelOrder] = useState<Order | null>(null);
-  const [refundOrder, setRefundOrder] = useState<{ paymentId: string; amount: number } | null>(null);
+  const [refundOrder, setRefundOrder] = useState<{ paymentId: number; amount: number } | null>(null);
 
   function showToast(msg: string, type: "success" | "error") {
     setToast({ msg, type });
@@ -467,7 +467,7 @@ export function HistoryScreen() {
     );
   }
 
-  async function handleReprint(id: string) {
+  async function handleReprint(id: number) {
     try {
       await apiClient.orders.reprint(id);
       showToast("Ristampa inviata alla stampante", "success");
@@ -476,7 +476,7 @@ export function HistoryScreen() {
     }
   }
 
-  async function handleReprintKitchen(id: string) {
+  async function handleReprintKitchen(id: number) {
     try {
       await apiClient.orders.reprintKitchen(id);
       showToast("Comanda inviata alla stampante cucina", "success");
@@ -485,7 +485,7 @@ export function HistoryScreen() {
     }
   }
 
-  async function handleCancel(id: string, reason?: string, refundPaymentId?: string) {
+  async function handleCancel(id: number, reason?: string, refundPaymentId?: number) {
     try {
       await apiClient.orders.cancel(id, reason);
       if (refundPaymentId) await apiClient.payments.refund(refundPaymentId, reason);
@@ -507,7 +507,7 @@ export function HistoryScreen() {
     }
   }
 
-  async function handleRefundConfirm(paymentId: string, reason?: string) {
+  async function handleRefundConfirm(paymentId: number, reason?: string) {
     try {
       await apiClient.payments.refund(paymentId, reason);
       showToast("Rimborso effettuato", "success");

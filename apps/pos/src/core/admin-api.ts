@@ -1,7 +1,7 @@
 import type { Category, Product, ProductionCenter, OptionGroupWithOptions, Option, PaymentMethodRecord, Printer, ReceiptTemplate, Shift, ReceiptBlock, KitchenTemplate, KitchenBlock, ShiftReportTemplate, ShiftReportBlock, ProductGridSlot, Terminal, User, UserRole } from "@pos/shared-types";
 
 export interface AuditEntry {
-  id: string;
+  id: number;
   type: "order_created" | "order_completed" | "order_cancelled" | "payment_completed" | "payment_refunded" | "shift_opened" | "shift_closed";
   entityId: string;
   actorId: string | null;
@@ -22,33 +22,33 @@ export interface ModuleInfo {
 }
 
 export interface InventoryItemRecord {
-  id: string;
+  id: number;
   name: string;
   sku: string | null;
   unit: string;
   currentStock: number;
   minStock: number;
-  productionCenterId: string | null;
-  productId: string | null;
+  productionCenterId: number | null;
+  productId: number | null;
   resetOnShiftOpen: number;
   createdAt: number;
   updatedAt: number;
 }
 
 export interface InventoryMovementRecord {
-  id: string;
-  itemId: string;
+  id: number;
+  itemId: number;
   type: "sale" | "restock" | "manual" | "waste";
   quantity: number;
   reason: string | null;
-  orderId: string | null;
+  orderId: number | null;
   createdAt: number;
 }
 
 export interface ProductIngredientRecord {
-  id: string;
-  productId: string;
-  inventoryItemId: string;
+  id: number;
+  productId: number;
+  inventoryItemId: number;
   quantity: number;
 }
 
@@ -63,7 +63,7 @@ export interface RestaurantInfo {
 }
 
 export interface BackupMeta {
-  id: string;
+  id: number;
   filename: string;
   size: number;
   sha256: string;
@@ -97,19 +97,19 @@ export const adminApi = {
   categories: {
     list: () => req<Category[]>("GET", "/categories"),
     create: (data: { name: string; color?: string | null }) => req<Category>("POST", "/categories", data),
-    update: (id: string, data: { name?: string; color?: string | null }) => req<Category>("PATCH", `/categories/${id}`, data),
-    delete: (id: string) => req<void>("DELETE", `/categories/${id}`),
-    reorder: (ids: string[]) => req<void>("PUT", "/categories/reorder", { ids }),
+    update: (id: number, data: { name?: string; color?: string | null }) => req<Category>("PATCH", `/categories/${id}`, data),
+    delete: (id: number) => req<void>("DELETE", `/categories/${id}`),
+    reorder: (ids: number[]) => req<void>("PUT", "/categories/reorder", { ids }),
   },
   products: {
     list: () => req<Product[]>("GET", "/products"),
-    create: (data: { name: string; price: number; categoryId?: string; productionCenterId?: string; active?: boolean; color?: string | null; description?: string; vatRate?: number; receiptPrintMode?: "inherit" | "included" | "separate" }) =>
+    create: (data: { name: string; price: number; categoryId?: number; productionCenterId?: number; active?: boolean; color?: string | null; description?: string; vatRate?: number; receiptPrintMode?: "inherit" | "included" | "separate" }) =>
       req<Product>("POST", "/products", data),
-    update: (id: string, data: Partial<{ name: string; price: number; categoryId: string | null; productionCenterId: string | null; active: boolean; color: string | null; description: string | null; vatRate: number; receiptPrintMode: "inherit" | "included" | "separate" }>) =>
+    update: (id: number, data: Partial<{ name: string; price: number; categoryId: number | null; productionCenterId: number | null; active: boolean; color: string | null; description: string | null; vatRate: number; receiptPrintMode: "inherit" | "included" | "separate" }>) =>
       req<Product>("PATCH", `/products/${id}`, data),
-    delete: (id: string) => req<void>("DELETE", `/products/${id}`),
+    delete: (id: number) => req<void>("DELETE", `/products/${id}`),
     imageUrl: (relPath: string) => `/api/static/${relPath}`,
-    uploadImage: async (id: string, file: File): Promise<{ imagePath: string }> => {
+    uploadImage: async (id: number, file: File): Promise<{ imagePath: string }> => {
       const token = useStore.getState().session?.token;
       const form = new FormData();
       form.append("file", file);
@@ -121,36 +121,36 @@ export const adminApi = {
       if (!res.ok) { const e = await res.json().catch(() => ({})) as { error?: string }; throw new Error(e.error ?? `HTTP ${res.status}`); }
       return res.json() as Promise<{ imagePath: string }>;
     },
-    deleteImage: (id: string) => req<void>("DELETE", `/products/${id}/image`),
+    deleteImage: (id: number) => req<void>("DELETE", `/products/${id}/image`),
   },
   productionCenters: {
     list: () => req<ProductionCenter[]>("GET", "/production-centers"),
     create: (data: { name: string; color?: string | null; receiptPrintMode?: "included" | "separate" }) => req<ProductionCenter>("POST", "/production-centers", data),
-    update: (id: string, data: { name?: string; color?: string | null; receiptPrintMode?: "included" | "separate" }) => req<ProductionCenter>("PATCH", `/production-centers/${id}`, data),
-    delete: (id: string) => req<void>("DELETE", `/production-centers/${id}`),
-    reorder: (ids: string[]) => req<void>("PUT", "/production-centers/reorder", { ids }),
-    getCategories: (id: string) => req<Category[]>("GET", `/production-centers/${id}/categories`),
-    assignCategory: (id: string, categoryId: string) =>
+    update: (id: number, data: { name?: string; color?: string | null; receiptPrintMode?: "included" | "separate" }) => req<ProductionCenter>("PATCH", `/production-centers/${id}`, data),
+    delete: (id: number) => req<void>("DELETE", `/production-centers/${id}`),
+    reorder: (ids: number[]) => req<void>("PUT", "/production-centers/reorder", { ids }),
+    getCategories: (id: number) => req<Category[]>("GET", `/production-centers/${id}/categories`),
+    assignCategory: (id: number, categoryId: number) =>
       req<void>("POST", `/production-centers/${id}/categories`, { categoryId }),
-    removeCategory: (id: string, categoryId: string) =>
+    removeCategory: (id: number, categoryId: number) =>
       req<void>("DELETE", `/production-centers/${id}/categories/${categoryId}`),
-    getPrinters: (id: string) => req<Array<Pick<Printer, "id" | "name" | "host" | "port" | "kitchenEnabled" | "active">>>("GET", `/production-centers/${id}/printers`),
-    assignPrinter: (id: string, printerId: string) => req<void>("POST", `/production-centers/${id}/printers/${printerId}`),
-    removePrinter: (id: string, printerId: string) => req<void>("DELETE", `/production-centers/${id}/printers/${printerId}`),
+    getPrinters: (id: number) => req<Array<Pick<Printer, "id" | "name" | "host" | "port" | "kitchenEnabled" | "active">>>("GET", `/production-centers/${id}/printers`),
+    assignPrinter: (id: number, printerId: number) => req<void>("POST", `/production-centers/${id}/printers/${printerId}`),
+    removePrinter: (id: number, printerId: number) => req<void>("DELETE", `/production-centers/${id}/printers/${printerId}`),
   },
   optionGroups: {
-    list: (productId: string) =>
+    list: (productId: number) =>
       req<OptionGroupWithOptions[]>("GET", `/option-groups?productId=${productId}`),
-    create: (data: { productId: string; name: string; type: "single" | "multi" | "removal"; required?: boolean; minSel?: number; maxSel?: number; sortOrder?: number }) =>
+    create: (data: { productId: number; name: string; type: "single" | "multi" | "removal"; required?: boolean; minSel?: number; maxSel?: number; sortOrder?: number }) =>
       req<OptionGroupWithOptions>("POST", "/option-groups", data),
-    update: (id: string, data: Partial<{ name: string; type: "single" | "multi" | "removal"; required: boolean; minSel: number; maxSel: number; sortOrder: number }>) =>
+    update: (id: number, data: Partial<{ name: string; type: "single" | "multi" | "removal"; required: boolean; minSel: number; maxSel: number; sortOrder: number }>) =>
       req<OptionGroupWithOptions>("PATCH", `/option-groups/${id}`, data),
-    delete: (id: string) => req<void>("DELETE", `/option-groups/${id}`),
-    createOption: (groupId: string, data: { name: string; priceDelta?: number; prefix?: "+" | "-" | ">>"; sortOrder?: number }) =>
+    delete: (id: number) => req<void>("DELETE", `/option-groups/${id}`),
+    createOption: (groupId: number, data: { name: string; priceDelta?: number; prefix?: "+" | "-" | ">>"; sortOrder?: number }) =>
       req<Option>("POST", `/option-groups/${groupId}/options`, data),
-    updateOption: (optionId: string, data: Partial<{ name: string; priceDelta: number; prefix: "+" | "-" | ">>"; active: boolean; sortOrder: number }>) =>
+    updateOption: (optionId: number, data: Partial<{ name: string; priceDelta: number; prefix: "+" | "-" | ">>"; active: boolean; sortOrder: number }>) =>
       req<Option>("PATCH", `/options/${optionId}`, data),
-    deleteOption: (optionId: string) => req<void>("DELETE", `/options/${optionId}`),
+    deleteOption: (optionId: number) => req<void>("DELETE", `/options/${optionId}`),
   },
   paymentMethods: {
     list: () => req<PaymentMethodRecord[]>("GET", "/payment-methods"),
@@ -164,13 +164,13 @@ export const adminApi = {
     list: () => req<Printer[]>("GET", "/printers"),
     create: (data: { name: string; type?: string; connectionType?: string; host?: string; port?: number; active?: boolean; receiptEnabled?: boolean; kitchenEnabled?: boolean; printMode?: "text" | "image" }) =>
       req<Printer>("POST", "/printers", data),
-    update: (id: string, data: Partial<{ name: string; type: string; connectionType: string; host: string | null; port: number | null; active: boolean; receiptEnabled: boolean; kitchenEnabled: boolean; printMode: "text" | "image" }>) =>
+    update: (id: number, data: Partial<{ name: string; type: string; connectionType: string; host: string | null; port: number | null; active: boolean; receiptEnabled: boolean; kitchenEnabled: boolean; printMode: "text" | "image" }>) =>
       req<Printer>("PATCH", `/printers/${id}`, data),
-    delete: (id: string) => req<void>("DELETE", `/printers/${id}`),
-    testPrint: (id: string) => req<{ success: boolean; message: string }>("POST", `/printers/${id}/test-print`, {}),
+    delete: (id: number) => req<void>("DELETE", `/printers/${id}`),
+    testPrint: (id: number) => req<{ success: boolean; message: string }>("POST", `/printers/${id}/test-print`, {}),
     discoverSubnet: () => req<{ subnet: string | null }>("GET", "/printers/discover/subnet"),
     discover: (subnet?: string) => req<{ subnet: string; found: Array<{ host: string; port: number }> }>("POST", "/printers/discover", { subnet }),
-    getProductionCenters: (id: string) => req<ProductionCenter[]>("GET", `/printers/${id}/production-centers`),
+    getProductionCenters: (id: number) => req<ProductionCenter[]>("GET", `/printers/${id}/production-centers`),
   },
   receiptTemplates: {
     list: () => req<ReceiptTemplate[]>("GET", "/receipt-templates"),
@@ -200,16 +200,16 @@ export const adminApi = {
     history: () => req<Shift[]>("GET", "/shifts/history"),
     open: (data: { userId: string; openingCash?: number; notes?: string }) =>
       req<Shift>("POST", "/shifts/open", data),
-    close: (id: string, data: { closingCash?: number; notes?: string; force?: boolean }) =>
+    close: (id: number, data: { closingCash?: number; notes?: string; force?: boolean }) =>
       req<Shift>("POST", `/shifts/${id}/close`, data),
-    updateTotals: (id: string, data: { totalSales?: number; totalOrders?: number }) =>
+    updateTotals: (id: number, data: { totalSales?: number; totalOrders?: number }) =>
       req<Shift>("PATCH", `/shifts/${id}`, data),
   },
   backups: {
     list: () => req<BackupMeta[]>("GET", "/admin/backups/list"),
     create: () => req<BackupMeta>("POST", "/admin/backups/create"),
-    delete: (id: string) => req<void>("DELETE", `/admin/backups/${id}`),
-    downloadUrl: (id: string) => `/api/admin/backups/download/${id}`,
+    delete: (id: number) => req<void>("DELETE", `/admin/backups/${id}`),
+    downloadUrl: (id: number) => `/api/admin/backups/download/${id}`,
   },
   settings: {
     get: () => req<{
@@ -313,9 +313,9 @@ export const adminApi = {
   },
   kitchenTemplates: {
     list: () => req<KitchenTemplate[]>("GET", "/kitchen-templates"),
-    create: (data: { name: string; productionCenterId?: string | null; printMode?: "text" | "image"; canvasWidth?: number; blocks?: KitchenBlock[] }) =>
+    create: (data: { name: string; productionCenterId?: number | null; printMode?: "text" | "image"; canvasWidth?: number; blocks?: KitchenBlock[] }) =>
       req<KitchenTemplate>("POST", "/kitchen-templates", data),
-    update: (id: string, data: Partial<{ name: string; productionCenterId: string | null; active: boolean; printMode: "text" | "image"; canvasWidth: number; blocks: KitchenBlock[] }>) =>
+    update: (id: string, data: Partial<{ name: string; productionCenterId: number | null; active: boolean; printMode: "text" | "image"; canvasWidth: number; blocks: KitchenBlock[] }>) =>
       req<KitchenTemplate>("PATCH", `/kitchen-templates/${id}`, data),
     delete: (id: string) => req<void>("DELETE", `/kitchen-templates/${id}`),
     previewUrl: (id: string) => `${BASE}/kitchen-templates/${id}/preview`,
@@ -359,15 +359,15 @@ export const adminApi = {
   },
   inventory: {
     listItems: () => req<InventoryItemRecord[]>("GET", "/inventory/items"),
-    createItem: (data: { name: string; sku?: string; unit?: string; currentStock?: number; minStock?: number; productionCenterId?: string; productId?: string | null; resetOnShiftOpen?: boolean }) =>
+    createItem: (data: { name: string; sku?: string; unit?: string; currentStock?: number; minStock?: number; productionCenterId?: number; productId?: number | null; resetOnShiftOpen?: boolean }) =>
       req<InventoryItemRecord>("POST", "/inventory/items", data),
-    updateItem: (id: string, data: Partial<{ name: string; sku: string | null; unit: string; minStock: number; productionCenterId: string | null; productId: string | null; resetOnShiftOpen: boolean }>) =>
+    updateItem: (id: number, data: Partial<{ name: string; sku: string | null; unit: string; minStock: number; productionCenterId: number | null; productId: number | null; resetOnShiftOpen: boolean }>) =>
       req<InventoryItemRecord>("PATCH", `/inventory/items/${id}`, data),
-    getItemsByProduct: (productId: string) => req<InventoryItemRecord[]>("GET", `/inventory/items/by-product/${productId}`),
-    deleteItem: (id: string) => req<void>("DELETE", `/inventory/items/${id}`),
-    adjustStock: (id: string, quantity: number, reason?: string) =>
+    getItemsByProduct: (productId: number) => req<InventoryItemRecord[]>("GET", `/inventory/items/by-product/${productId}`),
+    deleteItem: (id: number) => req<void>("DELETE", `/inventory/items/${id}`),
+    adjustStock: (id: number, quantity: number, reason?: string) =>
       req<InventoryItemRecord>("POST", `/inventory/items/${id}/adjust`, { quantity, ...(reason !== undefined ? { reason } : {}) }),
-    getMovements: (id: string) => req<InventoryMovementRecord[]>("GET", `/inventory/items/${id}/movements`),
+    getMovements: (id: number) => req<InventoryMovementRecord[]>("GET", `/inventory/items/${id}/movements`),
     listMovements: (params?: { type?: string; from?: number; to?: number }) => {
       const q = params ? new URLSearchParams(
         Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
@@ -375,10 +375,10 @@ export const adminApi = {
       return req<InventoryMovementRecord[]>("GET", `/inventory/movements${q ? `?${q}` : ""}`);
     },
     getAlerts: () => req<InventoryItemRecord[]>("GET", "/inventory/alerts"),
-    getIngredients: (productId: string) => req<ProductIngredientRecord[]>("GET", `/inventory/ingredients/${productId}`),
-    createIngredient: (data: { productId: string; inventoryItemId: string; quantity?: number }) =>
+    getIngredients: (productId: number) => req<ProductIngredientRecord[]>("GET", `/inventory/ingredients/${productId}`),
+    createIngredient: (data: { productId: number; inventoryItemId: number; quantity?: number }) =>
       req<ProductIngredientRecord>("POST", "/inventory/ingredients", data),
-    deleteIngredient: (id: string) => req<void>("DELETE", `/inventory/ingredients/${id}`),
+    deleteIngredient: (id: number) => req<void>("DELETE", `/inventory/ingredients/${id}`),
   },
   gridLayouts: {
     get: (scope: string) => req<ProductGridSlot[]>("GET", `/admin/grid-layouts/${encodeURIComponent(scope)}`),
@@ -396,22 +396,22 @@ export const adminApi = {
   terminals: {
     list: () => req<Terminal[]>("GET", "/admin/terminals"),
     create: (data: { name: string }) => req<Terminal>("POST", "/admin/terminals", data),
-    update: (id: string, data: { name?: string; active?: boolean; defaultViewMode?: string | null }) => req<Terminal>("PATCH", `/admin/terminals/${id}`, data),
-    delete: (id: string) => req<void>("DELETE", `/admin/terminals/${id}`),
-    getPrinters: (id: string) => req<Printer[]>("GET", `/admin/terminals/${id}/printers`),
-    assignPrinter: (id: string, printerId: string) => req<void>("POST", `/admin/terminals/${id}/printers/${printerId}`),
-    removePrinter: (id: string, printerId: string) => req<void>("DELETE", `/admin/terminals/${id}/printers/${printerId}`),
-    heartbeat: (id: string) => req<Terminal>("POST", `/admin/terminals/${id}/heartbeat`),
-    getCategories: (id: string) => req<Category[]>("GET", `/admin/terminals/${id}/categories`),
-    assignCategory: (id: string, categoryId: string) => req<void>("POST", `/admin/terminals/${id}/categories/${categoryId}`),
-    removeCategory: (id: string, categoryId: string) => req<void>("DELETE", `/admin/terminals/${id}/categories/${categoryId}`),
-    reorderCategories: (id: string, categoryIds: string[]) => req<void>("PATCH", `/admin/terminals/${id}/categories/reorder`, { categoryIds }),
+    update: (id: number, data: { name?: string; active?: boolean; defaultViewMode?: string | null }) => req<Terminal>("PATCH", `/admin/terminals/${id}`, data),
+    delete: (id: number) => req<void>("DELETE", `/admin/terminals/${id}`),
+    getPrinters: (id: number) => req<Printer[]>("GET", `/admin/terminals/${id}/printers`),
+    assignPrinter: (id: number, printerId: number) => req<void>("POST", `/admin/terminals/${id}/printers/${printerId}`),
+    removePrinter: (id: number, printerId: number) => req<void>("DELETE", `/admin/terminals/${id}/printers/${printerId}`),
+    heartbeat: (id: number) => req<Terminal>("POST", `/admin/terminals/${id}/heartbeat`),
+    getCategories: (id: number) => req<Category[]>("GET", `/admin/terminals/${id}/categories`),
+    assignCategory: (id: number, categoryId: number) => req<void>("POST", `/admin/terminals/${id}/categories/${categoryId}`),
+    removeCategory: (id: number, categoryId: number) => req<void>("DELETE", `/admin/terminals/${id}/categories/${categoryId}`),
+    reorderCategories: (id: number, categoryIds: number[]) => req<void>("PATCH", `/admin/terminals/${id}/categories/reorder`, { categoryIds }),
   },
   users: {
     list: () => req<User[]>("GET", "/admin/users"),
     create: (data: { name: string; username: string; role: UserRole; pin: string }) => req<{ userId: string }>("POST", "/admin/users", data),
-    update: (id: string, data: Partial<{ name: string; username: string; role: UserRole; active: boolean }>) => req<{ ok: boolean }>("PATCH", `/admin/users/${id}`, data),
-    resetPin: (id: string, newPin: string) => req<{ ok: boolean }>("POST", `/admin/users/${id}/reset-pin`, { newPin }),
+    update: (id: number, data: Partial<{ name: string; username: string; role: UserRole; active: boolean }>) => req<{ ok: boolean }>("PATCH", `/admin/users/${id}`, data),
+    resetPin: (id: number, newPin: string) => req<{ ok: boolean }>("POST", `/admin/users/${id}/reset-pin`, { newPin }),
   },
   factoryReset: (password: string) => req<{ ok: boolean }>("POST", "/admin/factory-reset", { password }),
 };

@@ -2,7 +2,6 @@ import "@fastify/swagger";
 import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
 import { eq, asc, and, like } from "@pos/db";
 import { products, categories } from "@pos/db";
-import { randomUUID } from "node:crypto";
 import { requireRole, AuthError } from "@pos/core";
 import { mkdirSync, unlinkSync, existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
@@ -59,7 +58,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     };
 
     const conditions = [];
-    if (categoryId) conditions.push(eq(products.categoryId, categoryId));
+    if (categoryId) conditions.push(eq(products.categoryId, parseInt(categoryId, 10)));
     if (active !== undefined) conditions.push(eq(products.active, active === "true"));
     if (search) conditions.push(like(products.name, `%${search}%`));
 
@@ -77,11 +76,12 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["products"], summary: "Get a product by id" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const [row] = await fastify.ctx.db
       .select(PRODUCT_SELECT)
       .from(products)
       .leftJoin(categories, eq(products.categoryId, categories.id))
-      .where(eq(products.id, id));
+      .where(eq(products.id, numId));
     if (!row) return reply.status(404).send({ error: "Not found" });
     return reply.send(row);
   });
@@ -93,8 +93,8 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     const body = request.body as {
       name: string;
       price: number;
-      categoryId?: string;
-      productionCenterId?: string;
+      categoryId?: number | null;
+      productionCenterId?: number | null;
       active?: boolean;
       color?: string;
       description?: string;
@@ -103,10 +103,8 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       vatRate?: number;
       receiptPrintMode?: "inherit" | "included" | "separate";
     };
-    const id = randomUUID();
     const now = Date.now();
-    await fastify.ctx.db.insert(products).values({
-      id,
+    const [row] = await fastify.ctx.db.insert(products).values({
       name:               body.name,
       price:              body.price,
       categoryId:         body.categoryId ?? null,
@@ -120,13 +118,8 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       receiptPrintMode:   body.receiptPrintMode ?? "inherit",
       createdAt:          now,
       updatedAt:          now,
-    });
-    const [row] = await fastify.ctx.db
-      .select(PRODUCT_SELECT)
-      .from(products)
-      .leftJoin(categories, eq(products.categoryId, categories.id))
-      .where(eq(products.id, id));
-    fastify.ctx.eventBus.emit("PRODUCT_CREATED", { traceId: randomUUID(), id, timestamp: new Date() });
+    }).returning();
+    fastify.ctx.eventBus.emit("PRODUCT_CREATED", { traceId: crypto.randomUUID(), id: row!.id, timestamp: new Date() });
     return reply.status(201).send(row);
   });
 
@@ -135,11 +128,12 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const body = request.body as Partial<{
       name: string;
       price: number;
-      categoryId: string | null;
-      productionCenterId: string | null;
+      categoryId: number | null;
+      productionCenterId: number | null;
       active: boolean;
       color: string | null;
       description: string | null;
@@ -149,14 +143,14 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       receiptPrintMode: "inherit" | "included" | "separate";
     }>;
 
-    const [existing] = await fastify.ctx.db.select().from(products).where(eq(products.id, id));
+    const [existing] = await fastify.ctx.db.select().from(products).where(eq(products.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     const update: {
       name?: string;
       price?: number;
-      categoryId?: string | null;
-      productionCenterId?: string | null;
+      categoryId?: number | null;
+      productionCenterId?: number | null;
       active?: boolean;
       color?: string | null;
       description?: string | null;
@@ -180,15 +174,15 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
 
     if (Object.keys(update).length > 0) {
       update.updatedAt = Date.now();
-      await fastify.ctx.db.update(products).set(update).where(eq(products.id, id));
+      await fastify.ctx.db.update(products).set(update).where(eq(products.id, numId));
     }
 
     const [row] = await fastify.ctx.db
       .select(PRODUCT_SELECT)
       .from(products)
       .leftJoin(categories, eq(products.categoryId, categories.id))
-      .where(eq(products.id, id));
-    fastify.ctx.eventBus.emit("PRODUCT_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
+      .where(eq(products.id, numId));
+    fastify.ctx.eventBus.emit("PRODUCT_UPDATED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
     return reply.send(row);
   });
 
@@ -197,13 +191,14 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const [existing] = await fastify.ctx.db.select({ imageData: products.imageData }).from(products).where(eq(products.id, id));
+    const numId = parseInt(id, 10);
+    const [existing] = await fastify.ctx.db.select({ imageData: products.imageData }).from(products).where(eq(products.id, numId));
     if (existing?.imageData) {
       const absPath = resolve(join(fastify.ctx.config.dataDir, existing.imageData));
       if (existsSync(absPath)) { try { unlinkSync(absPath); } catch { /* ok */ } }
     }
-    await fastify.ctx.db.delete(products).where(eq(products.id, id));
-    fastify.ctx.eventBus.emit("PRODUCT_DELETED", { traceId: randomUUID(), id, timestamp: new Date() });
+    await fastify.ctx.db.delete(products).where(eq(products.id, numId));
+    fastify.ctx.eventBus.emit("PRODUCT_DELETED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
     return reply.status(204).send();
   });
 
@@ -213,8 +208,9 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
 
-    const [existing] = await fastify.ctx.db.select({ id: products.id }).from(products).where(eq(products.id, id));
+    const [existing] = await fastify.ctx.db.select({ id: products.id }).from(products).where(eq(products.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     const data = await request.file();
@@ -231,13 +227,13 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
 
     const IMAGES_DIR = resolve(productImagesDir(fastify.ctx.config.dataDir));
     ensureDir(IMAGES_DIR);
-    const safeFilename = `${id}${ext}`;
+    const safeFilename = `${numId}${ext}`;
     const relPath = `images/products/${safeFilename}`;
     const absPath = join(IMAGES_DIR, safeFilename);
 
     // Remove old image files for this product (different extension)
     for (const oldExt of IMAGE_EXTS) {
-      const old = join(IMAGES_DIR, `${id}${oldExt}`);
+      const old = join(IMAGES_DIR, `${numId}${oldExt}`);
       if (old !== absPath && existsSync(old)) { try { unlinkSync(old); } catch { /* ok */ } }
     }
 
@@ -247,8 +243,8 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
 
     await fastify.ctx.db.update(products)
       .set({ imageData: relPath, updatedAt: Date.now() })
-      .where(eq(products.id, id));
-    fastify.ctx.eventBus.emit("PRODUCT_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
+      .where(eq(products.id, numId));
+    fastify.ctx.eventBus.emit("PRODUCT_UPDATED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
 
     return reply.send({ imagePath: `/api/static/${relPath}` });
   });
@@ -259,8 +255,9 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
 
-    const [existing] = await fastify.ctx.db.select({ imageData: products.imageData }).from(products).where(eq(products.id, id));
+    const [existing] = await fastify.ctx.db.select({ imageData: products.imageData }).from(products).where(eq(products.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     if (existing.imageData) {
@@ -270,8 +267,8 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
 
     await fastify.ctx.db.update(products)
       .set({ imageData: null, updatedAt: Date.now() })
-      .where(eq(products.id, id));
-    fastify.ctx.eventBus.emit("PRODUCT_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
+      .where(eq(products.id, numId));
+    fastify.ctx.eventBus.emit("PRODUCT_UPDATED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
 
     return reply.status(204).send();
   });

@@ -7,14 +7,14 @@ export type OrderStatus =
   | "cancelled";
 
 export interface OrderItemOption {
-  readonly optionId: string;
+  readonly optionId: number;
   readonly optionName: string;
   readonly priceDelta: number;
 }
 
 export interface OrderItem {
-  readonly id: string;
-  readonly productId: string;
+  readonly id: number;
+  readonly productId: number;
   readonly name: string;
   readonly quantity: number;
   readonly unitPrice: number;
@@ -30,12 +30,12 @@ export interface VatBreakdown {
 }
 
 export interface Order {
-  readonly id: string;
+  readonly id: number;
   readonly tableId?: string;
   readonly customerName?: string;
   readonly eventId?: string;
-  readonly shiftId?: string;
-  readonly terminalId?: string;
+  readonly shiftId?: number;
+  readonly terminalId?: number;
   readonly status: OrderStatus;
   readonly items: ReadonlyArray<OrderItem>;
   readonly totalAmount: number;
@@ -64,18 +64,18 @@ export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, ReadonlyArray<OrderSt
 };
 
 export interface CreateOrderItemInput {
-  readonly productId: string;
+  readonly productId: number;
   readonly name: string;
   readonly quantity: number;
-  readonly selectedOptionIds?: ReadonlyArray<string>;
+  readonly selectedOptionIds?: ReadonlyArray<number>;
   readonly notes?: string;
 }
 
 export interface CreateOrderInput {
   readonly tableId?: string;
   readonly eventId?: string;
-  readonly shiftId?: string;
-  readonly terminalId?: string;
+  readonly shiftId?: number;
+  readonly terminalId?: number;
   readonly notes?: string;
   readonly discountAmount?: number;
   readonly discountType?: string;
@@ -84,7 +84,7 @@ export interface CreateOrderInput {
 }
 
 export interface UpdateOrderInput {
-  readonly id: string;
+  readonly id: number;
   readonly status?: OrderStatus;
   readonly items?: ReadonlyArray<Omit<OrderItem, "id">>;
   readonly tableId?: string | null;

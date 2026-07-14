@@ -16,7 +16,7 @@ export function CategoriesTab() {
   const [editColor, setEditColor] = useState("");
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [addedName, setAddedName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -59,7 +59,7 @@ export function CategoriesTab() {
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: number) {
     await adminApi.categories.delete(id);
     removeCategory(id);
     setDeleteId(null);

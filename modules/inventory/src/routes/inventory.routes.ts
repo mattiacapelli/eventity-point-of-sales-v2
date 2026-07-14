@@ -36,8 +36,8 @@ export function registerInventoryRoutes(
           unit: { type: "string" },
           currentStock: { type: "number" },
           minStock: { type: "number" },
-          productionCenterId: { type: "string" },
-          productId: { type: "string" },
+          productionCenterId: { type: "number" },
+          productId: { type: "number" },
           resetOnShiftOpen: { type: "boolean" },
         },
       },
@@ -49,8 +49,8 @@ export function registerInventoryRoutes(
         unit?: string;
         currentStock?: number;
         minStock?: number;
-        productionCenterId?: string;
-        productId?: string;
+        productionCenterId?: number;
+        productId?: number;
         resetOnShiftOpen?: boolean;
       };
       const item = await service.createItem(body);
@@ -74,12 +74,12 @@ export function registerInventoryRoutes(
         sku?: string | null;
         unit?: string;
         minStock?: number;
-        productionCenterId?: string | null;
-        productId?: string | null;
+        productionCenterId?: number | null;
+        productId?: number | null;
         resetOnShiftOpen?: boolean;
       };
       try {
-        const item = await service.updateItem(id, body);
+        const item = await service.updateItem(parseInt(id, 10), body);
         reply.send(item);
       } catch (err) {
         if (err instanceof InventoryValidationError) {
@@ -101,7 +101,7 @@ export function registerInventoryRoutes(
     handler: async (req, reply) => {
       const { id } = req.params as { id: string };
       try {
-        await service.deleteItem(id);
+        await service.deleteItem(parseInt(id, 10));
         reply.status(204).send();
       } catch (err) {
         if (err instanceof InventoryValidationError) {
@@ -132,7 +132,7 @@ export function registerInventoryRoutes(
       const { id } = req.params as { id: string };
       const { quantity, reason } = req.body as { quantity: number; reason?: string };
       try {
-        const item = await service.adjustStock(id, quantity, reason);
+        const item = await service.adjustStock(parseInt(id, 10), quantity, reason);
         reply.send(item);
       } catch (err) {
         if (err instanceof InventoryValidationError) {
@@ -153,7 +153,7 @@ export function registerInventoryRoutes(
     },
     handler: async (req, reply) => {
       const { id } = req.params as { id: string };
-      const movements = await service.getItemMovements(id);
+      const movements = await service.getItemMovements(parseInt(id, 10));
       reply.send(movements);
     },
   });
@@ -196,7 +196,7 @@ export function registerInventoryRoutes(
     },
     handler: async (req, reply) => {
       const { productId } = req.params as { productId: string };
-      const items = await service.getItemsByProduct(productId);
+      const items = await service.getItemsByProduct(parseInt(productId, 10));
       reply.send(items);
     },
   });
@@ -223,7 +223,7 @@ export function registerInventoryRoutes(
     },
     handler: async (req, reply) => {
       const { productId } = req.params as { productId: string };
-      const ingredients = await service.getIngredientsByProduct(productId);
+      const ingredients = await service.getIngredientsByProduct(parseInt(productId, 10));
       reply.send(ingredients);
     },
   });
@@ -239,14 +239,14 @@ export function registerInventoryRoutes(
         type: "object",
         required: ["productId", "inventoryItemId"],
         properties: {
-          productId: { type: "string" },
-          inventoryItemId: { type: "string" },
+          productId: { type: "number" },
+          inventoryItemId: { type: "number" },
           quantity: { type: "number" },
         },
       },
     },
     handler: async (req, reply) => {
-      const body = req.body as { productId: string; inventoryItemId: string; quantity?: number };
+      const body = req.body as { productId: number; inventoryItemId: number; quantity?: number };
       const ingredient = await service.createIngredient(body);
       reply.status(201).send(ingredient);
     },
@@ -263,7 +263,7 @@ export function registerInventoryRoutes(
     },
     handler: async (req, reply) => {
       const { id } = req.params as { id: string };
-      await service.deleteIngredient(id);
+      await service.deleteIngredient(parseInt(id, 10));
       reply.status(204).send();
     },
   });

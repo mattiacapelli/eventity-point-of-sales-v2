@@ -23,7 +23,7 @@ export function useCatalogWsEvents() {
     const refetchProductionCenters = () => { adminApi.productionCenters.list().then(setProductionCenters).catch(() => {}); };
     const refetchPaymentMethods = () => { adminApi.paymentMethods.list().then(setPaymentMethods).catch(() => {}); };
     const refetchPrinters = () => { adminApi.printers.list().then(setPrinters).catch(() => {}); };
-    const refetchOptionGroups = (productId: string) => {
+    const refetchOptionGroups = (productId: number) => {
       adminApi.optionGroups.list(productId).then((groups) => setOptionGroups(productId, groups)).catch(() => {});
     };
 
@@ -60,10 +60,10 @@ export function useCatalogWsEvents() {
       }),
     ];
 
-    function findProductIdForOptionGroup(optionGroupId: string): string | null {
+    function findProductIdForOptionGroup(optionGroupId: number): number | null {
       const byProduct = useAdminStore.getState().optionGroupsByProduct;
       for (const [productId, groups] of Object.entries(byProduct)) {
-        if (groups.some((g) => g.id === optionGroupId)) return productId;
+        if (groups.some((g) => g.id === optionGroupId)) return parseInt(productId, 10);
       }
       return null;
     }
