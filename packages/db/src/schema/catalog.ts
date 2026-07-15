@@ -29,6 +29,7 @@ export const productionCenters = sqliteTable("production_centers", {
   id:               integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
   name:             text("name").notNull(),
   color:            text("color"),
+  icon:             text("icon"),
   receiptPrintMode: text("receipt_print_mode").notNull().default("included"),
   sortOrder:        integer("sort_order").notNull().default(0),
 });

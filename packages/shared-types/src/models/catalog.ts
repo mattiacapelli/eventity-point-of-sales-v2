@@ -40,6 +40,7 @@ export interface ProductionCenter {
   id: number;
   name: string;
   color: string | null;
+  icon: string | null;
   receiptPrintMode: ReceiptPrintMode;
   sortOrder: number;
 }

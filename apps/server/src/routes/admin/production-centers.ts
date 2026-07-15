@@ -23,7 +23,7 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["production-centers"], summary: "List all production centers" },
   }, async (_request, reply) => {
     const rows = await fastify.ctx.db
-      .select({ id: productionCenters.id, name: productionCenters.name, color: productionCenters.color, receiptPrintMode: productionCenters.receiptPrintMode, sortOrder: productionCenters.sortOrder })
+      .select({ id: productionCenters.id, name: productionCenters.name, color: productionCenters.color, icon: productionCenters.icon, receiptPrintMode: productionCenters.receiptPrintMode, sortOrder: productionCenters.sortOrder })
       .from(productionCenters)
       .orderBy(asc(productionCenters.sortOrder), asc(productionCenters.name));
     return reply.send(rows);
@@ -33,10 +33,11 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["production-centers"], summary: "Create a production center" },
     preHandler: adminOnly,
   }, async (request, reply) => {
-    const body = request.body as { name: string; color?: string; receiptPrintMode?: "included" | "separate"; sortOrder?: number };
+    const body = request.body as { name: string; color?: string; icon?: string | null; receiptPrintMode?: "included" | "separate"; sortOrder?: number };
     const [row] = await fastify.ctx.db.insert(productionCenters).values({
       name: body.name,
       color: body.color ?? null,
+      icon: body.icon ?? null,
       receiptPrintMode: body.receiptPrintMode ?? "included",
       sortOrder: body.sortOrder ?? 0,
     }).returning();
@@ -50,14 +51,15 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const numId = parseInt(id, 10);
-    const body = request.body as { name?: string; color?: string | null; receiptPrintMode?: "included" | "separate"; sortOrder?: number };
+    const body = request.body as { name?: string; color?: string | null; icon?: string | null; receiptPrintMode?: "included" | "separate"; sortOrder?: number };
 
     const [existing] = await fastify.ctx.db.select().from(productionCenters).where(eq(productionCenters.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
-    const update: { name?: string; color?: string | null; receiptPrintMode?: "included" | "separate"; sortOrder?: number } = {};
+    const update: { name?: string; color?: string | null; icon?: string | null; receiptPrintMode?: "included" | "separate"; sortOrder?: number } = {};
     if (body.name !== undefined) update.name = body.name;
     if ("color" in body) update.color = body.color ?? null;
+    if ("icon" in body) update.icon = body.icon ?? null;
     if (body.receiptPrintMode !== undefined) update.receiptPrintMode = body.receiptPrintMode;
     if (body.sortOrder !== undefined) update.sortOrder = body.sortOrder;
 
@@ -66,7 +68,7 @@ const productionCentersRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const [row] = await fastify.ctx.db
-      .select({ id: productionCenters.id, name: productionCenters.name, color: productionCenters.color, receiptPrintMode: productionCenters.receiptPrintMode, sortOrder: productionCenters.sortOrder })
+      .select({ id: productionCenters.id, name: productionCenters.name, color: productionCenters.color, icon: productionCenters.icon, receiptPrintMode: productionCenters.receiptPrintMode, sortOrder: productionCenters.sortOrder })
       .from(productionCenters)
       .where(eq(productionCenters.id, numId));
     fastify.ctx.eventBus.emit("PRODUCTION_CENTER_UPDATED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });

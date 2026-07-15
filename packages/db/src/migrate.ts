@@ -359,6 +359,7 @@ INSERT OR IGNORE INTO payment_methods(id, name, type, active, sort_order, icon) 
 ALTER TABLE products ADD COLUMN receipt_print_mode TEXT NOT NULL DEFAULT 'inherit';
 ALTER TABLE receipt_templates ADD COLUMN show_item_category INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE production_centers ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE production_centers ADD COLUMN icon TEXT;
 `;
 
 // payments.method used to be a CHECK-constrained enum column (cash/card/digital_wallet/tab).
@@ -397,6 +398,14 @@ function migrateUuidToInt(sqlite: Database.Database): void {
   if (!usersSchema?.sql || usersSchema.sql.includes("INTEGER PRIMARY KEY")) return;
 
   sqlite.pragma("foreign_keys = OFF");
+  // legacy_alter_table = ON prevents SQLite from auto-rewriting FK references when a table
+  // is renamed. Without this, "ALTER TABLE users RENAME TO _usr_old" would update
+  // "REFERENCES users(id)" → "REFERENCES _usr_old(id)" in dependent tables, corrupting them.
+  sqlite.pragma("legacy_alter_table = ON");
+
+  // Wrap entire migration in a transaction so an interrupted run leaves the DB unchanged.
+  sqlite.exec("BEGIN");
+  try {
 
   // Clean up any leftover _old tables from a previously interrupted migration
   const oldTables = (sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '\\_%' ESCAPE '\\'").all() as { name: string }[]).map((r) => r.name);
@@ -786,12 +795,13 @@ function migrateUuidToInt(sqlite: Database.Database): void {
       id               INTEGER PRIMARY KEY AUTOINCREMENT,
       name             TEXT NOT NULL,
       color            TEXT,
+      icon             TEXT,
       receipt_print_mode TEXT NOT NULL DEFAULT 'included',
       sort_order       INTEGER NOT NULL DEFAULT 0
     )
   `);
-  sqlite.exec(`INSERT INTO production_centers(name, color, receipt_print_mode, sort_order)
-    SELECT name, color, COALESCE(receipt_print_mode,'included'), COALESCE(sort_order,0) FROM _pc_old`);
+  sqlite.exec(`INSERT INTO production_centers(name, color, icon, receipt_print_mode, sort_order)
+    SELECT name, color, icon, COALESCE(receipt_print_mode,'included'), COALESCE(sort_order,0) FROM _pc_old`);
   sqlite.exec(`CREATE TEMP TABLE _pc_name_map AS
     SELECT old.id AS old_uuid, new.id AS new_int
     FROM _pc_old old JOIN production_centers new ON new.name = old.name`);
@@ -886,8 +896,8 @@ function migrateUuidToInt(sqlite: Database.Database): void {
   sqlite.exec(`DROP TABLE _pc_name_map`);
 
   // 22. users
+  sqlite.exec(`ALTER TABLE users RENAME TO _usr_old`);
   sqlite.exec(`
-    ALTER TABLE users RENAME TO _usr_old;
     CREATE TABLE users (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       name       TEXT NOT NULL,
@@ -896,12 +906,21 @@ function migrateUuidToInt(sqlite: Database.Database): void {
       pin        TEXT,
       active     INTEGER NOT NULL DEFAULT 1,
       created_at INTEGER NOT NULL
-    );
-    INSERT INTO users(name, username, role, pin, active, created_at)
-      SELECT name, username, role, pin, active, created_at FROM _usr_old;
-    DROP TABLE _usr_old;
+    )
   `);
+  sqlite.exec(`INSERT INTO users(name, username, role, pin, active, created_at)
+    SELECT name, username, role, pin, active, created_at FROM _usr_old`);
+  sqlite.exec(`DROP TABLE _usr_old`);
 
+  sqlite.exec("COMMIT");
+  } catch (err) {
+    try { sqlite.exec("ROLLBACK"); } catch { /* ignore if no active txn */ }
+    sqlite.pragma("legacy_alter_table = OFF");
+    sqlite.pragma("foreign_keys = ON");
+    throw err;
+  }
+
+  sqlite.pragma("legacy_alter_table = OFF");
   sqlite.pragma("foreign_keys = ON");
 }
 

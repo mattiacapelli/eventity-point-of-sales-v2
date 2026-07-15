@@ -125,8 +125,8 @@ export const adminApi = {
   },
   productionCenters: {
     list: () => req<ProductionCenter[]>("GET", "/production-centers"),
-    create: (data: { name: string; color?: string | null; receiptPrintMode?: "included" | "separate" }) => req<ProductionCenter>("POST", "/production-centers", data),
-    update: (id: number, data: { name?: string; color?: string | null; receiptPrintMode?: "included" | "separate" }) => req<ProductionCenter>("PATCH", `/production-centers/${id}`, data),
+    create: (data: { name: string; color?: string | null; icon?: string | null; receiptPrintMode?: "included" | "separate" }) => req<ProductionCenter>("POST", "/production-centers", data),
+    update: (id: number, data: { name?: string; color?: string | null; icon?: string | null; receiptPrintMode?: "included" | "separate" }) => req<ProductionCenter>("PATCH", `/production-centers/${id}`, data),
     delete: (id: number) => req<void>("DELETE", `/production-centers/${id}`),
     reorder: (ids: number[]) => req<void>("PUT", "/production-centers/reorder", { ids }),
     getCategories: (id: number) => req<Category[]>("GET", `/production-centers/${id}/categories`),

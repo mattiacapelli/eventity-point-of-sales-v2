@@ -40,7 +40,7 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
         },
       },
       response: {
-        201: { type: "object", properties: { userId: { type: "string" } } },
+        201: { type: "object", properties: { userId: { type: "number" } } },
         409: { type: "object", properties: { error: { type: "string" } } },
       },
     },

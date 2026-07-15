@@ -37,7 +37,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
             properties: {
               token: { type: "string" },
               role: { type: "string" },
-              userId: { type: "string" },
+              userId: { type: "number" },
             },
           },
           401: {
@@ -110,11 +110,11 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           200: {
             type: "object",
             properties: {
-              userId: { type: "string" },
+              userId: { type: "number" },
               role: { type: "string" },
               username: { type: "string" },
               name: { type: "string" },
-              sessionId: { type: "string" },
+              sessionId: { type: "number" },
             },
           },
           401: { type: "object", properties: { error: { type: "string" } } },

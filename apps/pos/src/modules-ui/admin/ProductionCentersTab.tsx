@@ -4,9 +4,10 @@ import { useAdminStore } from "../../state/admin-store.js";
 import { Button } from "../../components/ui/Button.js";
 import { Modal } from "../../components/ui/Modal.js";
 import type { Category, ProductionCenter, Printer } from "@pos/shared-types";
-import { BuildingStorefrontIcon, PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, PrinterIcon, Bars3Icon } from "../../components/ui/icons.js";
+import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, PrinterIcon, Bars3Icon } from "../../components/ui/icons.js";
 import { inputStyle, labelStyle } from "./shared.js";
 import { ColorField } from "./ColorField.js";
+import { IconPickerField, getProductionCenterIcon } from "./IconPickerField.js";
 
 export function ProductionCentersTab() {
   const { productionCenters, categories, upsertProductionCenter, removeProductionCenter, setProductionCenters } = useAdminStore();
@@ -50,12 +51,14 @@ export function ProductionCentersTab() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [newCenterName, setNewCenterName] = useState("");
   const [newCenterColor, setNewCenterColor] = useState("");
+  const [newCenterIcon, setNewCenterIcon] = useState("");
   const [creating, setCreating] = useState(false);
 
   // Edit center
   const [editTarget, setEditTarget] = useState<ProductionCenter | null>(null);
   const [editName, setEditName] = useState("");
   const [editColor, setEditColor] = useState("");
+  const [editIcon, setEditIcon] = useState("");
   const [editReceiptPrintMode, setEditReceiptPrintMode] = useState<"included" | "separate">("included");
   const [editSaving, setEditSaving] = useState(false);
 
@@ -94,12 +97,14 @@ export function ProductionCentersTab() {
       const created = await adminApi.productionCenters.create({
         name: newCenterName.trim(),
         color: newCenterColor === "" ? null : newCenterColor,
+        icon: newCenterIcon === "" ? null : newCenterIcon,
       });
       upsertProductionCenter(created);
       setCenterCategories((prev) => ({ ...prev, [created.id]: [] }));
       setLoadedCenters((prev) => new Set(prev).add(created.id));
       setNewCenterName("");
       setNewCenterColor("");
+      setNewCenterIcon("");
       setCreateModalOpen(false);
     } finally {
       setCreating(false);
@@ -110,6 +115,7 @@ export function ProductionCentersTab() {
     setEditTarget(pc);
     setEditName(pc.name);
     setEditColor(pc.color ?? "");
+    setEditIcon(pc.icon ?? "");
     setEditReceiptPrintMode(pc.receiptPrintMode);
   }
 
@@ -120,6 +126,7 @@ export function ProductionCentersTab() {
       const updated = await adminApi.productionCenters.update(editTarget.id, {
         name: editName.trim(),
         color: editColor === "" ? null : editColor,
+        icon: editIcon === "" ? null : editIcon,
         receiptPrintMode: editReceiptPrintMode,
       });
       upsertProductionCenter(updated);
@@ -229,7 +236,7 @@ export function ProductionCentersTab() {
                   style={{ width: "16px", height: "16px", color: "var(--color-gray-400)", flexShrink: 0, cursor: "grab" }}
                   title="Trascina per riordinare"
                 />
-                <BuildingStorefrontIcon style={{ width: "20px", height: "20px", color: pc.color ?? "var(--color-brand)", flexShrink: 0 }} />
+                {(() => { const Icon = getProductionCenterIcon(pc.icon); return <Icon style={{ width: "20px", height: "20px", color: pc.color ?? "var(--color-brand)", flexShrink: 0 }} />; })()}
                 <span style={{ flex: 1, fontSize: "var(--text-md)", fontWeight: 700, color: "var(--color-gray-800)" }}>
                   {pc.name}
                 </span>
@@ -486,6 +493,7 @@ export function ProductionCentersTab() {
               autoFocus
             />
           </div>
+          <IconPickerField value={newCenterIcon} onChange={setNewCenterIcon} />
           <ColorField value={newCenterColor} onChange={setNewCenterColor} />
           <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
             <Button variant="ghost" size="sm" onClick={() => setCreateModalOpen(false)}>Annulla</Button>
@@ -510,6 +518,7 @@ export function ProductionCentersTab() {
               autoFocus
             />
           </div>
+          <IconPickerField value={editIcon} onChange={setEditIcon} />
           <ColorField value={editColor} onChange={setEditColor} />
           <div>
             <label style={labelStyle}>Stampa scontrino</label>
