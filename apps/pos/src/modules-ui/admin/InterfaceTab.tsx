@@ -230,6 +230,7 @@ export function InterfaceTab() {
   const [cartTextSize, setCartTextSize] = useState(14);
   const [tablesEnabled, setTablesEnabled] = useState(false);
   const [shiftAutoPrintReport, setShiftAutoPrintReport] = useState(false);
+  const [productDateFilterEnabled, setProductDateFilterEnabled] = useState(false);
   const [savingCart, setSavingCart] = useState<string | null>(null);
 
   // Card — read from grid store, write via setPrefs (debounced to server)
@@ -245,6 +246,7 @@ export function InterfaceTab() {
       setCartTextSize(s.cartTextSize ?? 14);
       setTablesEnabled(s.tablesEnabled);
       setShiftAutoPrintReport(s.shiftAutoPrintReport ?? false);
+      setProductDateFilterEnabled(s.productDateFilterEnabled ?? false);
       setLoaded(true);
     }).catch(() => setLoaded(true));
   }, []);
@@ -388,6 +390,28 @@ export function InterfaceTab() {
               >
                 <span style={thumbStyle(shiftAutoPrintReport)} />
               </button>
+            </div>
+            <div style={{ borderTop: "1px solid var(--color-gray-100)", marginTop: "14px", paddingTop: "14px" }}>
+              <div style={rowStyle}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)", marginBottom: "3px" }}>Filtro prodotti per data</div>
+                  <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", lineHeight: 1.5 }}>
+                    Nasconde i prodotti che non sono programmati per la data odierna. Configura le date disponibili nella scheda di ogni prodotto.
+                  </div>
+                </div>
+                <button
+                  disabled={savingCart === "productDateFilterEnabled"}
+                  onClick={async () => {
+                    const next = !productDateFilterEnabled;
+                    setProductDateFilterEnabled(next);
+                    setSavingCart("productDateFilterEnabled");
+                    try { await adminApi.settings.update({ productDateFilterEnabled: next }); } catch { /* ignore */ } finally { setSavingCart(null); }
+                  }}
+                  style={toggleStyle(productDateFilterEnabled, savingCart === "productDateFilterEnabled")}
+                >
+                  <span style={thumbStyle(productDateFilterEnabled)} />
+                </button>
+              </div>
             </div>
           </div>
 
