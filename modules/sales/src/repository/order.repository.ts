@@ -1,4 +1,4 @@
-import { eq, desc, and, gte, lte, inArray, orders, orderItems, orderItemOptions, products, options, sql, appSettings, receiptCounters } from "@pos/db";
+import { eq, desc, and, gte, lte, inArray, orders, orderItems, orderItemOptions, orderCenterNumbers, products, options, sql, appSettings, receiptCounters } from "@pos/db";
 import type { DbClient } from "@pos/db";
 import type { Order, OrderItem, OrderItemOption, VatBreakdown, CreateOrderInput, OrderStatus, UpdateOrderInput } from "@pos/shared-types";
 
@@ -202,7 +202,7 @@ export class OrderRepository {
     // Resolve canonical prices from DB — never trust client-supplied prices
     const productIds = [...new Set(input.items.map((i) => i.productId))];
     const productRows = await this.db
-      .select({ id: products.id, price: products.price, vatRate: products.vatRate })
+      .select({ id: products.id, price: products.price, vatRate: products.vatRate, productionCenterId: products.productionCenterId })
       .from(products)
       .where(inArray(products.id, productIds));
     const productPriceMap = new Map(productRows.map((p) => [p.id, { price: p.price, vatRate: p.vatRate ?? 10 }]));
@@ -251,6 +251,8 @@ export class OrderRepository {
       // No active shift (e.g. order created outside a shift) — fall back to a
       // global progressive so the receipt still gets a number instead of silently staying null.
       receiptNumber = await this._nextReceiptNumber(input.shiftId ? `shift:${input.shiftId}` : "global");
+    } else if (mode === "center") {
+      // Per-center numbering — receipt_number stays null; center numbers assigned after items insert
     }
 
     const [orderRow] = await this.db.insert(orders).values({
@@ -305,6 +307,27 @@ export class OrderRepository {
       }
     }
 
+    // Assign per-center numbers when mode is "center"
+    let centerNumbersResult: Record<number, number> | undefined;
+    if (mode === "center" && input.shiftId) {
+      const centerIds = [...new Set(
+        productRows
+          .filter((p) => p.productionCenterId !== null)
+          .map((p) => p.productionCenterId!)
+      )];
+      if (centerIds.length > 0) {
+        const centerNumberValues = await Promise.all(
+          centerIds.map(async (centerId) => ({
+            orderId: id,
+            productionCenterId: centerId,
+            centerNumber: await this._nextReceiptNumber(`center:${centerId}:shift:${input.shiftId}`),
+          }))
+        );
+        await this.db.insert(orderCenterNumbers).values(centerNumberValues);
+        centerNumbersResult = Object.fromEntries(centerNumberValues.map((r) => [r.productionCenterId, r.centerNumber]));
+      }
+    }
+
     // Load persisted options for return value
     const allItemIds = insertedItems.map((i) => i.id);
     const persistedOptions = allItemIds.length > 0
@@ -317,7 +340,7 @@ export class OrderRepository {
       optsByItemId.set(o.orderItemId, arr);
     }
 
-    return this.toOrder(
+    const order = this.toOrder(
       {
         id,
         tableId: input.tableId ?? null,
@@ -342,6 +365,7 @@ export class OrderRepository {
       insertedItems.map((item) => ({ ...item, orderId: id })),
       optsByItemId,
     );
+    return centerNumbersResult ? { ...order, centerNumbers: centerNumbersResult } : order;
   }
 
   async updateStatus(id: number, status: OrderStatus): Promise<Order | null> {

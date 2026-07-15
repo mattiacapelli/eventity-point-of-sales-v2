@@ -45,9 +45,10 @@ function delayColor(mins: number): string | null {
 interface Props {
   order: Order;
   onUpdated: (order: Order) => void;
+  centerNames?: Record<number, string>;
 }
 
-export function KitchenOrderCard({ order, onUpdated }: Props) {
+export function KitchenOrderCard({ order, onUpdated, centerNames }: Props) {
   const [loading, setLoading] = useState(false);
   const nextStatus = NEXT_STATUS[order.status];
 
@@ -87,7 +88,9 @@ export function KitchenOrderCard({ order, onUpdated }: Props) {
             {elapsedLabel(order.createdAt)}
           </div>
           <div style={{ color: "var(--color-white)", fontSize: "var(--text-lg)", fontWeight: 700, marginTop: "2px" }}>
-            #{order.id}
+            {order.centerNumbers && centerNames
+              ? Object.entries(order.centerNumbers).map(([cid, num]) => `${centerNames[Number(cid)] ?? `#${cid}`}: #${num}`).join(" · ")
+              : `#${order.id}`}
           </div>
           {order.tableId && (
             <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>

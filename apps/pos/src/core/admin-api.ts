@@ -214,7 +214,7 @@ export const adminApi = {
   settings: {
     get: () => req<{
       expressMode: boolean;
-      receiptNumberMode: "default" | "global" | "shift";
+      receiptNumberMode: "default" | "global" | "shift" | "center";
       receiptNumberPrefix: string;
       receiptNumberPadding: number;
       gridViewMode: "category" | "center" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
@@ -238,7 +238,7 @@ export const adminApi = {
     }>("GET", "/admin/settings"),
     update: (data: Partial<{
       expressMode: boolean;
-      receiptNumberMode: "default" | "global" | "shift";
+      receiptNumberMode: "default" | "global" | "shift" | "center";
       receiptNumberPrefix: string;
       receiptNumberPadding: number;
       gridViewMode: "category" | "center" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
@@ -261,7 +261,7 @@ export const adminApi = {
       shiftAutoPrintReport: boolean;
     }>) => req<{
       expressMode: boolean;
-      receiptNumberMode: "default" | "global" | "shift";
+      receiptNumberMode: "default" | "global" | "shift" | "center";
       receiptNumberPrefix: string;
       receiptNumberPadding: number;
       gridViewMode: "category" | "center" | "all" | "grouped_category" | "grouped_center" | "grouped_color";

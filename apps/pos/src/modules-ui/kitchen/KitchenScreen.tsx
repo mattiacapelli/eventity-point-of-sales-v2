@@ -35,6 +35,7 @@ export function KitchenScreen() {
   const mutedRef = useRef(muted);
   const upsertOrder = useStore((s) => s.upsertOrder);
   const [productCenterMap, setProductCenterMap] = useState<Record<string, string>>({});
+  const [centerIdNameMap, setCenterIdNameMap] = useState<Record<number, string>>({});
   const [, forceTick] = useState(0);
 
   function toggleMute() {
@@ -66,10 +67,11 @@ export function KitchenScreen() {
   useEffect(() => {
     Promise.all([adminApi.products.list(), adminApi.productionCenters.list()])
       .then(([products, centers]) => {
-        const centerNames = Object.fromEntries(centers.map((c) => [c.id, c.name]));
+        const idToName = Object.fromEntries(centers.map((c) => [c.id, c.name]));
+        setCenterIdNameMap(idToName);
         const map: Record<string, string> = {};
         for (const p of products) {
-          if (p.productionCenterId) map[p.id] = centerNames[p.productionCenterId] ?? "Senza centro";
+          if (p.productionCenterId) map[p.id] = idToName[p.productionCenterId] ?? "Senza centro";
         }
         setProductCenterMap(map);
       })
@@ -219,6 +221,7 @@ export function KitchenScreen() {
                     key={order.id}
                     order={order}
                     onUpdated={handleOrderUpdated}
+                    centerNames={centerIdNameMap}
                   />
                 ))}
               </div>
@@ -238,6 +241,7 @@ export function KitchenScreen() {
               key={order.id}
               order={order}
               onUpdated={handleOrderUpdated}
+              centerNames={centerIdNameMap}
             />
           ))}
         </div>

@@ -199,7 +199,7 @@ function ImageTemplateEditor({
 // ─── Receipt Numbering Section (shared, used inside ReceiptTemplateTab) ──────
 
 function ReceiptNumberingSection() {
-  const [receiptMode, setReceiptMode] = useState<"default" | "global" | "shift">("shift");
+  const [receiptMode, setReceiptMode] = useState<"default" | "global" | "shift" | "center">("shift");
   const [receiptPrefix, setReceiptPrefix] = useState("");
   const [receiptPadding, setReceiptPadding] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -232,6 +232,7 @@ function ReceiptNumberingSection() {
           ["default", "Default (UUID)", "Ultimi 6 caratteri dell'ID ordine — es. #A3F9C1"],
           ["global",  "Incrementale globale", "1, 2, 3… — contatore che non si azzera mai"],
           ["shift",   "Incrementale per turno", "Si azzera ad ogni nuovo turno di cassa"],
+          ["center",  "Per centro di produzione", "Ogni centro ha il suo contatore, si azzera ad ogni turno. Il numero appare solo sui ticket cucina."],
         ] as const).map(([val, label, desc]) => (
           <label key={val} style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
             <input type="radio" name="receiptModeSection" value={val} checked={receiptMode === val}
@@ -245,7 +246,7 @@ function ReceiptNumberingSection() {
         ))}
       </div>
 
-      {receiptMode !== "default" && (
+      {receiptMode !== "default" && receiptMode !== "center" && (
         <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "14px" }}>
           <div>
             <label style={labelStyle}>Prefisso</label>
@@ -261,9 +262,11 @@ function ReceiptNumberingSection() {
         </div>
       )}
 
-      <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", marginBottom: "16px" }}>
-        Anteprima: <strong style={{ color: "var(--color-gray-800)" }}>#{previewNum}</strong>
-      </div>
+      {receiptMode !== "center" && (
+        <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", marginBottom: "16px" }}>
+          Anteprima: <strong style={{ color: "var(--color-gray-800)" }}>#{previewNum}</strong>
+        </div>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
         <Button loading={saving} onClick={async () => {
@@ -291,7 +294,7 @@ function ReceiptNumberingSection() {
             </button>
           )
         )}
-        {receiptMode === "shift" && (
+        {(receiptMode === "shift" || receiptMode === "center") && (
           <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
             Si azzera automaticamente ad ogni nuovo turno — nessun reset manuale necessario.
           </span>

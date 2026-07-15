@@ -1,5 +1,5 @@
 import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
-import { terminals } from "./catalog.js";
+import { terminals, productionCenters } from "./catalog.js";
 
 export const orders = sqliteTable("orders", {
   id:            integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
@@ -47,6 +47,12 @@ export const orderItemOptions = sqliteTable("order_item_options", {
   optionId:    integer("option_id", { mode: "number" }).notNull(),
   optionName:  text("option_name").notNull(),
   priceDelta:  real("price_delta").notNull().default(0),
+});
+
+export const orderCenterNumbers = sqliteTable("order_center_numbers", {
+  orderId:             integer("order_id", { mode: "number" }).notNull().references(() => orders.id, { onDelete: "cascade" }),
+  productionCenterId:  integer("production_center_id", { mode: "number" }).notNull().references(() => productionCenters.id, { onDelete: "cascade" }),
+  centerNumber:        integer("center_number").notNull(),
 });
 
 export type DbOrder = typeof orders.$inferSelect;

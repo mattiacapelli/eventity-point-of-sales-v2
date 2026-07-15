@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { resolve, join } from "node:path";
 import { eq, inArray } from "@pos/db";
-import { orders, orderItems, orderItemOptions, products, productionCenters, productionCenterCategories, productionCenterPrinters, printers, kitchenTemplates } from "@pos/db";
+import { orders, orderItems, orderItemOptions, products, productionCenters, productionCenterCategories, productionCenterPrinters, printers, kitchenTemplates, orderCenterNumbers } from "@pos/db";
 import { formatKitchenTicket, renderKitchenImage, pngToEscposRaster } from "@pos/core";
 import type { KitchenBlock } from "@pos/shared-types";
 import type { DbClient } from "@pos/db";
@@ -18,6 +18,7 @@ export async function printKitchenTickets(
   items: OrderItemRow[],
   dataDir: string,
   receiptDisplay?: string,
+  centerNumbersMap?: Map<number, number>,
 ): Promise<void> {
   if (items.length === 0) return;
 
@@ -103,6 +104,9 @@ export async function printKitchenTickets(
   const now = new Date();
 
   for (const [centerId, { centerName, items: centerGroupItems }] of centerItems) {
+    const effectiveReceiptDisplay = (centerNumbersMap && typeof centerId === "number" && centerNumbersMap.has(centerId))
+      ? String(centerNumbersMap.get(centerId)!)
+      : receiptDisplay;
     let targetPrinters: PrinterRow[];
     if (centerId !== "__generale__" && typeof centerId === "number") {
       const dedicatedRows = await db
@@ -149,7 +153,7 @@ export async function printKitchenTickets(
                 blocks,
                 canvasWidth:  template.canvasWidth ?? 576,
                 logoPath:     template.logoPath ? resolve(join(dataDir, template.logoPath)) : null,
-                centerName, orderId, receiptDisplay, tableId, customerName, orderNotes, pax,
+                centerName, orderId, receiptDisplay: effectiveReceiptDisplay, tableId, customerName, orderNotes, pax,
                 timestamp: now, items: ticketItems,
               });
               const rasterBuffer = await pngToEscposRaster(pngBuffer, template.canvasWidth ?? 576);
@@ -165,7 +169,7 @@ export async function printKitchenTickets(
 
         const content = formatKitchenTicket({
           orderId,
-          ...(receiptDisplay !== undefined ? { receiptDisplay } : {}),
+          ...(effectiveReceiptDisplay !== undefined ? { receiptDisplay: effectiveReceiptDisplay } : {}),
           ...(tableId      ? { tableId }      : {}),
           ...(customerName ? { customerName } : {}),
           ...(orderNotes   ? { orderNotes }   : {}),

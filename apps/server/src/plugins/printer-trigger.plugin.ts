@@ -1,7 +1,7 @@
 import fp from "fastify-plugin";
 import { randomUUID } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
-import { claimEvent, eq, sql, orderItems, orders, shifts, receiptTemplates, terminalPrinters } from "@pos/db";
+import { claimEvent, eq, sql, orderItems, orderCenterNumbers, orders, shifts, receiptTemplates, terminalPrinters, appSettings } from "@pos/db";
 import { formatReceiptNumber } from "@pos/module-sales";
 import type { DbClient } from "@pos/db";
 
@@ -57,8 +57,17 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
 
     const items      = await db.select().from(orderItems).where(eq(orderItems.orderId, payload.order.id));
     const numSettings = await loadReceiptNumSettings(db);
-    const receiptDisplay = formatReceiptNumber(payload.order.receiptNumber, payload.order.id, numSettings.prefix, numSettings.padding);
-    await printKitchenTickets(db, printerService, logger, eventBus, payload.order.id, items as never, fastify.ctx.config.dataDir, receiptDisplay);
+    const [modeRow] = await db.select().from(appSettings).where(eq(appSettings.key, "receipt_number_mode")).limit(1);
+    const mode = modeRow?.value ?? "shift";
+    let receiptDisplay: string | undefined;
+    let centerNumbersMap: Map<number, number> | undefined;
+    if (mode === "center") {
+      const cnRows = await db.select().from(orderCenterNumbers).where(eq(orderCenterNumbers.orderId, payload.order.id));
+      centerNumbersMap = new Map(cnRows.map((r) => [r.productionCenterId, r.centerNumber]));
+    } else {
+      receiptDisplay = formatReceiptNumber(payload.order.receiptNumber, payload.order.id, numSettings.prefix, numSettings.padding);
+    }
+    await printKitchenTickets(db, printerService, logger, eventBus, payload.order.id, items as never, fastify.ctx.config.dataDir, receiptDisplay, centerNumbersMap);
   });
 
   // ── PAYMENT_COMPLETED → kitchen ticket (express mode ON) + receipt ───────
@@ -72,9 +81,18 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
       if (kitchenClaimed) {
         const items = await db.select().from(orderItems).where(eq(orderItems.orderId, payload.payment.orderId));
         const [orderRow] = await db.select({ receiptNumber: orders.receiptNumber }).from(orders).where(eq(orders.id, payload.payment.orderId)).limit(1);
-        const numSettings    = await loadReceiptNumSettings(db);
-        const receiptDisplay = formatReceiptNumber(orderRow?.receiptNumber ?? undefined, payload.payment.orderId, numSettings.prefix, numSettings.padding);
-        await printKitchenTickets(db, printerService, logger, eventBus, payload.payment.orderId, items as never, fastify.ctx.config.dataDir, receiptDisplay);
+        const numSettings = await loadReceiptNumSettings(db);
+        const [modeRow] = await db.select().from(appSettings).where(eq(appSettings.key, "receipt_number_mode")).limit(1);
+        const mode = modeRow?.value ?? "shift";
+        let receiptDisplay: string | undefined;
+        let centerNumbersMap: Map<number, number> | undefined;
+        if (mode === "center") {
+          const cnRows = await db.select().from(orderCenterNumbers).where(eq(orderCenterNumbers.orderId, payload.payment.orderId));
+          centerNumbersMap = new Map(cnRows.map((r) => [r.productionCenterId, r.centerNumber]));
+        } else {
+          receiptDisplay = formatReceiptNumber(orderRow?.receiptNumber ?? undefined, payload.payment.orderId, numSettings.prefix, numSettings.padding);
+        }
+        await printKitchenTickets(db, printerService, logger, eventBus, payload.payment.orderId, items as never, fastify.ctx.config.dataDir, receiptDisplay, centerNumbersMap);
       }
     }
 

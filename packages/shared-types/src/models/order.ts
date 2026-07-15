@@ -48,6 +48,7 @@ export interface Order {
   readonly fiscalDocDate?: string;
   readonly fiscalRtSerial?: string;
   readonly vatBreakdown?: ReadonlyArray<VatBreakdown>;
+  readonly centerNumbers?: Record<number, number>;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly syncedAt?: Date;

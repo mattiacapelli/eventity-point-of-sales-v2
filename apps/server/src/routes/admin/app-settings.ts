@@ -25,7 +25,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
 
     return reply.send({
       expressMode: m["express_mode"] === "true",
-      receiptNumberMode: (m["receipt_number_mode"] ?? "shift") as "default" | "global" | "shift",
+      receiptNumberMode: (m["receipt_number_mode"] ?? "shift") as "default" | "global" | "shift" | "center",
       receiptNumberPrefix: m["receipt_number_prefix"] ?? "",
       receiptNumberPadding: parseInt(m["receipt_number_padding"] ?? "0", 10),
       gridViewMode: (m["grid_view_mode"] ?? "category") as "category" | "center" | "all" | "grouped_category" | "grouped_center" | "grouped_color",
@@ -63,7 +63,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const body = request.body as Partial<{
       expressMode: boolean;
-      receiptNumberMode: "default" | "global" | "shift";
+      receiptNumberMode: "default" | "global" | "shift" | "center";
       receiptNumberPrefix: string;
       receiptNumberPadding: number;
       gridViewMode: "category" | "center" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
@@ -122,7 +122,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
 
     return reply.send({
       expressMode: m["express_mode"] === "true",
-      receiptNumberMode: (m["receipt_number_mode"] ?? "shift") as "default" | "global" | "shift",
+      receiptNumberMode: (m["receipt_number_mode"] ?? "shift") as "default" | "global" | "shift" | "center",
       receiptNumberPrefix: m["receipt_number_prefix"] ?? "",
       receiptNumberPadding: parseInt(m["receipt_number_padding"] ?? "0", 10),
       gridViewMode: (m["grid_view_mode"] ?? "category") as "category" | "center" | "all" | "grouped_category" | "grouped_center" | "grouped_color",

@@ -360,6 +360,12 @@ ALTER TABLE products ADD COLUMN receipt_print_mode TEXT NOT NULL DEFAULT 'inheri
 ALTER TABLE receipt_templates ADD COLUMN show_item_category INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE production_centers ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE production_centers ADD COLUMN icon TEXT;
+CREATE TABLE IF NOT EXISTS order_center_numbers (
+  order_id             INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  production_center_id INTEGER NOT NULL REFERENCES production_centers(id) ON DELETE CASCADE,
+  center_number        INTEGER NOT NULL,
+  PRIMARY KEY (order_id, production_center_id)
+);
 `;
 
 // payments.method used to be a CHECK-constrained enum column (cash/card/digital_wallet/tab).
