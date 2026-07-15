@@ -40,6 +40,7 @@ import auditLogRoutes from "./routes/admin/audit-log.js";
 import terminalsRoutes from "./routes/admin/terminals.js";
 import usersRoutes from "./routes/admin/users.js";
 import factoryResetRoutes from "./routes/admin/factory-reset.js";
+import dailyExtrasRoutes from "./routes/admin/daily-extras.js";
 
 export async function buildServer(config: AppConfig) {
   const fastify = Fastify({
@@ -97,6 +98,7 @@ export async function buildServer(config: AppConfig) {
   await fastify.register(terminalsRoutes, { prefix: "/api" });
   await fastify.register(usersRoutes, { prefix: "/api" });
   await fastify.register(factoryResetRoutes, { prefix: "/api" });
+  await fastify.register(dailyExtrasRoutes, { prefix: "/api" });
 
   return fastify;
 }

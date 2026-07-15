@@ -285,12 +285,19 @@ type InvItem = import("../../core/admin-api.js").InventoryItemRecord;
 function OpenShiftModal({ onDone }: { onDone: () => void }) {
   const { session } = useStore();
   const { setCurrentShift } = useShiftStore();
-  const [step, setStep] = useState<"cash" | "inventory" | "summary">("cash");
+  const [step, setStep] = useState<"cash" | "extras" | "inventory" | "summary">("cash");
   const [openingCash, setOpeningCash] = useState("0");
   const [saving, setSaving] = useState(false);
   const [inventoryItems, setInventoryItems] = useState<InvItem[]>([]);
   const [stockValues, setStockValues] = useState<Record<string, number>>({});
   const [invIdx, setInvIdx] = useState(0);
+
+  // Extra del giorno
+  const [dateFilterEnabled, setDateFilterEnabled] = useState(false);
+  const [extrasProducts, setExtrasProducts] = useState<import("@pos/shared-types").Product[]>([]);
+  const [enabledExtraIds, setEnabledExtraIds] = useState<Set<number>>(new Set());
+  const [extrasLoading, setExtrasLoading] = useState(false);
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
     adminApi.inventory.listItems()
@@ -301,6 +308,19 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
           vals[item.id] = item.resetOnShiftOpen ? 0 : item.currentStock;
         }
         setStockValues(vals);
+      })
+      .catch(() => {});
+
+    // Carica settings e prodotti per lo step extra
+    Promise.all([adminApi.settings.get(), adminApi.products.list(), adminApi.dailyExtras.list(todayStr)])
+      .then(([settings, prods, existing]) => {
+        setDateFilterEnabled(settings.productDateFilterEnabled);
+        // Prodotti che hanno date configurate ma oggi non è incluso → candidati extra
+        const candidates = prods.filter(
+          (p) => p.active && p.availableDates && p.availableDates.length > 0 && !p.availableDates.includes(todayStr)
+        );
+        setExtrasProducts(candidates);
+        setEnabledExtraIds(new Set(existing.map((e) => e.productId)));
       })
       .catch(() => {});
   }, []);
@@ -331,8 +351,9 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
     setStockValues((v) => ({ ...v, [id]: Math.max(0, (v[id] ?? 0) + delta) }));
   }
 
-  const stepIndex = step === "cash" ? 0 : step === "inventory" ? 1 : 2;
-  const totalSteps = inventoryItems.length > 0 ? 3 : 2;
+  const showExtrasStep = dateFilterEnabled && extrasProducts.length > 0;
+  const totalSteps = 2 + (showExtrasStep ? 1 : 0) + (inventoryItems.length > 0 ? 1 : 0);
+  const stepIndex = step === "cash" ? 0 : step === "extras" ? 1 : step === "inventory" ? (showExtrasStep ? 2 : 1) : totalSteps - 1;
   const currentInvItem = inventoryItems[invIdx] ?? null;
 
   const TOUCH_BTN: React.CSSProperties = {
@@ -345,6 +366,10 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
 
   function goNext() {
     if (step === "cash") {
+      if (showExtrasStep) setStep("extras");
+      else if (inventoryItems.length > 0) { setInvIdx(0); setStep("inventory"); }
+      else setStep("summary");
+    } else if (step === "extras") {
       if (inventoryItems.length > 0) { setInvIdx(0); setStep("inventory"); }
       else setStep("summary");
     } else if (step === "inventory") {
@@ -355,14 +380,31 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
   function goBack() {
     if (step === "summary") {
       if (inventoryItems.length > 0) { setInvIdx(inventoryItems.length - 1); setStep("inventory"); }
+      else if (showExtrasStep) setStep("extras");
       else setStep("cash");
     } else if (step === "inventory") {
       if (invIdx > 0) setInvIdx((i) => i - 1);
+      else if (showExtrasStep) setStep("extras");
       else setStep("cash");
+    } else if (step === "extras") {
+      setStep("cash");
     }
   }
 
-  const stepLabel = step === "cash" ? "Fondo cassa" : step === "inventory" ? `Inventario (${invIdx + 1}/${inventoryItems.length})` : "Riepilogo";
+  async function toggleExtra(productId: number) {
+    setExtrasLoading(true);
+    try {
+      if (enabledExtraIds.has(productId)) {
+        await adminApi.dailyExtras.remove(productId, todayStr);
+        setEnabledExtraIds((prev) => { const next = new Set(prev); next.delete(productId); return next; });
+      } else {
+        await adminApi.dailyExtras.add(productId, todayStr);
+        setEnabledExtraIds((prev) => new Set([...prev, productId]));
+      }
+    } catch { /* ignore */ } finally { setExtrasLoading(false); }
+  }
+
+  const stepLabel = step === "cash" ? "Fondo cassa" : step === "extras" ? "Extra del giorno" : step === "inventory" ? `Inventario (${invIdx + 1}/${inventoryItems.length})` : "Riepilogo";
 
   return (
     <Modal open onClose={onDone} title="Apertura turno" width="520px">
@@ -398,6 +440,77 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
             >
               Continua →
             </button>
+          </div>
+        )}
+
+        {/* ── STEP extra: prodotti non programmati ── */}
+        {step === "extras" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div>
+              <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-gray-400)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "4px" }}>
+                Extra del giorno
+              </div>
+              <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)" }}>
+                Abilita i prodotti disponibili oggi ma non in programma.
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "320px", overflowY: "auto" }}>
+              {extrasProducts.map((p) => {
+                const isOn = enabledExtraIds.has(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => void toggleExtra(p.id)}
+                    disabled={extrasLoading}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "14px 16px", borderRadius: "var(--radius-lg)",
+                      border: `1.5px solid ${isOn ? "var(--color-brand)" : "var(--color-gray-200)"}`,
+                      background: isOn ? "rgba(99,102,241,0.06)" : "var(--color-white)",
+                      cursor: extrasLoading ? "not-allowed" : "pointer",
+                      touchAction: "manipulation", textAlign: "left", fontFamily: "var(--font)",
+                      opacity: extrasLoading ? 0.7 : 1,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: "var(--text-base)", color: isOn ? "var(--color-brand)" : "var(--color-gray-800)" }}>
+                        {p.name}
+                      </div>
+                      {p.categoryName && (
+                        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginTop: "2px" }}>{p.categoryName}</div>
+                      )}
+                    </div>
+                    {/* Toggle */}
+                    <div style={{
+                      width: "42px", height: "24px", borderRadius: "12px", flexShrink: 0,
+                      background: isOn ? "var(--color-brand)" : "var(--color-gray-300)",
+                      position: "relative", transition: "background 0.2s",
+                    }}>
+                      <div style={{
+                        position: "absolute", top: "3px", left: isOn ? "20px" : "3px",
+                        width: "18px", height: "18px", borderRadius: "50%",
+                        background: "#fff", transition: "left 0.2s",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                      }} />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                style={{ flex: 1, height: "52px", borderRadius: "var(--radius-lg)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", fontSize: "var(--text-base)", fontWeight: 600, color: "var(--color-gray-600)", cursor: "pointer", touchAction: "manipulation" }}
+                onClick={goBack}
+              >← Indietro</button>
+              <button
+                style={{ flex: 2, height: "52px", borderRadius: "var(--radius-lg)", border: "none", background: "var(--color-brand)", color: "var(--color-white)", fontSize: "var(--text-base)", fontWeight: 700, cursor: "pointer", touchAction: "manipulation" }}
+                onClick={goNext}
+              >
+                {inventoryItems.length > 0 ? "Avanti →" : "Riepilogo →"}
+              </button>
+            </div>
           </div>
         )}
 

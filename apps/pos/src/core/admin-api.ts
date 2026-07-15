@@ -101,6 +101,11 @@ export const adminApi = {
     delete: (id: number) => req<void>("DELETE", `/categories/${id}`),
     reorder: (ids: number[]) => req<void>("PUT", "/categories/reorder", { ids }),
   },
+  dailyExtras: {
+    list: (date: string) => req<Array<{ productId: number; date: string }>>("GET", `/daily-extras?date=${date}`),
+    add: (productId: number, date: string) => req<{ productId: number; date: string }>("POST", "/daily-extras", { productId, date }),
+    remove: (productId: number, date: string) => req<void>("DELETE", `/daily-extras/${productId}/${date}`),
+  },
   products: {
     list: () => req<Product[]>("GET", "/products"),
     create: (data: { name: string; price: number; categoryId?: number; productionCenterId?: number; active?: boolean; color?: string | null; description?: string; vatRate?: number; receiptPrintMode?: "inherit" | "included" | "separate"; availableDates?: string[] | null }) =>

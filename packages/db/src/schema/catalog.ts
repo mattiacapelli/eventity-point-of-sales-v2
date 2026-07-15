@@ -162,6 +162,15 @@ export const terminalCategories = sqliteTable("terminal_categories", {
   sortOrder:  integer("sort_order").notNull().default(0),
 });
 
+export const dailyExtras = sqliteTable("daily_extras", {
+  id:        integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
+  productId: integer("product_id", { mode: "number" }).notNull().references(() => products.id, { onDelete: "cascade" }),
+  date:      text("date").notNull(),
+  createdAt: integer("created_at").notNull(),
+}, (t) => ({
+  uniq: uniqueIndex("daily_extras_product_date_uniq").on(t.productId, t.date),
+}));
+
 export const productGridLayouts = sqliteTable("product_grid_layouts", {
   id:        integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
   scope:     text("scope").notNull(),

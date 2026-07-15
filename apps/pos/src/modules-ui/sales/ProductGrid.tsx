@@ -378,6 +378,14 @@ export function ProductGrid() {
   const [searchQuery, setSearchQuery] = useState("");
   const [stockMap, setStockMap] = useState<Map<number, number>>(new Map());
   const [productDateFilterEnabled, setProductDateFilterEnabled] = useState(false);
+  const [dailyExtraIds, setDailyExtraIds] = useState<Set<number>>(new Set());
+
+  function refreshDailyExtras() {
+    const today = new Date().toISOString().slice(0, 10);
+    adminApi.dailyExtras.list(today)
+      .then((extras) => setDailyExtraIds(new Set(extras.map((e) => e.productId))))
+      .catch(() => {});
+  }
 
   const refreshStockMap = () => {
     adminApi.inventory.listItems()
@@ -394,7 +402,7 @@ export function ProductGrid() {
   useEffect(() => {
     refreshStockMap();
     const unsubPayment = wsClient.on("PAYMENT_COMPLETED", refreshStockMap);
-    const unsubShift   = wsClient.on("SHIFT_OPENED",      refreshStockMap);
+    const unsubShift   = wsClient.on("SHIFT_OPENED", () => { refreshStockMap(); refreshDailyExtras(); });
     return () => { unsubPayment(); unsubShift(); };
   }, []);
 
@@ -440,6 +448,7 @@ export function ProductGrid() {
         setProductDateFilterEnabled(s.productDateFilterEnabled);
       })
       .catch(() => {});
+    refreshDailyExtras();
   }, [applyServerPrefs]);
 
   // Load terminal-specific visible categories and default view mode, if a terminal is selected
@@ -584,7 +593,7 @@ export function ProductGrid() {
     if (!p.active) return false;
     if (searchLower && !p.name.toLowerCase().includes(searchLower)) return false;
     if (visibleCategoryIdSet && p.categoryId && !visibleCategoryIdSet.has(p.categoryId)) return false;
-    if (productDateFilterEnabled && p.availableDates && p.availableDates.length > 0 && !p.availableDates.includes(todayStr)) return false;
+    if (productDateFilterEnabled && p.availableDates && p.availableDates.length > 0 && !p.availableDates.includes(todayStr) && !dailyExtraIds.has(p.id)) return false;
     return true;
   });
 
