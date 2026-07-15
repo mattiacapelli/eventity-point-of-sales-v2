@@ -361,6 +361,8 @@ ALTER TABLE receipt_templates ADD COLUMN show_item_category INTEGER NOT NULL DEF
 ALTER TABLE production_centers ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE production_centers ADD COLUMN icon TEXT;
 CREATE TABLE IF NOT EXISTS order_center_numbers (order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE, production_center_id INTEGER NOT NULL REFERENCES production_centers(id) ON DELETE CASCADE, center_number INTEGER NOT NULL, PRIMARY KEY (order_id, production_center_id));
+ALTER TABLE products ADD COLUMN available_dates TEXT;
+INSERT OR IGNORE INTO app_settings(key,value) VALUES('product_date_filter_enabled','false');
 `;
 
 // payments.method used to be a CHECK-constrained enum column (cash/card/digital_wallet/tab).
@@ -877,10 +879,11 @@ function migrateUuidToInt(sqlite: Database.Database): void {
     sort_order           INTEGER NOT NULL DEFAULT 0,
     vat_rate             INTEGER NOT NULL DEFAULT 10,
     receipt_print_mode   TEXT NOT NULL DEFAULT 'inherit',
+    available_dates      TEXT,
     created_at           INTEGER,
     updated_at           INTEGER
   )`);
-  sqlite.exec(`INSERT INTO products(name, price, category_id, production_center_id, active, color, description, image_data, sort_order, vat_rate, receipt_print_mode, created_at, updated_at)
+  sqlite.exec(`INSERT INTO products(name, price, category_id, production_center_id, active, color, description, image_data, sort_order, vat_rate, receipt_print_mode, available_dates, created_at, updated_at)
     SELECT
       p.name, p.price,
       c.new_int,
@@ -888,6 +891,7 @@ function migrateUuidToInt(sqlite: Database.Database): void {
       p.active, p.color, p.description, p.image_data,
       COALESCE(p.sort_order,0), COALESCE(p.vat_rate,10),
       COALESCE(p.receipt_print_mode,'inherit'),
+      p.available_dates,
       p.created_at, p.updated_at
     FROM _prod_old p
     LEFT JOIN _cat_name_map c  ON c.old_uuid = p.category_id

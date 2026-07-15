@@ -21,6 +21,7 @@ export const products = sqliteTable("products", {
   sortOrder:          integer("sort_order").notNull().default(0),
   vatRate:            integer("vat_rate").notNull().default(10),
   receiptPrintMode:   text("receipt_print_mode").notNull().default("inherit"),
+  availableDates:     text("available_dates"),
   createdAt:          integer("created_at"),
   updatedAt:          integer("updated_at"),
 });

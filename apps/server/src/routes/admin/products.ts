@@ -38,9 +38,25 @@ const PRODUCT_SELECT = {
   sortOrder:          products.sortOrder,
   vatRate:            products.vatRate,
   receiptPrintMode:   products.receiptPrintMode,
+  availableDates:     products.availableDates,
   createdAt:          products.createdAt,
   updatedAt:          products.updatedAt,
 } as const;
+
+function parseAvailableDates(raw: string | null): string[] | null {
+  if (!raw) return null;
+  try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : null; }
+  catch { return null; }
+}
+
+function serializeAvailableDates(dates: string[] | null | undefined): string | null {
+  if (!dates || dates.length === 0) return null;
+  return JSON.stringify(dates);
+}
+
+function mapProductRow<T extends { availableDates: string | null }>(row: T): Omit<T, "availableDates"> & { availableDates: string[] | null } {
+  return { ...row, availableDates: parseAvailableDates(row.availableDates) };
+}
 
 const productsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("onRequest", async (request) => {
@@ -69,7 +85,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(asc(products.sortOrder), asc(products.name));
 
-    return reply.send(rows);
+    return reply.send(rows.map(mapProductRow));
   });
 
   fastify.get("/products/:id", {
@@ -83,7 +99,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       .leftJoin(categories, eq(products.categoryId, categories.id))
       .where(eq(products.id, numId));
     if (!row) return reply.status(404).send({ error: "Not found" });
-    return reply.send(row);
+    return reply.send(mapProductRow(row));
   });
 
   fastify.post("/products", {
@@ -102,6 +118,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       sortOrder?: number;
       vatRate?: number;
       receiptPrintMode?: "inherit" | "included" | "separate";
+      availableDates?: string[] | null;
     };
     const now = Date.now();
     const [row] = await fastify.ctx.db.insert(products).values({
@@ -116,11 +133,12 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       sortOrder:          body.sortOrder ?? 0,
       vatRate:            body.vatRate ?? 10,
       receiptPrintMode:   body.receiptPrintMode ?? "inherit",
+      availableDates:     serializeAvailableDates(body.availableDates),
       createdAt:          now,
       updatedAt:          now,
     }).returning();
     fastify.ctx.eventBus.emit("PRODUCT_CREATED", { traceId: crypto.randomUUID(), id: row!.id, timestamp: new Date() });
-    return reply.status(201).send(row);
+    return reply.status(201).send(mapProductRow(row!));
   });
 
   fastify.patch("/products/:id", {
@@ -141,6 +159,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       sortOrder: number;
       vatRate: number;
       receiptPrintMode: "inherit" | "included" | "separate";
+      availableDates: string[] | null;
     }>;
 
     const [existing] = await fastify.ctx.db.select().from(products).where(eq(products.id, numId));
@@ -158,6 +177,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       sortOrder?: number;
       vatRate?: number;
       receiptPrintMode?: "inherit" | "included" | "separate";
+      availableDates?: string | null;
       updatedAt?: number;
     } = {};
     if (body.name !== undefined) update.name = body.name;
@@ -171,6 +191,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.sortOrder !== undefined) update.sortOrder = body.sortOrder;
     if (body.vatRate !== undefined) update.vatRate = body.vatRate;
     if (body.receiptPrintMode !== undefined) update.receiptPrintMode = body.receiptPrintMode;
+    if ("availableDates" in body) update.availableDates = serializeAvailableDates(body.availableDates);
 
     if (Object.keys(update).length > 0) {
       update.updatedAt = Date.now();
@@ -183,7 +204,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       .leftJoin(categories, eq(products.categoryId, categories.id))
       .where(eq(products.id, numId));
     fastify.ctx.eventBus.emit("PRODUCT_UPDATED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
-    return reply.send(row);
+    return reply.send(mapProductRow(row!));
   });
 
   fastify.delete("/products/:id", {

@@ -377,6 +377,7 @@ export function ProductGrid() {
   const [loadingProductId, setLoadingProductId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [stockMap, setStockMap] = useState<Map<number, number>>(new Map());
+  const [productDateFilterEnabled, setProductDateFilterEnabled] = useState(false);
 
   const refreshStockMap = () => {
     adminApi.inventory.listItems()
@@ -436,6 +437,7 @@ export function ProductGrid() {
           sidebarTextSize: s.gridSidebarTextSize,
           sidebarSortBy: s.gridSidebarSortBy,
         });
+        setProductDateFilterEnabled(s.productDateFilterEnabled);
       })
       .catch(() => {});
   }, [applyServerPrefs]);
@@ -577,11 +579,14 @@ export function ProductGrid() {
   // ── Compute products for each view ──────────────────────────────────────────
 
   const searchLower = searchQuery.toLowerCase();
-  const activeProducts = products.filter((p) => p.active && (
-    !searchLower || p.name.toLowerCase().includes(searchLower)
-  ) && (
-    !visibleCategoryIdSet || !p.categoryId || visibleCategoryIdSet.has(p.categoryId)
-  ));
+  const todayStr = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+  const activeProducts = products.filter((p) => {
+    if (!p.active) return false;
+    if (searchLower && !p.name.toLowerCase().includes(searchLower)) return false;
+    if (visibleCategoryIdSet && p.categoryId && !visibleCategoryIdSet.has(p.categoryId)) return false;
+    if (productDateFilterEnabled && p.availableDates && p.availableDates.length > 0 && !p.availableDates.includes(todayStr)) return false;
+    return true;
+  });
 
   function getProductsForCategory(catId: number) {
     return sortProducts(activeProducts.filter((p) => p.categoryId === catId), sortBy);

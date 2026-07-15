@@ -359,6 +359,7 @@ interface ProductFormData {
   description: string;
   vatRate: string;
   receiptPrintMode: "inherit" | "included" | "separate";
+  availableDates: string[]; // "YYYY-MM-DD" — empty = always visible
 }
 
 function IngredientsModal({ product, onClose }: { product: Product | null; onClose: () => void }) {
@@ -439,6 +440,139 @@ function IngredientsModal({ product, onClose }: { product: Product | null; onClo
         </div>
       </div>
     </Modal>
+  );
+}
+
+// ─── Available Dates Field ────────────────────────────────────────────────────
+
+const MONTHS_IT = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+const DAYS_IT = ["Lu","Ma","Me","Gi","Ve","Sa","Do"];
+
+function AvailableDatesField({ value, onChange }: { value: string[]; onChange: (dates: string[]) => void }) {
+  const selected = new Set(value);
+  const today = new Date();
+  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth()); // 0-indexed
+  const [open, setOpen] = useState(false);
+
+  function prevMonth() {
+    if (viewMonth === 0) { setViewYear((y) => y - 1); setViewMonth(11); }
+    else setViewMonth((m) => m - 1);
+  }
+  function nextMonth() {
+    if (viewMonth === 11) { setViewYear((y) => y + 1); setViewMonth(0); }
+    else setViewMonth((m) => m + 1);
+  }
+
+  function toggleDate(dateStr: string) {
+    const next = new Set(selected);
+    if (next.has(dateStr)) next.delete(dateStr);
+    else next.add(dateStr);
+    onChange(Array.from(next).sort());
+  }
+
+  // Build calendar days for current view month
+  const firstDay = new Date(viewYear, viewMonth, 1);
+  const lastDay = new Date(viewYear, viewMonth + 1, 0);
+  // Monday-first: getDay() 0=Sun → 6, 1=Mon → 0, ...
+  const startPad = (firstDay.getDay() + 6) % 7;
+  const days: Array<{ dateStr: string; day: number }> = [];
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    days.push({ dateStr, day: d });
+  }
+
+  const hasDates = selected.size > 0;
+
+  return (
+    <div>
+      <label style={labelStyle}>Disponibilità per data</label>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px",
+              padding: "7px 12px", borderRadius: "var(--radius-md)",
+              border: `1.5px solid ${hasDates ? "var(--color-brand)" : "var(--color-gray-200)"}`,
+              background: hasDates ? "rgba(var(--color-brand-rgb,99,102,241),0.06)" : "var(--color-gray-50)",
+              color: hasDates ? "var(--color-brand)" : "var(--color-gray-600)",
+              fontSize: "var(--text-sm)", fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)",
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+              <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            {hasDates ? `${selected.size} data${selected.size !== 1 ? " selezionate" : " selezionata"}` : "Sempre disponibile"}
+          </button>
+          {hasDates && (
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-gray-400)", fontSize: "var(--text-xs)", fontFamily: "var(--font)", padding: "2px 4px" }}
+            >
+              Rimuovi tutte
+            </button>
+          )}
+        </div>
+
+        {open && (
+          <div style={{
+            border: "1.5px solid var(--color-gray-200)", borderRadius: "var(--radius-md)",
+            background: "var(--color-white)", padding: "12px", userSelect: "none",
+          }}>
+            {/* Month navigation */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+              <button type="button" onClick={prevMonth} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 8px", borderRadius: "var(--radius-sm)", color: "var(--color-gray-600)" }}>‹</button>
+              <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-800)" }}>
+                {MONTHS_IT[viewMonth]} {viewYear}
+              </span>
+              <button type="button" onClick={nextMonth} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 8px", borderRadius: "var(--radius-sm)", color: "var(--color-gray-600)" }}>›</button>
+            </div>
+
+            {/* Day headers */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px", marginBottom: "4px" }}>
+              {DAYS_IT.map((d) => (
+                <div key={d} style={{ textAlign: "center", fontSize: "11px", fontWeight: 600, color: "var(--color-gray-400)", padding: "2px 0" }}>{d}</div>
+              ))}
+            </div>
+
+            {/* Calendar grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px" }}>
+              {/* Leading empty cells */}
+              {Array.from({ length: startPad }).map((_, i) => <div key={`pad-${i}`} />)}
+              {days.map(({ dateStr, day }) => {
+                const isSelected = selected.has(dateStr);
+                const isToday = dateStr === today.toISOString().slice(0, 10);
+                return (
+                  <button
+                    key={dateStr}
+                    type="button"
+                    onClick={() => toggleDate(dateStr)}
+                    style={{
+                      width: "100%", aspectRatio: "1", border: isToday && !isSelected ? "1.5px solid var(--color-brand)" : "1px solid transparent",
+                      borderRadius: "var(--radius-sm)",
+                      background: isSelected ? "var(--color-brand)" : "transparent",
+                      color: isSelected ? "#fff" : "var(--color-gray-700)",
+                      cursor: "pointer", fontSize: "12px", fontWeight: isSelected ? 700 : 400,
+                      fontFamily: "var(--font)", padding: "0",
+                    }}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Quick hint */}
+            <div style={{ marginTop: "8px", fontSize: "11px", color: "var(--color-gray-400)", textAlign: "center" }}>
+              {hasDates ? "Il prodotto appare solo nelle date selezionate (se il filtro è attivo)" : "Nessuna data → prodotto sempre visibile"}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -589,7 +723,7 @@ export function ProductsTab() {
   const { products, categories, productionCenters, upsertProduct, removeProduct, setProducts } = useAdminStore();
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Product | null>(null);
-  const [form, setForm] = useState<ProductFormData>({ name: "", price: "", categoryId: "", productionCenterId: "", active: true, color: "", imageData: null, description: "", vatRate: "10", receiptPrintMode: "inherit" });
+  const [form, setForm] = useState<ProductFormData>({ name: "", price: "", categoryId: "", productionCenterId: "", active: true, color: "", imageData: null, description: "", vatRate: "10", receiptPrintMode: "inherit", availableDates: [] });
   const [saving, setSaving] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -600,7 +734,7 @@ export function ProductsTab() {
 
   function openCreate() {
     setEditTarget(null);
-    setForm({ name: "", price: "", categoryId: "", productionCenterId: "", active: true, color: "", imageData: null, description: "", vatRate: "10", receiptPrintMode: "inherit" });
+    setForm({ name: "", price: "", categoryId: "", productionCenterId: "", active: true, color: "", imageData: null, description: "", vatRate: "10", receiptPrintMode: "inherit", availableDates: [] });
     setModalOpen(true);
   }
 
@@ -617,6 +751,7 @@ export function ProductsTab() {
       description: p.description ?? "",
       vatRate: String(p.vatRate ?? 10),
       receiptPrintMode: p.receiptPrintMode,
+      availableDates: p.availableDates ?? [],
     });
     setModalOpen(true);
   }
@@ -678,6 +813,7 @@ export function ProductsTab() {
           description: form.description === "" ? null : form.description,
           vatRate,
           receiptPrintMode: form.receiptPrintMode,
+          availableDates: form.availableDates.length > 0 ? form.availableDates : null,
         });
         upsertProduct(updated);
       } else {
@@ -691,6 +827,7 @@ export function ProductsTab() {
           ...(form.description !== "" ? { description: form.description } : {}),
           vatRate,
           receiptPrintMode: form.receiptPrintMode,
+          availableDates: form.availableDates.length > 0 ? form.availableDates : null,
         });
         upsertProduct(created);
       }
@@ -977,6 +1114,11 @@ export function ProductsTab() {
             </span>
           </div>
           <ColorField value={form.color} onChange={(v) => setForm((f) => ({ ...f, color: v }))} />
+
+          <AvailableDatesField
+            value={form.availableDates}
+            onChange={(dates) => setForm((f) => ({ ...f, availableDates: dates }))}
+          />
 
           {/* Image upload — only available in edit mode */}
           <div>

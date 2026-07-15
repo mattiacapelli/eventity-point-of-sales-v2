@@ -103,9 +103,9 @@ export const adminApi = {
   },
   products: {
     list: () => req<Product[]>("GET", "/products"),
-    create: (data: { name: string; price: number; categoryId?: number; productionCenterId?: number; active?: boolean; color?: string | null; description?: string; vatRate?: number; receiptPrintMode?: "inherit" | "included" | "separate" }) =>
+    create: (data: { name: string; price: number; categoryId?: number; productionCenterId?: number; active?: boolean; color?: string | null; description?: string; vatRate?: number; receiptPrintMode?: "inherit" | "included" | "separate"; availableDates?: string[] | null }) =>
       req<Product>("POST", "/products", data),
-    update: (id: number, data: Partial<{ name: string; price: number; categoryId: number | null; productionCenterId: number | null; active: boolean; color: string | null; description: string | null; vatRate: number; receiptPrintMode: "inherit" | "included" | "separate" }>) =>
+    update: (id: number, data: Partial<{ name: string; price: number; categoryId: number | null; productionCenterId: number | null; active: boolean; color: string | null; description: string | null; vatRate: number; receiptPrintMode: "inherit" | "included" | "separate"; availableDates: string[] | null }>) =>
       req<Product>("PATCH", `/products/${id}`, data),
     delete: (id: number) => req<void>("DELETE", `/products/${id}`),
     imageUrl: (relPath: string) => `/api/static/${relPath}`,
@@ -235,6 +235,7 @@ export const adminApi = {
       cartTextSize: number;
       tablesEnabled: boolean;
       shiftAutoPrintReport: boolean;
+      productDateFilterEnabled: boolean;
     }>("GET", "/admin/settings"),
     update: (data: Partial<{
       expressMode: boolean;
@@ -259,6 +260,7 @@ export const adminApi = {
       cartTextSize: number;
       tablesEnabled: boolean;
       shiftAutoPrintReport: boolean;
+      productDateFilterEnabled: boolean;
     }>) => req<{
       expressMode: boolean;
       receiptNumberMode: "default" | "global" | "shift" | "center";
@@ -281,6 +283,8 @@ export const adminApi = {
       cartDiscountEnabled: boolean;
       cartTextSize: number;
       tablesEnabled: boolean;
+      shiftAutoPrintReport: boolean;
+      productDateFilterEnabled: boolean;
     }>("PATCH", "/admin/settings", data),
     resetReceiptCounter: (scope?: string, startFrom?: number) =>
       req<{ scope: string; lastValue: number }>("POST", "/admin/settings/reset-receipt-counter", { scope: scope ?? "global", startFrom: startFrom ?? 0 }),

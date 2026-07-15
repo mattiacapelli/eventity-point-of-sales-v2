@@ -22,6 +22,7 @@ export interface Product {
   sortOrder: number;
   vatRate: number;
   receiptPrintMode: ProductReceiptPrintMode;
+  availableDates: string[] | null;
   createdAt: number | null;
   updatedAt: number | null;
 }
