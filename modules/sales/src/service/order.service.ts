@@ -152,6 +152,7 @@ export class OrderService {
       order: updated,
       input: { id },
       previousStatus: current.status,
+      itemsChanged: true,
       timestamp: new Date(),
     });
     return updated;

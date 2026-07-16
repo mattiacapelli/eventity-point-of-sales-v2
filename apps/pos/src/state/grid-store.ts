@@ -45,6 +45,7 @@ interface GridStore extends GridPrefs {
   setPrefs: (p: Partial<GridPrefs>) => void;
   setEditMode: (v: boolean) => void;
   applyServerPrefs: (serverPrefs: Partial<GridPrefs>) => void;
+  applyTerminalViewMode: (viewMode: GridViewMode) => void;
   loadLayout: (scope: string) => Promise<void>;
   saveLayout: (scope: string, slots: ProductGridSlot[]) => void;
   updateSlot: (scope: string, productId: number, update: Partial<Omit<ProductGridSlot, "productId">>) => void;
@@ -124,6 +125,11 @@ export const useGridStore = create<GridStore>((set, get) => ({
       sidebarSortBy: serverPrefs.sidebarSortBy ?? DEFAULT_PREFS.sidebarSortBy,
       serverPrefsLoaded: true,
     });
+  },
+
+  // Applies terminal-specific viewMode override — always wins over global settings
+  applyTerminalViewMode: (viewMode) => {
+    set({ viewMode });
   },
 
   loadLayout: async (scope) => {

@@ -1,5 +1,6 @@
 import type { Logger } from "pino";
 import { TcpPrinterAdapter } from "./tcp-printer.adapter.js";
+import { UsbPrinterAdapter } from "./usb-printer.adapter.js";
 
 export interface PrintJob {
   printerId: number;
@@ -22,8 +23,13 @@ export interface PrinterAdapter {
 }
 
 export interface PrinterConfig {
-  host: string;
-  port: number;
+  connectionType?: "network" | "usb";
+  // network
+  host?: string;
+  port?: number;
+  // usb
+  usbVendorId?: number;
+  usbProductId?: number;
 }
 
 class MockPrinterAdapter implements PrinterAdapter {
@@ -45,7 +51,7 @@ function sleep(ms: number): Promise<void> {
 
 export class PrinterService {
   private readonly fallbackAdapter: PrinterAdapter;
-  private readonly adapterPool = new Map<string, TcpPrinterAdapter>();
+  private readonly adapterPool = new Map<string, PrinterAdapter>();
   private readonly queue: PrintJob[] = [];
   private readonly deadLetterQueue: PrintJob[] = [];
   private processing = false;
@@ -54,12 +60,25 @@ export class PrinterService {
     this.fallbackAdapter = new MockPrinterAdapter(logger);
   }
 
-  /** Get or create a TCP adapter for a given printerId + config. */
+  /** Get or create an adapter for a given printerId + config (TCP or USB). */
   private getAdapter(job: PrintJob): PrinterAdapter {
     const cfg = job.printerConfig;
     if (!cfg) return this.fallbackAdapter;
 
-    const key = `${job.printerId}:${cfg.host}:${cfg.port}`;
+    if (cfg.connectionType === "usb") {
+      if (!cfg.usbVendorId || !cfg.usbProductId) return this.fallbackAdapter;
+      // USB adapters are stateless (open/close per job) — no pooling needed
+      const key = `usb:${job.printerId}:${cfg.usbVendorId}:${cfg.usbProductId}`;
+      let adapter = this.adapterPool.get(key);
+      if (!adapter) {
+        adapter = new UsbPrinterAdapter(cfg.usbVendorId, cfg.usbProductId, this.logger);
+        this.adapterPool.set(key, adapter);
+      }
+      return adapter;
+    }
+
+    if (!cfg.host || !cfg.port) return this.fallbackAdapter;
+    const key = `tcp:${job.printerId}:${cfg.host}:${cfg.port}`;
     let adapter = this.adapterPool.get(key);
     if (!adapter) {
       adapter = new TcpPrinterAdapter(cfg.host, cfg.port, this.logger);
@@ -110,7 +129,11 @@ export class PrinterService {
   }
 
   destroyAdapterPool(): void {
-    for (const adapter of this.adapterPool.values()) adapter.destroy();
+    for (const adapter of this.adapterPool.values()) {
+      if ("destroy" in adapter && typeof (adapter as { destroy?: () => void }).destroy === "function") {
+        (adapter as { destroy: () => void }).destroy();
+      }
+    }
     this.adapterPool.clear();
   }
 }

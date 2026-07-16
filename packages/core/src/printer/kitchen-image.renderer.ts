@@ -23,6 +23,7 @@ export interface KitchenRenderData {
   pax?: number | null;
   timestamp: Date;
   items: KitchenRenderItem[];
+  isModification?: boolean;
 }
 
 const BUNDLED_FONTS_DIR = new URL("../../assets/fonts", import.meta.url).pathname;
@@ -142,6 +143,10 @@ export async function renderKitchenImage(data: KitchenRenderData): Promise<Buffe
 
     switch (block.type as KitchenBlockType) {
       case "center-name":
+        if (data.isModification) {
+          ctx.fillText("*** MODIFICA ***", x, y);
+          y += lineH;
+        }
         ctx.fillText(data.centerName.toUpperCase(), x, y);
         y += lineH;
         break;

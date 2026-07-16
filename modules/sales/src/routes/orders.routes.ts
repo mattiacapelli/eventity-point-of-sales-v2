@@ -23,10 +23,10 @@ const orderItemInputSchema = {
   type: "object",
   required: ["productId", "name", "quantity"],
   properties: {
-    productId: { type: "string" },
+    productId: { type: "integer" },
     name: { type: "string" },
     quantity: { type: "integer", minimum: 1 },
-    selectedOptionIds: { type: "array", items: { type: "string" } },
+    selectedOptionIds: { type: "array", items: { type: "integer" } },
     notes: { type: "string" },
   },
 } as const;

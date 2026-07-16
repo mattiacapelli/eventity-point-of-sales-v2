@@ -1,7 +1,7 @@
 import fp from "fastify-plugin";
 import { randomUUID } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
-import { claimEvent, eq, sql, orderItems, orderCenterNumbers, orders, shifts, receiptTemplates, terminalPrinters, appSettings } from "@pos/db";
+import { claimEvent, eq, sql, orderItems, orderCenterNumbers, orders, payments, shifts, receiptTemplates, terminalPrinters, appSettings } from "@pos/db";
 import { formatReceiptNumber } from "@pos/module-sales";
 import type { DbClient } from "@pos/db";
 
@@ -46,6 +46,57 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
         totalOrders: sql`total_orders + 1`,
       })
       .where(eq(shifts.id, orderRow.shiftId));
+  });
+
+  // ── ORDER_UPDATED (itemsChanged) → reprint kitchen + receipt ─────────────
+
+  eventBus.on("ORDER_UPDATED", async (payload) => {
+    if (!payload.itemsChanged) return;
+    const claimed = await claimEvent(db, "printer-trigger:items-changed", payload.traceId);
+    if (!claimed) return;
+
+    const orderId = payload.order.id;
+    const items   = await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+    const numSettings = await loadReceiptNumSettings(db);
+    const [modeRow] = await db.select().from(appSettings).where(eq(appSettings.key, "receipt_number_mode")).limit(1);
+    const mode = modeRow?.value ?? "shift";
+
+    let receiptDisplay: string | undefined;
+    let centerNumbersMap: Map<number, number> | undefined;
+    if (mode === "center") {
+      const cnRows = await db.select().from(orderCenterNumbers).where(eq(orderCenterNumbers.orderId, orderId));
+      centerNumbersMap = new Map(cnRows.map((r) => [r.productionCenterId, r.centerNumber]));
+    } else {
+      receiptDisplay = formatReceiptNumber(payload.order.receiptNumber, orderId, numSettings.prefix, numSettings.padding);
+    }
+
+    // Kitchen reprint — marked as modification
+    await printKitchenTickets(db, printerService, logger, eventBus, orderId, items as never, fastify.ctx.config.dataDir, receiptDisplay, centerNumbersMap, true);
+
+    // Receipt reprint — only if the order already has a completed payment
+    const [payment] = await db
+      .select()
+      .from(payments)
+      .where(eq(payments.orderId, orderId))
+      .limit(1);
+
+    if (payment) {
+      const jobId = randomUUID();
+      logger.info({ jobId, orderId }, "Queuing receipt reprint after items changed");
+      eventBus.emit("PRINT_JOB_QUEUED", {
+        traceId: payload.traceId,
+        jobId,
+        type: "receipt",
+        payload: {
+          orderId:  payment.orderId,
+          amount:   payment.amount,
+          currency: payment.currency,
+          method:   payment.method,
+          paidAt:   payment.createdAt,
+        },
+        timestamp: new Date(),
+      });
+    }
   });
 
   // ── ORDER_CREATED → kitchen ticket (express mode OFF) ───────────────────

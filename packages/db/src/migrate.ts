@@ -364,6 +364,8 @@ CREATE TABLE IF NOT EXISTS order_center_numbers (order_id INTEGER NOT NULL REFER
 ALTER TABLE products ADD COLUMN available_dates TEXT;
 INSERT OR IGNORE INTO app_settings(key,value) VALUES('product_date_filter_enabled','false');
 CREATE TABLE IF NOT EXISTS daily_extras (id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE, date TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE(product_id, date));
+ALTER TABLE printers ADD COLUMN usb_vendor_id INTEGER;
+ALTER TABLE printers ADD COLUMN usb_product_id INTEGER;
 `;
 
 // payments.method used to be a CHECK-constrained enum column (cash/card/digital_wallet/tab).

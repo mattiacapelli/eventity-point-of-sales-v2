@@ -23,6 +23,7 @@ export interface KitchenTicketData {
   orderNotes?: string | null;
   pax?: number | null;
   items: KitchenTicketItem[];
+  isModification?: boolean;
 }
 
 function divider(width: number): string {
@@ -45,6 +46,9 @@ export function formatKitchenTicket(data: KitchenTicketData, width = DEFAULT_WID
   const lines: string[] = [];
 
   lines.push(divider(width));
+  if (data.isModification) {
+    lines.push(center("*** MODIFICA ***", width));
+  }
   lines.push(center(data.centerName.toUpperCase(), width));
   lines.push(divider(width));
   lines.push(bigOrderNumber(data.receiptDisplay ?? String(data.orderId), width));

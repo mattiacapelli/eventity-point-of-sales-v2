@@ -22,6 +22,7 @@ export interface PlatformEventMap {
     readonly order: Order;
     readonly input: UpdateOrderInput;
     readonly previousStatus: Order["status"];
+    readonly itemsChanged?: boolean;
     readonly timestamp: Date;
   };
   ORDER_CANCELLED: {

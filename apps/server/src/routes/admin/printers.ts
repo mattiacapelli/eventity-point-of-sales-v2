@@ -4,7 +4,7 @@ import { eq } from "@pos/db";
 import { printers, productionCenters, productionCenterPrinters } from "@pos/db";
 import * as net from "node:net";
 import * as os from "node:os";
-import { requireRole, AuthError } from "@pos/core";
+import { requireRole, AuthError, listUsbPrinters } from "@pos/core";
 
 const printersRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("onRequest", async (request, reply) => {
@@ -48,6 +48,8 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       connectionType?: string;
       host?: string;
       port?: number;
+      usbVendorId?: number | null;
+      usbProductId?: number | null;
       active?: boolean;
       receiptEnabled?: boolean;
       kitchenEnabled?: boolean;
@@ -59,6 +61,8 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       connectionType: body.connectionType ?? "network",
       host:           body.host ?? null,
       port:           body.port ?? null,
+      usbVendorId:    body.usbVendorId ?? null,
+      usbProductId:   body.usbProductId ?? null,
       active:         body.active ?? true,
       receiptEnabled: body.receiptEnabled ?? false,
       kitchenEnabled: body.kitchenEnabled ?? false,
@@ -79,6 +83,8 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       connectionType: string;
       host: string | null;
       port: number | null;
+      usbVendorId: number | null;
+      usbProductId: number | null;
       active: boolean;
       receiptEnabled: boolean;
       kitchenEnabled: boolean;
@@ -94,6 +100,8 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       connectionType?: string;
       host?: string | null;
       port?: number | null;
+      usbVendorId?: number | null;
+      usbProductId?: number | null;
       active?: boolean;
       receiptEnabled?: boolean;
       kitchenEnabled?: boolean;
@@ -104,6 +112,8 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.connectionType !== undefined) update.connectionType = body.connectionType;
     if ("host" in body) update.host = body.host ?? null;
     if ("port" in body) update.port = body.port ?? null;
+    if ("usbVendorId" in body) update.usbVendorId = body.usbVendorId ?? null;
+    if ("usbProductId" in body) update.usbProductId = body.usbProductId ?? null;
     if (body.active !== undefined) update.active = body.active;
     if (body.receiptEnabled !== undefined) update.receiptEnabled = body.receiptEnabled;
     if (body.kitchenEnabled !== undefined) update.kitchenEnabled = body.kitchenEnabled;
@@ -169,20 +179,38 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
     const [printer] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, numId));
     if (!printer) return reply.status(404).send({ error: "Not found" });
 
+    const printerConfig = buildPrinterConfig(printer);
     const result = await fastify.ctx.printerService.printDirect({
       printerId: printer.id,
       content: `## Test stampa\n\nStampante: ${printer.name}\nOra: ${new Date().toLocaleString("it-IT")}\n`,
       type: "receipt",
-      ...(printer.host && printer.port
-        ? { printerConfig: { host: printer.host, port: printer.port } }
-        : {}),
+      ...(printerConfig ? { printerConfig } : {}),
     });
 
     return reply.send(result);
   });
+
+  fastify.get("/printers/discover/usb", {
+    schema: { tags: ["printers"], summary: "List USB printers connected to this machine" },
+  }, async (_request, reply) => {
+    const devices = listUsbPrinters();
+    return reply.send({ devices });
+  });
 };
 
 export default printersRoutes;
+
+type PrinterRow = { connectionType: string; host: string | null; port: number | null; usbVendorId: number | null; usbProductId: number | null };
+
+function buildPrinterConfig(printer: PrinterRow) {
+  if (printer.connectionType === "usb" && printer.usbVendorId && printer.usbProductId) {
+    return { connectionType: "usb" as const, usbVendorId: printer.usbVendorId, usbProductId: printer.usbProductId };
+  }
+  if (printer.host && printer.port) {
+    return { connectionType: "network" as const, host: printer.host, port: printer.port };
+  }
+  return undefined;
+}
 
 function getLocalSubnet(): string | null {
   const ifaces = os.networkInterfaces();

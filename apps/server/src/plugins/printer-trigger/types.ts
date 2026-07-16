@@ -17,8 +17,11 @@ export type OrderItemOptionRow = {
 
 export type PrinterRow = {
   id: number;
+  connectionType: string;
   host: string | null;
   port: number | null;
+  usbVendorId: number | null;
+  usbProductId: number | null;
   kitchenEnabled: boolean;
   receiptEnabled: boolean;
   active: boolean;

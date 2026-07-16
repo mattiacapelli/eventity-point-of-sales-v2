@@ -367,7 +367,7 @@ export function ProductGrid() {
   const { terminalId } = useTerminalStore();
   const [visibleCategoryIds, setVisibleCategoryIds] = useState<number[] | null>(null);
 
-  const { viewMode, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, sortBy, baseCols, sidebarTextSize, sidebarSortBy, editMode, layouts, loadLayout, saveLayout, updateSlot, setEditMode, applyServerPrefs } = useGridStore();
+  const { viewMode, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, sortBy, baseCols, sidebarTextSize, sidebarSortBy, editMode, layouts, loadLayout, saveLayout, updateSlot, setEditMode, applyServerPrefs, applyTerminalViewMode } = useGridStore();
 
   const visibleCategories: Category[] = visibleCategoryIds && visibleCategoryIds.length > 0
     ? visibleCategoryIds.map((id) => categories.find((c) => c.id === id)).filter((c): c is Category => c !== undefined)
@@ -428,10 +428,15 @@ export function ProductGrid() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load server prefs once on mount
+  // Load server prefs and terminal overrides together so terminal viewMode always wins
   useEffect(() => {
-    adminApi.settings.get()
-      .then((s) => {
+    const settingsPromise = adminApi.settings.get();
+    const terminalPromise = terminalId
+      ? adminApi.terminals.list().then((list) => list.find((x) => x.id === terminalId) ?? null)
+      : Promise.resolve(null);
+
+    Promise.all([settingsPromise, terminalPromise])
+      .then(([s, t]) => {
         applyServerPrefs({
           viewMode: s.gridViewMode,
           showPrice: s.gridShowPrice,
@@ -446,26 +451,21 @@ export function ProductGrid() {
           sidebarSortBy: s.gridSidebarSortBy,
         });
         setProductDateFilterEnabled(s.productDateFilterEnabled);
+        if (t?.defaultViewMode) {
+          applyTerminalViewMode(t.defaultViewMode as GridViewMode);
+        }
       })
       .catch(() => {});
     refreshDailyExtras();
-  }, [applyServerPrefs]);
+  }, [applyServerPrefs, applyTerminalViewMode, terminalId]);
 
-  // Load terminal-specific visible categories and default view mode, if a terminal is selected
+  // Load terminal-specific visible categories
   useEffect(() => {
     if (!terminalId) { setVisibleCategoryIds(null); return; }
     adminApi.terminals.getCategories(terminalId)
       .then((cats) => setVisibleCategoryIds(cats.map((c) => c.id)))
       .catch(() => setVisibleCategoryIds(null));
-    adminApi.terminals.list()
-      .then((terminals) => {
-        const t = terminals.find((x) => x.id === terminalId);
-        if (t?.defaultViewMode) {
-          applyServerPrefs({ viewMode: t.defaultViewMode as GridViewMode });
-        }
-      })
-      .catch(() => {});
-  }, [terminalId, applyServerPrefs]);
+  }, [terminalId]);
 
   // Auto-select first (visible) category
   useEffect(() => {

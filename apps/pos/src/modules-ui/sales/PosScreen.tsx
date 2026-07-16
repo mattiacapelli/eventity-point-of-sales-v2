@@ -852,6 +852,7 @@ export function PosScreen() {
   // Ignored while the catalogue isn't loaded yet, or while the checkout/configurator modal
   // is already open — scanning mid-flow would otherwise silently contaminate that other order.
   useScannerListener((raw) => {
+    console.log("[scanner] raw scan received, length:", raw.length, "preview:", raw.slice(0, 40));
     if (!catalogueReady) {
       useToastStore.getState().show("Catalogo non ancora caricato: riprova tra un istante", "error");
       return;
@@ -864,7 +865,8 @@ export function PosScreen() {
     let payload;
     try {
       payload = decodeQrPayload(raw);
-    } catch {
+    } catch (err) {
+      console.log("[scanner] decode failed:", err, "raw:", raw);
       return; // not a recognizable payload — ignore silently (could be an unrelated barcode)
     }
 

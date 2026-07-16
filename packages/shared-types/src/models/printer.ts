@@ -5,6 +5,8 @@ export interface Printer {
   connectionType: string;
   host: string | null;
   port: number | null;
+  usbVendorId: number | null;
+  usbProductId: number | null;
   active: boolean;
   receiptEnabled: boolean;
   kitchenEnabled: boolean;

@@ -2,10 +2,20 @@ import { randomUUID } from "node:crypto";
 import { formatReceipt, renderReceiptImage, pngToEscposRaster } from "@pos/core";
 import { computeVatBreakdown } from "@pos/module-sales";
 import type { ReceiptBlock } from "@pos/shared-types";
-import type { PrinterService, Logger } from "@pos/core";
+import type { PrinterService, Logger, PrinterConfig } from "@pos/core";
 import type { EventBus } from "@pos/event-bus";
 import type { OrderItemRow, PrinterRow, ReceiptContext, ReceiptJobData } from "./types.js";
 import type { ReceiptLine } from "@pos/core";
+
+function buildPrinterConfig(printer: PrinterRow): PrinterConfig | undefined {
+  if (printer.connectionType === "usb" && printer.usbVendorId && printer.usbProductId) {
+    return { connectionType: "usb", usbVendorId: printer.usbVendorId, usbProductId: printer.usbProductId };
+  }
+  if (printer.host && printer.port) {
+    return { connectionType: "network", host: printer.host, port: printer.port };
+  }
+  return undefined;
+}
 
 type TemplateRow = {
   id: number;
@@ -116,7 +126,7 @@ export async function printOneReceipt(opts: {
   groupName?: string;
 }): Promise<void> {
   const { tmpl, jobItems, jobTotal, ctx, p, printer, printerService, logger, eventBus, jobId, printMethod, groupName } = opts;
-  const printerConfig = printer.host && printer.port ? { host: printer.host, port: printer.port } : undefined;
+  const printerConfig = buildPrinterConfig(printer);
   const isSub = groupName !== undefined;
 
   const emitOffline = (reason: string) => {

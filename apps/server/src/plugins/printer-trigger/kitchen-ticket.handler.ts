@@ -5,9 +5,19 @@ import { orders, orderItems, orderItemOptions, products, productionCenters, prod
 import { formatKitchenTicket, renderKitchenImage, pngToEscposRaster } from "@pos/core";
 import type { KitchenBlock } from "@pos/shared-types";
 import type { DbClient } from "@pos/db";
-import type { PrinterService, Logger } from "@pos/core";
+import type { PrinterService, Logger, PrinterConfig } from "@pos/core";
 import type { EventBus } from "@pos/event-bus";
 import type { OrderItemRow, OrderItemOptionRow, PrinterRow } from "./types.js";
+
+function buildPrinterConfig(printer: PrinterRow): PrinterConfig | undefined {
+  if (printer.connectionType === "usb" && printer.usbVendorId && printer.usbProductId) {
+    return { connectionType: "usb", usbVendorId: printer.usbVendorId, usbProductId: printer.usbProductId };
+  }
+  if (printer.host && printer.port) {
+    return { connectionType: "network", host: printer.host, port: printer.port };
+  }
+  return undefined;
+}
 
 export async function printKitchenTickets(
   db: DbClient,
@@ -19,6 +29,7 @@ export async function printKitchenTickets(
   dataDir: string,
   receiptDisplay?: string,
   centerNumbersMap?: Map<number, number>,
+  isModification = false,
 ): Promise<void> {
   if (items.length === 0) return;
 
@@ -131,8 +142,8 @@ export async function printKitchenTickets(
     }));
 
     for (const printer of targetPrinters) {
-      if (!printer.host || !printer.port) continue;
-      const printerConfig = { host: printer.host, port: printer.port };
+      const printerConfig = buildPrinterConfig(printer);
+      if (!printerConfig) continue;
 
       try {
         if (printer.printMode === "image") {
@@ -154,7 +165,7 @@ export async function printKitchenTickets(
                 canvasWidth:  template.canvasWidth ?? 576,
                 logoPath:     template.logoPath ? resolve(join(dataDir, template.logoPath)) : null,
                 centerName, orderId, receiptDisplay: effectiveReceiptDisplay, tableId, customerName, orderNotes, pax,
-                timestamp: now, items: ticketItems,
+                timestamp: now, items: ticketItems, isModification,
               });
               const rasterBuffer = await pngToEscposRaster(pngBuffer, template.canvasWidth ?? 576);
               const result       = await printerService.printDirect({ printerId: printer.id, contentBuffer: rasterBuffer, type: "kitchen", printerConfig });
@@ -174,7 +185,7 @@ export async function printKitchenTickets(
           ...(customerName ? { customerName } : {}),
           ...(orderNotes   ? { orderNotes }   : {}),
           ...(pax          ? { pax }          : {}),
-          centerName, timestamp: now, items: ticketItems,
+          centerName, timestamp: now, items: ticketItems, isModification,
         });
         const result = await printerService.printDirect({ printerId: printer.id, content, type: "kitchen", printerConfig });
         if (!result.success) {

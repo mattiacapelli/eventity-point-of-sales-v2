@@ -167,14 +167,15 @@ export const adminApi = {
   },
   printers: {
     list: () => req<Printer[]>("GET", "/printers"),
-    create: (data: { name: string; type?: string; connectionType?: string; host?: string; port?: number; active?: boolean; receiptEnabled?: boolean; kitchenEnabled?: boolean; printMode?: "text" | "image" }) =>
+    create: (data: { name: string; type?: string; connectionType?: string; host?: string; port?: number; usbVendorId?: number | null; usbProductId?: number | null; active?: boolean; receiptEnabled?: boolean; kitchenEnabled?: boolean; printMode?: "text" | "image" }) =>
       req<Printer>("POST", "/printers", data),
-    update: (id: number, data: Partial<{ name: string; type: string; connectionType: string; host: string | null; port: number | null; active: boolean; receiptEnabled: boolean; kitchenEnabled: boolean; printMode: "text" | "image" }>) =>
+    update: (id: number, data: Partial<{ name: string; type: string; connectionType: string; host: string | null; port: number | null; usbVendorId: number | null; usbProductId: number | null; active: boolean; receiptEnabled: boolean; kitchenEnabled: boolean; printMode: "text" | "image" }>) =>
       req<Printer>("PATCH", `/printers/${id}`, data),
     delete: (id: number) => req<void>("DELETE", `/printers/${id}`),
     testPrint: (id: number) => req<{ success: boolean; message: string }>("POST", `/printers/${id}/test-print`, {}),
     discoverSubnet: () => req<{ subnet: string | null }>("GET", "/printers/discover/subnet"),
     discover: (subnet?: string) => req<{ subnet: string; found: Array<{ host: string; port: number }> }>("POST", "/printers/discover", { subnet }),
+    discoverUsb: () => req<{ devices: Array<{ vendorId: number; productId: number; vendorIdHex: string; productIdHex: string }> }>("GET", "/printers/discover/usb"),
     getProductionCenters: (id: number) => req<ProductionCenter[]>("GET", `/printers/${id}/production-centers`),
   },
   receiptTemplates: {
