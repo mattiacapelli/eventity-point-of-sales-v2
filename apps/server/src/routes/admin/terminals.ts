@@ -1,6 +1,6 @@
 import "@fastify/swagger";
 import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
-import { eq, and, inArray, terminals, terminalPrinters, terminalCategories, printers, categories } from "@pos/db";
+import { eq, and, inArray, terminals, terminalPrinters, terminalCategories, terminalProducts, printers, categories, products } from "@pos/db";
 import { requireRole, AuthError } from "@pos/core";
 import type { Terminal } from "@pos/shared-types";
 
@@ -194,6 +194,52 @@ const terminalsRoutes: FastifyPluginAsync = async (fastify) => {
         .set({ sortOrder: i })
         .where(and(eq(terminalCategories.terminalId, numId), eq(terminalCategories.categoryId, parseInt(categoryIds[i]!, 10))));
     }
+    return reply.status(204).send();
+  });
+
+  // GET /admin/terminals/:id/products
+  fastify.get("/admin/terminals/:id/products", {
+    schema: { tags: ["terminals"], summary: "List products restricted to a terminal (empty = all visible)" },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
+    const rows = await fastify.ctx.db.select().from(terminalProducts)
+      .where(eq(terminalProducts.terminalId, numId));
+    if (rows.length === 0) return reply.send([]);
+    const productIds = rows.map((r) => r.productId);
+    const productRows = await fastify.ctx.db.select({ id: products.id, name: products.name }).from(products)
+      .where(inArray(products.id, productIds));
+    return reply.send(productRows);
+  });
+
+  // POST /admin/terminals/:id/products/:productId
+  fastify.post("/admin/terminals/:id/products/:productId", {
+    schema: { tags: ["terminals"], summary: "Restrict a product to this terminal" },
+    preHandler: adminOnly,
+  }, async (request, reply) => {
+    const { id, productId } = request.params as { id: string; productId: string };
+    const numId = parseInt(id, 10);
+    const numProductId = parseInt(productId, 10);
+    const [terminal] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, numId));
+    if (!terminal) return reply.status(404).send({ error: "Terminal not found" });
+    const [product] = await fastify.ctx.db.select().from(products).where(eq(products.id, numProductId));
+    if (!product) return reply.status(404).send({ error: "Product not found" });
+    const [existing] = await fastify.ctx.db.select().from(terminalProducts)
+      .where(and(eq(terminalProducts.terminalId, numId), eq(terminalProducts.productId, numProductId)));
+    if (!existing) {
+      await fastify.ctx.db.insert(terminalProducts).values({ terminalId: numId, productId: numProductId });
+    }
+    return reply.status(204).send();
+  });
+
+  // DELETE /admin/terminals/:id/products/:productId
+  fastify.delete("/admin/terminals/:id/products/:productId", {
+    schema: { tags: ["terminals"], summary: "Remove product restriction from a terminal" },
+    preHandler: adminOnly,
+  }, async (request, reply) => {
+    const { id, productId } = request.params as { id: string; productId: string };
+    await fastify.ctx.db.delete(terminalProducts)
+      .where(and(eq(terminalProducts.terminalId, parseInt(id, 10)), eq(terminalProducts.productId, parseInt(productId, 10))));
     return reply.status(204).send();
   });
 

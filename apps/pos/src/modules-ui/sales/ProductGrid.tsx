@@ -366,6 +366,7 @@ export function ProductGrid() {
   const location = useLocation();
   const { terminalId } = useTerminalStore();
   const [visibleCategoryIds, setVisibleCategoryIds] = useState<number[] | null>(null);
+  const [terminalProductIds, setTerminalProductIds] = useState<Set<number> | null>(null);
 
   const { viewMode, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, sortBy, baseCols, sidebarTextSize, sidebarSortBy, editMode, layouts, loadLayout, saveLayout, updateSlot, setEditMode, applyServerPrefs, applyTerminalViewMode } = useGridStore();
 
@@ -379,6 +380,18 @@ export function ProductGrid() {
   const [stockMap, setStockMap] = useState<Map<number, number>>(new Map());
   const [productDateFilterEnabled, setProductDateFilterEnabled] = useState(false);
   const [dailyExtraIds, setDailyExtraIds] = useState<Set<number>>(new Set());
+
+  // Table / customer pre-order modal (sidebar mode)
+  const [tableInputMode, setTableInputMode] = useState<"checkout" | "sidebar">("checkout");
+  const [tableEnabled, setTableEnabled] = useState(false);
+  const [tableRequired, setTableRequired] = useState(false);
+  const [customerRequired, setCustomerRequired] = useState(false);
+  const [preOrderModalOpen, setPreOrderModalOpen] = useState(false);
+  const [preOrderTableId, setPreOrderTableId] = useState("");
+  const [preOrderCustomerName, setPreOrderCustomerName] = useState("");
+  const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
+  const cart = useStore((s) => s.cart);
+  const setPendingOrderInfo = useStore((s) => s.setPendingOrderInfo);
 
   function refreshDailyExtras() {
     const today = new Date().toISOString().slice(0, 10);
@@ -451,6 +464,10 @@ export function ProductGrid() {
           sidebarSortBy: s.gridSidebarSortBy,
         });
         setProductDateFilterEnabled(s.productDateFilterEnabled);
+        setTableInputMode(s.tableInputMode ?? "checkout");
+        setTableEnabled(s.tablesEnabled);
+        setTableRequired(s.tableRequired ?? false);
+        setCustomerRequired(s.customerRequired ?? false);
         if (t?.defaultViewMode) {
           applyTerminalViewMode(t.defaultViewMode as GridViewMode);
         }
@@ -459,12 +476,19 @@ export function ProductGrid() {
     refreshDailyExtras();
   }, [applyServerPrefs, applyTerminalViewMode, terminalId]);
 
-  // Load terminal-specific visible categories
+  // Load terminal-specific visible categories and products
   useEffect(() => {
-    if (!terminalId) { setVisibleCategoryIds(null); return; }
+    if (!terminalId) {
+      setVisibleCategoryIds(null);
+      setTerminalProductIds(null);
+      return;
+    }
     adminApi.terminals.getCategories(terminalId)
       .then((cats) => setVisibleCategoryIds(cats.map((c) => c.id)))
       .catch(() => setVisibleCategoryIds(null));
+    adminApi.terminals.getProducts(terminalId)
+      .then((ps) => setTerminalProductIds(ps.length > 0 ? new Set(ps.map((p) => p.id)) : null))
+      .catch(() => setTerminalProductIds(null));
   }, [terminalId]);
 
   // Auto-select first (visible) category
@@ -566,8 +590,7 @@ export function ProductGrid() {
     };
   }
 
-  async function handleProductClick(product: Product) {
-    if (!currentShift || loadingProductId) return;
+  async function doAddProduct(product: Product) {
     let groups = optionGroupsByProduct[product.id];
     if (!groups) {
       setLoadingProductId(product.id);
@@ -585,6 +608,28 @@ export function ProductGrid() {
     }
   }
 
+  async function handleProductClick(product: Product) {
+    if (!currentShift || loadingProductId) return;
+    if (tableEnabled && tableInputMode === "sidebar" && cart.length === 0) {
+      setPendingProduct(product);
+      setPreOrderTableId("");
+      setPreOrderCustomerName("");
+      setPreOrderModalOpen(true);
+      return;
+    }
+    await doAddProduct(product);
+  }
+
+  function handlePreOrderConfirm() {
+    if (!pendingProduct) return;
+    if (preOrderTableId.trim() || preOrderCustomerName.trim()) {
+      setPendingOrderInfo({ tableId: preOrderTableId.trim() || null, customerName: preOrderCustomerName.trim() || null });
+    }
+    setPreOrderModalOpen(false);
+    void doAddProduct(pendingProduct);
+    setPendingProduct(null);
+  }
+
   // ── Compute products for each view ──────────────────────────────────────────
 
   const searchLower = searchQuery.toLowerCase();
@@ -593,6 +638,7 @@ export function ProductGrid() {
     if (!p.active) return false;
     if (searchLower && !p.name.toLowerCase().includes(searchLower)) return false;
     if (visibleCategoryIdSet && p.categoryId && !visibleCategoryIdSet.has(p.categoryId)) return false;
+    if (terminalProductIds && !terminalProductIds.has(p.id)) return false;
     if (productDateFilterEnabled && p.availableDates && p.availableDates.length > 0 && !p.availableDates.includes(todayStr) && !dailyExtraIds.has(p.id)) return false;
     return true;
   });
@@ -644,6 +690,84 @@ export function ProductGrid() {
           product={configuratorProduct}
           onClose={() => setConfiguratorProduct(null)}
         />
+      )}
+
+      {/* Pre-order table/customer modal — sidebar mode, first product */}
+      {preOrderModalOpen && (
+        <div
+          onClick={() => { if (!tableRequired && !customerRequired) { setPreOrderModalOpen(false); void doAddProduct(pendingProduct!); setPendingProduct(null); } }}
+          style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: "var(--color-white)", borderRadius: "var(--radius-xl)", boxShadow: "0 20px 60px rgba(0,0,0,0.25)", width: "100%", maxWidth: "380px", padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}
+          >
+            <div>
+              <div style={{ fontSize: "var(--text-lg)", fontWeight: 700, color: "var(--color-gray-900)", marginBottom: "4px" }}>Tavolo e cliente</div>
+              <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)" }}>Inserisci i dati prima di aggiungere il primo prodotto.</div>
+            </div>
+
+            {/* Takeaway shortcut */}
+            <button
+              onClick={() => setPreOrderTableId(preOrderTableId === "TAKEAWAY" ? "" : "TAKEAWAY")}
+              style={{
+                height: "44px", borderRadius: "var(--radius-md)", cursor: "pointer",
+                border: `2px solid ${preOrderTableId === "TAKEAWAY" ? "#b45309" : "var(--color-gray-200)"}`,
+                background: preOrderTableId === "TAKEAWAY" ? "#fef3c7" : "var(--color-white)",
+                fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 700,
+                color: preOrderTableId === "TAKEAWAY" ? "#92400e" : "var(--color-gray-600)",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                transition: "all 0.12s",
+              }}
+            >
+              🥡 Takeaway
+            </button>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              <div>
+                <label style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-gray-600)", display: "block", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  Tavolo{tableRequired ? " *" : ""}
+                </label>
+                <input
+                  autoFocus
+                  value={preOrderTableId}
+                  onChange={(e) => setPreOrderTableId(e.target.value)}
+                  placeholder="Es. 12"
+                  onKeyDown={(e) => { if (e.key === "Enter") handlePreOrderConfirm(); }}
+                  style={{ width: "100%", height: "42px", padding: "0 12px", borderRadius: "var(--radius-md)", border: `2px solid ${tableRequired && preOrderTableId.trim() === "" ? "var(--color-danger)" : "var(--color-gray-200)"}`, fontFamily: "var(--font)", fontSize: "var(--text-md)", boxSizing: "border-box" }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-gray-600)", display: "block", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  Nome cliente{customerRequired ? " *" : ""}
+                </label>
+                <input
+                  value={preOrderCustomerName}
+                  onChange={(e) => setPreOrderCustomerName(e.target.value)}
+                  placeholder="Es. Mario Rossi"
+                  onKeyDown={(e) => { if (e.key === "Enter") handlePreOrderConfirm(); }}
+                  style={{ width: "100%", height: "42px", padding: "0 12px", borderRadius: "var(--radius-md)", border: `2px solid ${customerRequired && preOrderCustomerName.trim() === "" ? "var(--color-danger)" : "var(--color-gray-200)"}`, fontFamily: "var(--font)", fontSize: "var(--text-md)", boxSizing: "border-box" }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                onClick={() => { setPreOrderModalOpen(false); setPendingProduct(null); }}
+                style={{ flex: 1, height: "42px", borderRadius: "var(--radius-md)", border: "1.5px solid var(--color-gray-200)", background: "var(--color-white)", fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", cursor: "pointer" }}
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handlePreOrderConfirm}
+                disabled={(tableRequired && preOrderTableId.trim() === "") || (customerRequired && preOrderCustomerName.trim() === "")}
+                style={{ flex: 2, height: "42px", borderRadius: "var(--radius-md)", border: "none", background: (tableRequired && preOrderTableId.trim() === "") || (customerRequired && preOrderCustomerName.trim() === "") ? "var(--color-gray-200)" : "var(--color-brand)", fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 700, color: (tableRequired && preOrderTableId.trim() === "") || (customerRequired && preOrderCustomerName.trim() === "") ? "var(--color-gray-400)" : "white", cursor: (tableRequired && preOrderTableId.trim() === "") || (customerRequired && preOrderCustomerName.trim() === "") ? "not-allowed" : "pointer" }}
+              >
+                Continua
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* No-shift overlay */}

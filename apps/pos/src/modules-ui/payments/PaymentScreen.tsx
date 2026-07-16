@@ -32,6 +32,139 @@ interface PayModalProps {
 
 const BANKNOTES = [5, 10, 20, 50, 100];
 
+const CALC_KEYS = [
+  ["7", "8", "9"],
+  ["4", "5", "6"],
+  ["1", "2", "3"],
+  ["00", "0", "⌫"],
+];
+
+function CashCalculator({ total, received, onChange }: { total: number; received: string; onChange: (v: string) => void }) {
+  const receivedNum = parseFloat(received) || 0;
+  const change = receivedNum >= total ? receivedNum - total : null;
+  const insufficient = received !== "" && receivedNum < total;
+
+  function pressKey(key: string) {
+    if (key === "⌫") {
+      onChange(received.slice(0, -1));
+      return;
+    }
+    // Prevent multiple dots or leading zeros
+    const next = received + key;
+    if ((next.match(/\./g) ?? []).length > 1) return;
+    if (next.length > 8) return;
+    onChange(next);
+  }
+
+  function pressNote(note: number) {
+    onChange(String(note));
+  }
+
+  const calcKeyStyle = (key: string): React.CSSProperties => ({
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    height: "52px",
+    borderRadius: "var(--radius-md)",
+    border: "1.5px solid var(--color-gray-200)",
+    background: key === "⌫" ? "rgba(239,68,68,0.08)" : "var(--color-white)",
+    fontFamily: "var(--font)",
+    fontSize: key === "⌫" ? "18px" : "var(--text-lg)",
+    fontWeight: 700,
+    color: key === "⌫" ? "var(--color-danger)" : "var(--color-gray-800)",
+    cursor: "pointer",
+    userSelect: "none",
+    transition: "background var(--transition)",
+  });
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      {/* Display */}
+      <div style={{
+        background: "var(--color-gray-50)",
+        borderRadius: "var(--radius-md)",
+        border: "2px solid var(--color-gray-200)",
+        padding: "10px 14px",
+        minHeight: "52px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-end",
+        gap: "2px",
+      }}>
+        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>Ricevuto</div>
+        <div style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-gray-800)", lineHeight: 1 }}>
+          {received === "" ? <span style={{ color: "var(--color-gray-300)" }}>0.00</span> : `€${received}`}
+        </div>
+      </div>
+
+      {/* Banknote shortcuts */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "5px" }}>
+        {BANKNOTES.map((note) => (
+          <button
+            key={note}
+            onClick={() => pressNote(note)}
+            style={{
+              height: "36px",
+              borderRadius: "var(--radius-md)",
+              border: `1.5px solid ${receivedNum === note ? "var(--color-brand)" : "var(--color-gray-300)"}`,
+              background: receivedNum === note ? "rgba(48,107,52,0.08)" : "var(--color-white)",
+              fontFamily: "var(--font)",
+              fontSize: "var(--text-xs)",
+              fontWeight: 700,
+              color: receivedNum === note ? "var(--color-brand)" : "var(--color-gray-700)",
+              cursor: "pointer",
+            }}
+          >
+            €{note}
+          </button>
+        ))}
+      </div>
+
+      {/* Numpad */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+        {CALC_KEYS.map((row, ri) => (
+          <div key={ri} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "5px" }}>
+            {row.map((key) => (
+              <button key={key} onClick={() => pressKey(key)} style={calcKeyStyle(key)}>
+                {key}
+              </button>
+            ))}
+          </div>
+        ))}
+        {/* Dot key */}
+        <button
+          onClick={() => pressKey(".")}
+          style={{ ...calcKeyStyle("."), height: "36px", fontSize: "var(--text-md)" }}
+        >
+          ,
+        </button>
+      </div>
+
+      {/* Change / insufficient */}
+      {change !== null && (
+        <div style={{
+          padding: "10px 14px",
+          borderRadius: "var(--radius-md)",
+          background: "rgba(34,197,94,0.12)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}>
+          <span style={{ fontWeight: 600, color: "#166534" }}>Resto</span>
+          <span style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "#166534" }}>
+            {formatEur(change)}
+          </span>
+        </div>
+      )}
+      {insufficient && (
+        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-danger)", fontWeight: 500, textAlign: "center" }}>
+          Mancano {formatEur(total - receivedNum)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // TODO: unify with CheckoutModal in sales/PosScreen.tsx — shares payment method selection, order summary and pay() call; diverges on cash/change section vs table/customer fields
 function PayModal({ order, onClose, onPaid }: PayModalProps) {
   const { paymentMethods, setPaymentMethods } = useAdminStore();
@@ -56,9 +189,7 @@ function PayModal({ order, onClose, onPaid }: PayModalProps) {
   const selectedMethod = activeMethods.find((m) => m.id === methodId);
   const isCash = selectedMethod?.type === "cash";
   const receivedNum = parseFloat(received) || 0;
-  const change = isCash && receivedNum >= order.totalAmount
-    ? receivedNum - order.totalAmount
-    : null;
+  const canPay = !!selectedMethod;
 
   const handlePay = async () => {
     if (!selectedMethod) return;
@@ -79,176 +210,121 @@ function PayModal({ order, onClose, onPaid }: PayModalProps) {
   };
 
   return (
-    <Modal open onClose={onClose} title="Conferma pagamento" width="420px">
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
-        {/* Order summary */}
-        <div
-          style={{
-            background: "var(--color-gray-50)",
-            borderRadius: "var(--radius-lg)",
-            padding: "var(--sp-md)",
-          }}
-        >
-          <div style={{ color: "var(--color-gray-500)", fontSize: "var(--text-sm)", marginBottom: "var(--sp-sm)" }}>
-            Ordine #{order.id}
-          </div>
-          {order.items.map((item) => (
-            <div
-              key={item.id}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                fontSize: "var(--text-sm)",
-                padding: "4px 0",
-              }}
-            >
-              <span>
-                {item.name} ×{item.quantity}
-              </span>
-              <span style={{ fontWeight: 600 }}>
-                {formatEur(item.unitPrice * item.quantity)}
-              </span>
-            </div>
-          ))}
+    <Modal open onClose={onClose} title="Conferma pagamento" width={isCash ? "820px" : "420px"}>
+      <div style={{ display: "flex", gap: "var(--sp-xl)", alignItems: "flex-start" }}>
+        {/* Left column — order + method + pay button */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
+          {/* Order summary */}
           <div
             style={{
-              borderTop: "1px solid var(--color-gray-200)",
-              marginTop: "var(--sp-sm)",
-              paddingTop: "var(--sp-sm)",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "baseline",
+              background: "var(--color-gray-50)",
+              borderRadius: "var(--radius-lg)",
+              padding: "var(--sp-md)",
             }}
           >
-            <span style={{ fontWeight: 700 }}>Totale</span>
-            <span style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-brand)" }}>
-              {formatEur(order.totalAmount)}
-            </span>
-          </div>
-        </div>
-
-        {/* Payment method */}
-        <div>
-          <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)" }}>
-            Metodo di pagamento
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-            {activeMethods.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => setMethodId(m.id)}
+            <div style={{ color: "var(--color-gray-500)", fontSize: "var(--text-sm)", marginBottom: "var(--sp-sm)" }}>
+              Ordine #{order.id}
+            </div>
+            {order.items.map((item) => (
+              <div
+                key={item.id}
                 style={{
-                  padding: "12px",
-                  borderRadius: "var(--radius-lg)",
-                  border: `2px solid ${methodId === m.id ? "var(--color-brand)" : "var(--color-gray-200)"}`,
-                  background: methodId === m.id ? "rgba(48,107,52,0.06)" : "var(--color-white)",
-                  fontFamily: "var(--font)",
+                  display: "flex",
+                  justifyContent: "space-between",
                   fontSize: "var(--text-sm)",
-                  fontWeight: 600,
-                  color: methodId === m.id ? "var(--color-brand)" : "var(--color-gray-700)",
-                  cursor: "pointer",
-                  textAlign: "center",
-                  minHeight: "52px",
-                  transition: "all var(--transition)",
+                  padding: "4px 0",
                 }}
               >
-                {METHOD_ICONS[m.type] ?? ""} {m.name}
-              </button>
+                <span>
+                  {item.name} ×{item.quantity}
+                </span>
+                <span style={{ fontWeight: 600 }}>
+                  {formatEur(item.unitPrice * item.quantity)}
+                </span>
+              </div>
             ))}
+            <div
+              style={{
+                borderTop: "1px solid var(--color-gray-200)",
+                marginTop: "var(--sp-sm)",
+                paddingTop: "var(--sp-sm)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "baseline",
+              }}
+            >
+              <span style={{ fontWeight: 700 }}>Totale</span>
+              <span style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-brand)" }}>
+                {formatEur(order.totalAmount)}
+              </span>
+            </div>
           </div>
-        </div>
 
-        {/* Cash section */}
-        {isCash && (
+          {/* Payment method */}
           <div>
             <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)" }}>
-              Importo ricevuto
+              Metodo di pagamento
             </div>
-            {/* Banknote presets */}
-            <div style={{ display: "flex", gap: "6px", marginBottom: "8px", flexWrap: "wrap" }}>
-              {BANKNOTES.map((note) => (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              {activeMethods.map((m) => (
                 <button
-                  key={note}
-                  onClick={() => setReceived(String(note))}
+                  key={m.id}
+                  onClick={() => setMethodId(m.id)}
                   style={{
-                    padding: "6px 12px",
-                    borderRadius: "var(--radius-md)",
-                    border: `1.5px solid ${receivedNum === note ? "var(--color-brand)" : "var(--color-gray-300)"}`,
-                    background: receivedNum === note ? "rgba(48,107,52,0.08)" : "var(--color-white)",
+                    padding: "12px",
+                    borderRadius: "var(--radius-lg)",
+                    border: `2px solid ${methodId === m.id ? "var(--color-brand)" : "var(--color-gray-200)"}`,
+                    background: methodId === m.id ? "rgba(48,107,52,0.06)" : "var(--color-white)",
                     fontFamily: "var(--font)",
                     fontSize: "var(--text-sm)",
                     fontWeight: 600,
-                    color: receivedNum === note ? "var(--color-brand)" : "var(--color-gray-700)",
+                    color: methodId === m.id ? "var(--color-brand)" : "var(--color-gray-700)",
                     cursor: "pointer",
+                    textAlign: "center",
+                    minHeight: "52px",
+                    transition: "all var(--transition)",
                   }}
                 >
-                  €{note}
+                  {METHOD_ICONS[m.type] ?? ""} {m.name}
                 </button>
               ))}
             </div>
-            {/* Free input */}
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={received}
-              onChange={(e) => setReceived(e.target.value)}
-              placeholder={`Es. ${order.totalAmount.toFixed(2)}`}
+          </div>
+
+          {error && (
+            <div
               style={{
-                width: "100%",
-                height: "44px",
-                padding: "0 12px",
+                background: "rgba(239,68,68,0.1)",
+                color: "var(--color-danger)",
                 borderRadius: "var(--radius-md)",
-                border: "2px solid var(--color-gray-200)",
-                fontFamily: "var(--font)",
-                fontSize: "var(--text-md)",
-                fontWeight: 600,
-                boxSizing: "border-box",
-              }}
-            />
-            {/* Change display */}
-            {change !== null && (
-              <div style={{
-                marginTop: "10px",
                 padding: "10px 14px",
-                borderRadius: "var(--radius-md)",
-                background: "rgba(34,197,94,0.12)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}>
-                <span style={{ fontWeight: 600, color: "#166534" }}>Resto</span>
-                <span style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "#166534" }}>
-                  {formatEur(change)}
-                </span>
-              </div>
-            )}
-            {received && receivedNum < order.totalAmount && (
-              <div style={{ marginTop: "6px", fontSize: "var(--text-xs)", color: "var(--color-danger)", fontWeight: 500 }}>
-                Importo insufficiente (mancano {formatEur(order.totalAmount - receivedNum)})
-              </div>
-            )}
+                fontSize: "var(--text-sm)",
+                fontWeight: 500,
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          <Button fullWidth size="xl" loading={loading} disabled={!canPay} onClick={() => void handlePay()}>
+            Paga {formatEur(order.totalAmount)}
+          </Button>
+        </div>
+
+        {/* Right column — cash calculator (only for cash method) */}
+        {isCash && (
+          <div style={{
+            width: "280px",
+            flexShrink: 0,
+            borderLeft: "1px solid var(--color-gray-200)",
+            paddingLeft: "var(--sp-xl)",
+          }}>
+            <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)" }}>
+              Calcolatrice resto
+            </div>
+            <CashCalculator total={order.totalAmount} received={received} onChange={setReceived} />
           </div>
         )}
-
-        {error && (
-          <div
-            style={{
-              background: "rgba(239,68,68,0.1)",
-              color: "var(--color-danger)",
-              borderRadius: "var(--radius-md)",
-              padding: "10px 14px",
-              fontSize: "var(--text-sm)",
-              fontWeight: 500,
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <Button fullWidth size="xl" loading={loading} disabled={!selectedMethod} onClick={() => void handlePay()}>
-          Paga {formatEur(order.totalAmount)}
-        </Button>
       </div>
     </Modal>
   );

@@ -6,6 +6,7 @@ import {
 import { PosLayout } from "../../layout/PosLayout.js";
 import { Button } from "../../components/ui/Button.js";
 import { useShiftStore } from "../../state/shift-store.js";
+import { useTerminalStore } from "../../state/terminal-store.js";
 import { apiClient, type ShiftFullStats } from "../../core/api-client.js";
 import { adminApi } from "../../core/admin-api.js";
 import { downloadCsv } from "../../core/csv-export.js";
@@ -178,7 +179,7 @@ function formatShiftLabel(shift: Shift): string {
 
 // ─── Shift tab ────────────────────────────────────────────────────────────────
 
-function ShiftTab() {
+function ShiftTab({ terminalId }: { terminalId: number | null }) {
   const currentShift = useShiftStore((s) => s.currentShift);
   const [history, setHistory] = useState<Shift[]>([]);
   const [selectedShiftId, setSelectedShiftId] = useState<number | null>(null);
@@ -199,11 +200,11 @@ function ShiftTab() {
     if (!selectedShiftId) return;
     setLoading(true);
     setError(null);
-    apiClient.stats.shiftFull(selectedShiftId)
+    apiClient.stats.shiftFull(selectedShiftId, terminalId ?? undefined)
       .then(setStats)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [selectedShiftId]);
+  }, [selectedShiftId, terminalId]);
 
   if (history.length === 0 && !currentShift) {
     return (
@@ -296,7 +297,7 @@ function ShiftTab() {
 
 type Preset = "today" | "week" | "month" | "custom";
 
-function PeriodTab() {
+function PeriodTab({ terminalId }: { terminalId: number | null }) {
   const [preset, setPreset] = useState<Preset>("today");
   const [customFrom, setCustomFrom] = useState(() => new Date().toISOString().slice(0, 10));
   const [customTo, setCustomTo] = useState(() => new Date().toISOString().slice(0, 10));
@@ -317,13 +318,13 @@ function PeriodTab() {
     const [from, to] = getRangeMs();
     setLoading(true);
     setError(null);
-    apiClient.stats.period(from, to)
+    apiClient.stats.period(from, to, terminalId ?? undefined)
       .then(setStats)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { load(); }, [preset, customFrom, customTo]);
+  useEffect(() => { load(); }, [preset, customFrom, customTo, terminalId]);
 
   function handleExportCsv() {
     if (!stats) return;
@@ -423,6 +424,35 @@ type Tab = "shift" | "period";
 
 export function StatsScreen() {
   const [tab, setTab] = useState<Tab>("shift");
+  const [terminals, setTerminals] = useState<{ id: number; name: string }[]>([]);
+  const currentTerminalId = useTerminalStore((s) => s.terminalId);
+  const currentTerminalName = useTerminalStore((s) => s.terminalName);
+  const [selectedTerminalId, setSelectedTerminalId] = useState<number | null>(
+    () => useTerminalStore.getState().terminalId
+  );
+  const [selectedTerminalName, setSelectedTerminalName] = useState<string | null>(
+    () => useTerminalStore.getState().terminalName
+  );
+
+  useEffect(() => {
+    adminApi.terminals.list()
+      .then((list) => {
+        setTerminals(list.map((t) => ({ id: t.id, name: t.name })));
+      })
+      .catch(() => {});
+  }, []);
+
+  function handleTerminalChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const val = e.target.value;
+    if (val === "") {
+      setSelectedTerminalId(null);
+      setSelectedTerminalName(null);
+    } else {
+      const id = parseInt(val, 10);
+      setSelectedTerminalId(id);
+      setSelectedTerminalName(terminals.find((t) => t.id === id)?.name ?? null);
+    }
+  }
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "shift", label: "Turno" },
@@ -435,9 +465,23 @@ export function StatsScreen() {
         className="scrollable"
         style={{ height: "100%", overflowY: "auto", boxSizing: "border-box", maxWidth: "720px", margin: "0 auto", padding: "var(--sp-lg)", display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}
       >
-        <h1 style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-gray-900)", margin: 0 }}>
-          Statistiche
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--sp-md)" }}>
+          <h1 style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-gray-900)", margin: 0 }}>
+            Statistiche
+          </h1>
+          {terminals.length > 1 && (
+            <select
+              value={selectedTerminalId ?? ""}
+              onChange={handleTerminalChange}
+              style={{ height: "36px", padding: "0 10px", borderRadius: "var(--radius-md)", border: "2px solid var(--color-gray-200)", fontFamily: "var(--font)", fontSize: "var(--text-sm)", minWidth: "160px" }}
+            >
+              <option value="">Tutti i terminali</option>
+              {terminals.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: "4px", background: "var(--color-gray-100)", borderRadius: "var(--radius-lg)", padding: "4px", width: "fit-content" }}>
@@ -464,7 +508,9 @@ export function StatsScreen() {
           ))}
         </div>
 
-        {tab === "shift" ? <ShiftTab /> : <PeriodTab />}
+        {tab === "shift"
+          ? <ShiftTab terminalId={selectedTerminalId} />
+          : <PeriodTab terminalId={selectedTerminalId} />}
       </div>
     </PosLayout>
   );

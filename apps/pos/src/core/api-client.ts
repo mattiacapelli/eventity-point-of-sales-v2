@@ -148,12 +148,16 @@ export const apiClient = {
   stats: {
     shift: (shiftId: number) =>
       request<ShiftStats>("GET", `/stats/shift/${shiftId}`),
-    period: (from: number, to: number) =>
-      request<PeriodStats>("GET", `/stats/period?from=${from}&to=${to}`),
+    period: (from: number, to: number, terminalId?: number) => {
+      const url = `/stats/period?from=${from}&to=${to}${terminalId !== undefined ? `&terminalId=${terminalId}` : ""}`;
+      return request<PeriodStats>("GET", url);
+    },
     zreport: (shiftId: number) =>
       request<ZReport>("GET", `/stats/zreport/${shiftId}`),
-    shiftFull: (shiftId: number) =>
-      request<ShiftFullStats>("GET", `/stats/shift/${shiftId}/full`),
+    shiftFull: (shiftId: number, terminalId?: number) => {
+      const url = `/stats/shift/${shiftId}/full${terminalId !== undefined ? `?terminalId=${terminalId}` : ""}`;
+      return request<ShiftFullStats>("GET", url);
+    },
     printShiftReport: (shiftId: number) =>
       request<{ ok: boolean; message?: string }>("POST", `/stats/shift/${shiftId}/print`, {}),
   },

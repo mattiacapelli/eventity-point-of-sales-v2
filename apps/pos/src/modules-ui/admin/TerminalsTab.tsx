@@ -29,6 +29,9 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
   const [terminalPrinters, setTerminalPrinters] = useState<Record<number, number[]>>({});
   const [terminalCategories, setTerminalCategories] = useState<Record<number, Category[]>>({});
   const [categoryDropdownId, setCategoryDropdownId] = useState<number | null>(null);
+  const [terminalProducts, setTerminalProducts] = useState<Record<number, { id: number; name: string }[]>>({});
+  const [productDropdownId, setProductDropdownId] = useState<number | null>(null);
+  const [allProducts, setAllProducts] = useState<{ id: number; name: string }[]>([]);
 
   const now = Date.now();
   const isOnline = (t: Terminal) => t.lastSeenAt !== null && now - t.lastSeenAt < 5 * 60 * 1000;
@@ -41,9 +44,11 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
     Promise.all([
       adminApi.terminals.list(),
       adminApi.printers.list(),
-    ]).then(([tList, pList]) => {
+      adminApi.products.list(),
+    ]).then(([tList, pList, prods]) => {
       setTerminals(tList);
       setPrinters(pList);
+      setAllProducts(prods.map((p) => ({ id: p.id, name: p.name })));
     }).catch(() => {}).finally(() => setLoading_(false));
   }, []);
 
@@ -145,6 +150,32 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
     }
   }
 
+  async function loadTerminalProducts(terminalId: number) {
+    try {
+      const list = await adminApi.terminals.getProducts(terminalId);
+      setTerminalProducts((prev) => ({ ...prev, [terminalId]: list }));
+    } catch { /* ignore */ }
+  }
+
+  async function handleAssignProduct(terminalId: number, productId: number) {
+    try {
+      await adminApi.terminals.assignProduct(terminalId, productId);
+      await loadTerminalProducts(terminalId);
+      setProductDropdownId(null);
+    } catch (err) {
+      useToastStore.getState().show(err instanceof Error ? err.message : "Errore nell'assegnazione prodotto");
+    }
+  }
+
+  async function handleRemoveProduct(terminalId: number, productId: number) {
+    try {
+      await adminApi.terminals.removeProduct(terminalId, productId);
+      await loadTerminalProducts(terminalId);
+    } catch (err) {
+      useToastStore.getState().show(err instanceof Error ? err.message : "Errore nella rimozione prodotto");
+    }
+  }
+
   async function handleDefaultViewModeChange(t: Terminal, value: string) {
     try {
       const updated = await adminApi.terminals.update(t.id, { defaultViewMode: value === "" ? null : value });
@@ -224,7 +255,7 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
                 <button
                   title="Configura"
                   onClick={() => {
-                    if (!expanded) { loadTerminalPrinters(t.id); loadTerminalCategories(t.id); }
+                    if (!expanded) { loadTerminalPrinters(t.id); loadTerminalCategories(t.id); loadTerminalProducts(t.id); }
                     setExpandedId(expanded ? null : t.id);
                   }}
                   style={{ background: "none", border: "1px solid var(--color-gray-200)", borderRadius: "var(--radius-md)", padding: "5px 10px", cursor: "pointer", fontSize: "var(--text-xs)", color: "var(--color-gray-600)" }}
@@ -318,6 +349,53 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
                                   <button key={c.id} onClick={() => handleAssignCategory(t.id, c.id)}
                                     style={{ width: "100%", padding: "10px 14px", border: "none", borderBottom: i < unassignedCategories.length - 1 ? "1px solid var(--color-gray-100)" : "none", background: "transparent", cursor: "pointer", textAlign: "left", fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-gray-700)", fontFamily: "var(--font)" }}>
                                     {c.name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", margin: "18px 0 10px" }}>
+                    Prodotti visibili
+                  </div>
+                  <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginBottom: "10px" }}>
+                    Se non ne assegni nessuno, questo terminale mostra tutti i prodotti.
+                  </div>
+                  {(() => {
+                    const assignedProducts = terminalProducts[t.id] ?? [];
+                    const unassignedProducts = allProducts.filter((p) => !assignedProducts.some((a) => a.id === p.id));
+                    const isProductDropdownOpen = productDropdownId === t.id;
+                    return (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
+                        {assignedProducts.length === 0 ? (
+                          <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>Nessun prodotto assegnato (mostra tutti).</div>
+                        ) : (
+                          assignedProducts.map((p) => (
+                            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "var(--text-sm)" }}>
+                              <span style={{ flex: 1, fontWeight: 500, color: "var(--color-gray-800)" }}>{p.name}</span>
+                              <button onClick={() => handleRemoveProduct(t.id, p.id)}
+                                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-gray-400)", padding: "2px" }}>
+                                <TrashIcon style={{ width: "14px", height: "14px" }} />
+                              </button>
+                            </div>
+                          ))
+                        )}
+                        {unassignedProducts.length > 0 && (
+                          <div style={{ position: "relative", marginTop: "4px" }}>
+                            <button onClick={() => setProductDropdownId(isProductDropdownOpen ? null : t.id)}
+                              style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 12px", borderRadius: "20px", border: "1.5px dashed var(--color-gray-300)", background: "transparent", cursor: "pointer", fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-gray-500)" }}>
+                              <PlusIcon style={{ width: "12px", height: "12px" }} /> Aggiungi prodotto
+                            </button>
+                            {isProductDropdownOpen && (
+                              <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, background: "var(--color-white)", borderRadius: "var(--radius-lg)", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", border: "1px solid var(--color-gray-200)", minWidth: "220px", maxHeight: "200px", overflowY: "auto", zIndex: 100 }}>
+                                {unassignedProducts.map((p, i) => (
+                                  <button key={p.id} onClick={() => handleAssignProduct(t.id, p.id)}
+                                    style={{ width: "100%", padding: "10px 14px", border: "none", borderBottom: i < unassignedProducts.length - 1 ? "1px solid var(--color-gray-100)" : "none", background: "transparent", cursor: "pointer", textAlign: "left", fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-gray-700)", fontFamily: "var(--font)" }}>
+                                    {p.name}
                                   </button>
                                 ))}
                               </div>

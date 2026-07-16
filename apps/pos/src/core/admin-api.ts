@@ -127,6 +127,9 @@ export const adminApi = {
       return res.json() as Promise<{ imagePath: string }>;
     },
     deleteImage: (id: number) => req<void>("DELETE", `/products/${id}/image`),
+    getTerminals: (id: number) => req<{ id: number; name: string }[]>("GET", `/products/${id}/terminals`),
+    assignTerminal: (id: number, terminalId: number) => req<void>("POST", `/products/${id}/terminals/${terminalId}`),
+    removeTerminal: (id: number, terminalId: number) => req<void>("DELETE", `/products/${id}/terminals/${terminalId}`),
   },
   productionCenters: {
     list: () => req<ProductionCenter[]>("GET", "/production-centers"),
@@ -239,8 +242,14 @@ export const adminApi = {
       cartPaxEnabled: boolean;
       cartDiscountEnabled: boolean;
       cartTextSize: number;
+      customNoteAddPrice: number;
+      customNoteRemovePrice: number;
       tablesEnabled: boolean;
+      tableInputMode: "checkout" | "sidebar";
+      tableRequired: boolean;
+      customerRequired: boolean;
       shiftAutoPrintReport: boolean;
+      shiftForceCloseDefault: boolean;
       productDateFilterEnabled: boolean;
     }>("GET", "/admin/settings"),
     update: (data: Partial<{
@@ -264,8 +273,14 @@ export const adminApi = {
       cartPaxEnabled: boolean;
       cartDiscountEnabled: boolean;
       cartTextSize: number;
+      customNoteAddPrice: number;
+      customNoteRemovePrice: number;
       tablesEnabled: boolean;
+      tableInputMode: "checkout" | "sidebar";
+      tableRequired: boolean;
+      customerRequired: boolean;
       shiftAutoPrintReport: boolean;
+      shiftForceCloseDefault: boolean;
       productDateFilterEnabled: boolean;
     }>) => req<{
       expressMode: boolean;
@@ -288,8 +303,14 @@ export const adminApi = {
       cartPaxEnabled: boolean;
       cartDiscountEnabled: boolean;
       cartTextSize: number;
+      customNoteAddPrice: number;
+      customNoteRemovePrice: number;
       tablesEnabled: boolean;
+      tableInputMode: "checkout" | "sidebar";
+      tableRequired: boolean;
+      customerRequired: boolean;
       shiftAutoPrintReport: boolean;
+      shiftForceCloseDefault: boolean;
       productDateFilterEnabled: boolean;
     }>("PATCH", "/admin/settings", data),
     resetReceiptCounter: (scope?: string, startFrom?: number) =>
@@ -416,6 +437,9 @@ export const adminApi = {
     assignCategory: (id: number, categoryId: number) => req<void>("POST", `/admin/terminals/${id}/categories/${categoryId}`),
     removeCategory: (id: number, categoryId: number) => req<void>("DELETE", `/admin/terminals/${id}/categories/${categoryId}`),
     reorderCategories: (id: number, categoryIds: number[]) => req<void>("PATCH", `/admin/terminals/${id}/categories/reorder`, { categoryIds }),
+    getProducts: (id: number) => req<{ id: number; name: string }[]>("GET", `/admin/terminals/${id}/products`),
+    assignProduct: (id: number, productId: number) => req<void>("POST", `/admin/terminals/${id}/products/${productId}`),
+    removeProduct: (id: number, productId: number) => req<void>("DELETE", `/admin/terminals/${id}/products/${productId}`),
   },
   users: {
     list: () => req<User[]>("GET", "/admin/users"),

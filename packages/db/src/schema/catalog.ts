@@ -164,6 +164,11 @@ export const terminalCategories = sqliteTable("terminal_categories", {
   sortOrder:  integer("sort_order").notNull().default(0),
 });
 
+export const terminalProducts = sqliteTable("terminal_products", {
+  terminalId: integer("terminal_id", { mode: "number" }).notNull().references(() => terminals.id, { onDelete: "cascade" }),
+  productId:  integer("product_id", { mode: "number" }).notNull().references(() => products.id, { onDelete: "cascade" }),
+});
+
 export const dailyExtras = sqliteTable("daily_extras", {
   id:        integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
   productId: integer("product_id", { mode: "number" }).notNull().references(() => products.id, { onDelete: "cascade" }),

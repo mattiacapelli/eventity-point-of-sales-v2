@@ -33,6 +33,75 @@ function formatEur(n: number) {
   return `€${n.toFixed(2)}`;
 }
 
+const CALC_BANKNOTES = [5, 10, 20, 50, 100];
+const CALC_KEYS = [["7","8","9"],["4","5","6"],["1","2","3"],["00","0","⌫"]];
+
+function CashCalculator({ total, received, onChange }: { total: number; received: string; onChange: (v: string) => void }) {
+  const receivedNum = parseFloat(received) || 0;
+  const change = receivedNum >= total ? receivedNum - total : null;
+  const insufficient = received !== "" && receivedNum < total;
+
+  function pressKey(key: string) {
+    if (key === "⌫") { onChange(received.slice(0, -1)); return; }
+    const next = received + key;
+    if ((next.match(/\./g) ?? []).length > 1) return;
+    if (next.length > 8) return;
+    onChange(next);
+  }
+
+  const btnStyle = (key: string): React.CSSProperties => ({
+    display: "flex", alignItems: "center", justifyContent: "center",
+    height: "52px", borderRadius: "var(--radius-md)",
+    border: "1.5px solid var(--color-gray-200)",
+    background: key === "⌫" ? "rgba(239,68,68,0.08)" : "var(--color-white)",
+    fontFamily: "var(--font)",
+    fontSize: key === "⌫" ? "18px" : "var(--text-lg)", fontWeight: 700,
+    color: key === "⌫" ? "var(--color-danger)" : "var(--color-gray-800)",
+    cursor: "pointer", userSelect: "none",
+  });
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      {/* Display */}
+      <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", border: "2px solid var(--color-gray-200)", padding: "10px 14px", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "2px" }}>
+        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>Ricevuto</div>
+        <div style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-gray-800)", lineHeight: 1 }}>
+          {received === "" ? <span style={{ color: "var(--color-gray-300)" }}>0.00</span> : `€${received}`}
+        </div>
+      </div>
+      {/* Banknote shortcuts */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "5px" }}>
+        {CALC_BANKNOTES.map((note) => (
+          <button key={note} onClick={() => onChange(String(note))} style={{ height: "36px", borderRadius: "var(--radius-md)", border: `1.5px solid ${receivedNum === note ? "var(--color-brand)" : "var(--color-gray-300)"}`, background: receivedNum === note ? "rgba(48,107,52,0.08)" : "var(--color-white)", fontFamily: "var(--font)", fontSize: "var(--text-xs)", fontWeight: 700, color: receivedNum === note ? "var(--color-brand)" : "var(--color-gray-700)", cursor: "pointer" }}>
+            €{note}
+          </button>
+        ))}
+      </div>
+      {/* Numpad */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+        {CALC_KEYS.map((row, ri) => (
+          <div key={ri} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "5px" }}>
+            {row.map((key) => <button key={key} onClick={() => pressKey(key)} style={btnStyle(key)}>{key}</button>)}
+          </div>
+        ))}
+        <button onClick={() => pressKey(".")} style={{ ...btnStyle("."), height: "36px", fontSize: "var(--text-md)" }}>,</button>
+      </div>
+      {/* Change / insufficient */}
+      {change !== null && (
+        <div style={{ padding: "10px 14px", borderRadius: "var(--radius-md)", background: "rgba(34,197,94,0.12)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontWeight: 600, color: "#166534" }}>Resto</span>
+          <span style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "#166534" }}>€{change.toFixed(2)}</span>
+        </div>
+      )}
+      {insufficient && (
+        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-danger)", fontWeight: 500, textAlign: "center" }}>
+          Mancano €{(total - receivedNum).toFixed(2)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CheckoutModal() {
   const { checkoutOrder, setCheckoutOrder, clearCart, pendingTableId, pendingCustomerName } = useStore();
   const { paymentMethods, setPaymentMethods } = useAdminStore();
@@ -43,6 +112,10 @@ function CheckoutModal() {
   const [tableId, setTableId] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [tablesEnabled, setTablesEnabled] = useState(false);
+  const [tableInputMode, setTableInputMode] = useState<"checkout" | "sidebar">("checkout");
+  const [tableRequired, setTableRequired] = useState(false);
+  const [customerRequired, setCustomerRequired] = useState(false);
+  const [received, setReceived] = useState("");
 
   const activeMethods = paymentMethods.filter((m) => m.active);
   const singleMethod = activeMethods.length === 1 ? activeMethods[0] : null;
@@ -53,7 +126,12 @@ function CheckoutModal() {
     // Fall back to values prefilled by a QR scan when the order itself doesn't have them yet.
     setTableId(checkoutOrder.tableId ?? pendingTableId ?? "");
     setCustomerName(checkoutOrder.customerName ?? pendingCustomerName ?? "");
-    adminApi.settings.get().then((s) => setTablesEnabled(s.tablesEnabled)).catch(() => {});
+    adminApi.settings.get().then((s) => {
+      setTablesEnabled(s.tablesEnabled);
+      setTableInputMode(s.tableInputMode ?? "checkout");
+      setTableRequired(s.tableRequired ?? false);
+      setCustomerRequired(s.customerRequired ?? false);
+    }).catch(() => {});
     if (paymentMethods.length === 0) {
       adminApi.paymentMethods.list().then((ms) => {
         setPaymentMethods(ms);
@@ -69,6 +147,12 @@ function CheckoutModal() {
 
   const order = checkoutOrder;
   const selectedMethod = activeMethods.find((m) => m.id === selectedMethodId);
+  const isCash = selectedMethod?.type === "cash";
+  const receivedNum = parseFloat(received) || 0;
+  const showTableFields = tablesEnabled && tableInputMode === "checkout";
+  const tableMissing = showTableFields && tableRequired && tableId.trim() === "";
+  const customerMissing = showTableFields && customerRequired && customerName.trim() === "";
+  const canPay = !!selectedMethod && !tableMissing && !customerMissing;
 
   const handlePay = async () => {
     if (!selectedMethod) return;
@@ -117,119 +201,113 @@ function CheckoutModal() {
   }
 
   return (
-    <Modal open onClose={() => setCheckoutOrder(null)} title="Pagamento" width="560px">
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
+    <Modal open onClose={() => setCheckoutOrder(null)} title="Pagamento" width={isCash ? "860px" : "560px"}>
+      <div style={{ display: "flex", gap: "var(--sp-xl)", alignItems: "flex-start" }}>
 
-        {/* Table / customer — only when tables module is enabled */}
-        {tablesEnabled && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-            <div>
-              <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)", display: "block" }}>
-                Tavolo
-              </label>
-              <input
-                value={tableId}
-                onChange={(e) => setTableId(e.target.value)}
-                placeholder="Es. 12"
-                style={{ width: "100%", height: "40px", padding: "0 12px", borderRadius: "var(--radius-md)", border: "2px solid var(--color-gray-200)", fontFamily: "var(--font)", fontSize: "var(--text-md)", boxSizing: "border-box" }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)", display: "block" }}>
-                Nome cliente
-              </label>
-              <input
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="Es. Mario Rossi"
-                style={{ width: "100%", height: "40px", padding: "0 12px", borderRadius: "var(--radius-md)", border: "2px solid var(--color-gray-200)", fontFamily: "var(--font)", fontSize: "var(--text-md)", boxSizing: "border-box" }}
-              />
-            </div>
-          </div>
-        )}
+        {/* Left column */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
 
-        {/* Order summary */}
-        <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-lg)", padding: "var(--sp-md)" }}>
-          <div style={{ color: "var(--color-gray-500)", fontSize: "var(--text-sm)", marginBottom: "var(--sp-sm)" }}>
-            Ordine #{order.id}
-          </div>
-          {order.items.map((item) => (
-            <div key={item.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)", padding: "4px 0" }}>
-              <span>{item.name} ×{item.quantity}</span>
-              <span style={{ fontWeight: 600 }}>{formatEur(item.unitPrice * item.quantity)}</span>
-            </div>
-          ))}
-          <div style={{ borderTop: "1px solid var(--color-gray-200)", marginTop: "var(--sp-sm)", paddingTop: "var(--sp-sm)", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <span style={{ fontWeight: 700 }}>Totale</span>
-            <span style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-brand)" }}>
-              {formatEur(order.totalAmount)}
-            </span>
-          </div>
-        </div>
-
-        {/* Payment method — dynamic */}
-        <div>
-          <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)" }}>
-            Metodo di pagamento
-          </div>
-          {activeMethods.length === 0 ? (
-            <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)", padding: "16px 0" }}>
-              Nessun metodo di pagamento attivo — configurali in Amministrazione.
-            </div>
-          ) : singleMethod ? (
-            <div style={{
-              display: "flex", alignItems: "center", gap: "10px",
-              padding: "12px 14px", borderRadius: "var(--radius-lg)",
-              border: "2px solid var(--color-brand)",
-              background: "rgba(48,107,52,0.06)",
-            }}>
-              <PaymentIcon type={singleMethod.type} style={{ width: "20px", height: "20px", color: "var(--color-brand)", flexShrink: 0 }} />
-              <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-brand)" }}>{singleMethod.name}</span>
-            </div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: activeMethods.length > 2 ? "1fr 1fr" : `repeat(${activeMethods.length}, 1fr)`, gap: "8px" }}>
-              {activeMethods.map((m) => {
-                const active = selectedMethodId === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => setSelectedMethodId(m.id)}
-                    style={{
-                      padding: "14px 12px",
-                      borderRadius: "var(--radius-lg)",
-                      border: `2px solid ${active ? "var(--color-brand)" : "var(--color-gray-200)"}`,
-                      background: active ? "rgba(48,107,52,0.06)" : "var(--color-white)",
-                      fontFamily: "var(--font)",
-                      cursor: "pointer",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: "6px",
-                      minHeight: "72px",
-                      transition: "all var(--transition)",
-                    }}
-                  >
-                    <PaymentIcon type={m.type} style={{ width: "22px", height: "22px", color: active ? "var(--color-brand)" : "var(--color-gray-400)" }} />
-                    <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: active ? "var(--color-brand)" : "var(--color-gray-700)" }}>
-                      {m.name}
-                    </span>
-                  </button>
-                );
-              })}
+          {/* Table / customer — only when tables module is enabled and mode is checkout */}
+          {showTableFields && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              <div>
+                <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: tableMissing ? "var(--color-danger)" : "var(--color-gray-600)", marginBottom: "var(--sp-sm)", display: "block" }}>
+                  Tavolo{tableRequired ? " *" : ""}
+                </label>
+                <input
+                  value={tableId}
+                  onChange={(e) => setTableId(e.target.value)}
+                  placeholder="Es. 12"
+                  style={{ width: "100%", height: "40px", padding: "0 12px", borderRadius: "var(--radius-md)", border: `2px solid ${tableMissing ? "var(--color-danger)" : "var(--color-gray-200)"}`, fontFamily: "var(--font)", fontSize: "var(--text-md)", boxSizing: "border-box" }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: customerMissing ? "var(--color-danger)" : "var(--color-gray-600)", marginBottom: "var(--sp-sm)", display: "block" }}>
+                  Nome cliente{customerRequired ? " *" : ""}
+                </label>
+                <input
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Es. Mario Rossi"
+                  style={{ width: "100%", height: "40px", padding: "0 12px", borderRadius: "var(--radius-md)", border: `2px solid ${customerMissing ? "var(--color-danger)" : "var(--color-gray-200)"}`, fontFamily: "var(--font)", fontSize: "var(--text-md)", boxSizing: "border-box" }}
+                />
+              </div>
             </div>
           )}
+
+          {/* Order summary */}
+          <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-lg)", padding: "var(--sp-md)" }}>
+            <div style={{ color: "var(--color-gray-500)", fontSize: "var(--text-sm)", marginBottom: "var(--sp-sm)" }}>
+              Ordine #{order.id}
+            </div>
+            {order.items.map((item) => (
+              <div key={item.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)", padding: "4px 0" }}>
+                <span>{item.name} ×{item.quantity}</span>
+                <span style={{ fontWeight: 600 }}>{formatEur(item.unitPrice * item.quantity)}</span>
+              </div>
+            ))}
+            <div style={{ borderTop: "1px solid var(--color-gray-200)", marginTop: "var(--sp-sm)", paddingTop: "var(--sp-sm)", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ fontWeight: 700 }}>Totale</span>
+              <span style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-brand)" }}>
+                {formatEur(order.totalAmount)}
+              </span>
+            </div>
+          </div>
+
+          {/* Payment method — dynamic */}
+          <div>
+            <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)" }}>
+              Metodo di pagamento
+            </div>
+            {activeMethods.length === 0 ? (
+              <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)", padding: "16px 0" }}>
+                Nessun metodo di pagamento attivo — configurali in Amministrazione.
+              </div>
+            ) : singleMethod ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 14px", borderRadius: "var(--radius-lg)", border: "2px solid var(--color-brand)", background: "rgba(48,107,52,0.06)" }}>
+                <PaymentIcon type={singleMethod.type} style={{ width: "20px", height: "20px", color: "var(--color-brand)", flexShrink: 0 }} />
+                <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-brand)" }}>{singleMethod.name}</span>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: activeMethods.length > 2 ? "1fr 1fr" : `repeat(${activeMethods.length}, 1fr)`, gap: "8px" }}>
+                {activeMethods.map((m) => {
+                  const active = selectedMethodId === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => { setSelectedMethodId(m.id); setReceived(""); }}
+                      style={{ padding: "14px 12px", borderRadius: "var(--radius-lg)", border: `2px solid ${active ? "var(--color-brand)" : "var(--color-gray-200)"}`, background: active ? "rgba(48,107,52,0.06)" : "var(--color-white)", fontFamily: "var(--font)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", minHeight: "72px", transition: "all var(--transition)" }}
+                    >
+                      <PaymentIcon type={m.type} style={{ width: "22px", height: "22px", color: active ? "var(--color-brand)" : "var(--color-gray-400)" }} />
+                      <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: active ? "var(--color-brand)" : "var(--color-gray-700)" }}>{m.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {error && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(239,68,68,0.08)", borderRadius: "var(--radius-md)", padding: "10px 14px" }}>
+              <ExclamationCircleIcon style={{ width: "18px", height: "18px", color: "var(--color-danger)", flexShrink: 0 }} />
+              <span style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-danger)" }}>{error}</span>
+            </div>
+          )}
+
+          <Button fullWidth size="xl" loading={loading} disabled={!canPay} onClick={() => void handlePay()}>
+            Paga {formatEur(order.totalAmount)}
+          </Button>
         </div>
 
-        {error && (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(239,68,68,0.08)", borderRadius: "var(--radius-md)", padding: "10px 14px" }}>
-            <ExclamationCircleIcon style={{ width: "18px", height: "18px", color: "var(--color-danger)", flexShrink: 0 }} />
-            <span style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-danger)" }}>{error}</span>
+        {/* Right column — cash calculator */}
+        {isCash && (
+          <div style={{ width: "280px", flexShrink: 0, borderLeft: "1px solid var(--color-gray-200)", paddingLeft: "var(--sp-xl)" }}>
+            <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)" }}>
+              Calcolatrice resto
+            </div>
+            <CashCalculator total={order.totalAmount} received={received} onChange={setReceived} />
           </div>
         )}
-
-        <Button fullWidth size="xl" loading={loading} disabled={!selectedMethod} onClick={() => void handlePay()}>
-          Paga {formatEur(order.totalAmount)}
-        </Button>
       </div>
     </Modal>
   );
@@ -647,9 +725,14 @@ function CloseShiftModal({ onDone }: { onDone: () => void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsForce, setNeedsForce] = useState(false);
+  const [forceCloseDefault, setForceCloseDefault] = useState(false);
   const [shiftStats, setShiftStats] = useState<import("../../core/api-client.js").ShiftFullStats | null>(null);
   const [printing, setPrinting] = useState(false);
   const [printResult, setPrintResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    adminApi.settings.get().then((s) => setForceCloseDefault(s.shiftForceCloseDefault)).catch(() => {});
+  }, []);
 
   async function handleClose(force = false) {
     if (!currentShift) return;
@@ -657,7 +740,7 @@ function CloseShiftModal({ onDone }: { onDone: () => void }) {
     setSaving(true);
     setError(null);
     try {
-      await adminApi.shifts.close(shiftId, { closingCash: parseFloat(closingCash) || 0, force });
+      await adminApi.shifts.close(shiftId, { closingCash: parseFloat(closingCash) || 0, force: force || forceCloseDefault });
       setCurrentShift(null);
       // Load full stats and auto-print in parallel
       const [stats, settings] = await Promise.all([

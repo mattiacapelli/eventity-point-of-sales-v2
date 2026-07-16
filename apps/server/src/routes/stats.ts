@@ -17,11 +17,13 @@ import { join, resolve } from "node:path";
 
 const RESTAURANT_KEYS = ["restaurant_name", "restaurant_address", "restaurant_city", "restaurant_vat", "restaurant_phone", "restaurant_logo_path"] as const;
 
-async function getShiftFullStats(db: DbClient, shiftId: number) {
+async function getShiftFullStats(db: DbClient, shiftId: number, terminalId?: number) {
   const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId)).limit(1);
   if (!shift) return null;
 
-  const shiftOrders = await db.select().from(orders).where(eq(orders.shiftId, shiftId));
+  const shiftOrders = await db.select().from(orders).where(
+    and(eq(orders.shiftId, shiftId), terminalId !== undefined ? eq(orders.terminalId, terminalId) : undefined)
+  );
 
   const completedOrders = shiftOrders.filter((o) => PAID_STATUSES.includes(o.status as typeof PAID_STATUSES[number]));
   const cancelledOrders = shiftOrders.filter((o) => o.status === "cancelled");
@@ -344,7 +346,7 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
-  // GET /api/stats/period?from=&to=
+  // GET /api/stats/period?from=&to=[&terminalId=]
   fastify.get("/stats/period", {
     schema: {
       tags: ["stats"],
@@ -353,13 +355,14 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
         type: "object",
         required: ["from", "to"],
         properties: {
-          from: { type: "number" },
-          to:   { type: "number" },
+          from:       { type: "number" },
+          to:         { type: "number" },
+          terminalId: { type: "number" },
         },
       },
     },
   }, async (request, reply) => {
-    const { from, to } = request.query as { from: number; to: number };
+    const { from, to, terminalId } = request.query as { from: number; to: number; terminalId?: number };
     const db = fastify.ctx.db;
 
     const completedOrders = await db
@@ -370,6 +373,7 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
           inArray(orders.status, [...PAID_STATUSES]),
           gte(orders.createdAt, new Date(from)),
           lte(orders.createdAt, new Date(to)),
+          terminalId !== undefined ? eq(orders.terminalId, terminalId) : undefined,
         )
       );
 
@@ -522,10 +526,18 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /api/stats/shift/:shiftId/full — full breakdown (payment, category, production center, hour, top products)
   fastify.get("/stats/shift/:shiftId/full", {
-    schema: { tags: ["stats"], summary: "Full stats breakdown for a shift, including hourly and production center data" },
+    schema: {
+      tags: ["stats"],
+      summary: "Full stats breakdown for a shift, including hourly and production center data",
+      querystring: {
+        type: "object",
+        properties: { terminalId: { type: "number" } },
+      },
+    },
   }, async (request, reply) => {
     const { shiftId } = request.params as { shiftId: string };
-    const stats = await getShiftFullStats(fastify.ctx.db, parseInt(shiftId, 10));
+    const { terminalId } = request.query as { terminalId?: number };
+    const stats = await getShiftFullStats(fastify.ctx.db, parseInt(shiftId, 10), terminalId);
     if (!stats) return reply.status(404).send({ error: "Shift not found" });
     return reply.send(stats);
   });

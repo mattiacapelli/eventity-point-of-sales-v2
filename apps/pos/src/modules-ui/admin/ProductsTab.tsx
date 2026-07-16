@@ -362,6 +362,69 @@ interface ProductFormData {
   availableDates: string[]; // "YYYY-MM-DD" — empty = always visible
 }
 
+function TerminalVisibilityField({ productId }: { productId: number | null }) {
+  const [allTerminals, setAllTerminals] = useState<{ id: number; name: string }[]>([]);
+  const [assigned, setAssigned] = useState<Set<number>>(new Set());
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!productId) return;
+    setLoading(true);
+    Promise.all([adminApi.terminals.list(), adminApi.products.getTerminals(productId)])
+      .then(([all, ass]) => {
+        setAllTerminals(all.map((t) => ({ id: t.id, name: t.name })));
+        setAssigned(new Set(ass.map((t) => t.id)));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [productId]);
+
+  if (!productId) return (
+    <div>
+      <label style={labelStyle}>Visibilità casse</label>
+      <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)", padding: "8px 0" }}>
+        Salva il prodotto prima di configurare la visibilità per cassa.
+      </div>
+    </div>
+  );
+
+  if (loading) return null;
+  if (allTerminals.length <= 1) return null;
+
+  async function toggle(terminalId: number) {
+    if (!productId) return;
+    if (assigned.has(terminalId)) {
+      await adminApi.products.removeTerminal(productId, terminalId);
+      setAssigned((prev) => { const s = new Set(prev); s.delete(terminalId); return s; });
+    } else {
+      await adminApi.products.assignTerminal(productId, terminalId);
+      setAssigned((prev) => new Set([...prev, terminalId]));
+    }
+  }
+
+  return (
+    <div>
+      <label style={labelStyle}>Visibilità casse</label>
+      <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginBottom: "10px" }}>
+        {assigned.size === 0 ? "Visibile in tutte le casse. Seleziona una o più casse per limitare la visibilità." : `Visibile solo in ${assigned.size} cass${assigned.size === 1 ? "a" : "e"} selezionat${assigned.size === 1 ? "a" : "e"}.`}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        {allTerminals.map((t) => (
+          <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", padding: "8px 12px", borderRadius: "var(--radius-md)", border: `1.5px solid ${assigned.has(t.id) ? "var(--color-brand)" : "var(--color-gray-200)"}`, background: assigned.has(t.id) ? "rgba(var(--color-brand-rgb,99,102,241),0.05)" : "var(--color-gray-50)" }}>
+            <input
+              type="checkbox"
+              checked={assigned.has(t.id)}
+              onChange={() => void toggle(t.id)}
+              style={{ width: "16px", height: "16px", accentColor: "var(--color-brand)", cursor: "pointer" }}
+            />
+            <span style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-gray-700)" }}>{t.name}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function IngredientsModal({ product, onClose }: { product: Product | null; onClose: () => void }) {
   const [items, setItems] = useState<InventoryItemRecord[]>([]);
   const [ingredients, setIngredients] = useState<ProductIngredientRecord[]>([]);
@@ -1119,6 +1182,8 @@ export function ProductsTab() {
             value={form.availableDates}
             onChange={(dates) => setForm((f) => ({ ...f, availableDates: dates }))}
           />
+
+          <TerminalVisibilityField productId={editTarget?.id ?? null} />
 
           {/* Image upload — only available in edit mode */}
           <div>

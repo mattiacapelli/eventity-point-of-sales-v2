@@ -14,6 +14,10 @@ interface CartFeatures {
   notes: boolean;
   pax: boolean;
   discount: boolean;
+  tableInputMode: "checkout" | "sidebar";
+  tableEnabled: boolean;
+  tableRequired: boolean;
+  customerRequired: boolean;
 }
 
 // ─── Shared toggle styles ─────────────────────────────────────────────────────
@@ -195,11 +199,17 @@ function VariantDialog({ cartKey, productId, productName, unitPrice, existingNot
   const [loadErr, setLoadErr] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [freeNote, setFreeNote] = useState(existingNotes ?? "");
+  const [freeNotePrefix, setFreeNotePrefix] = useState<"+" | "-">("+");
+  const [defaultAddPrice, setDefaultAddPrice] = useState(0);
+  const [defaultRemovePrice, setDefaultRemovePrice] = useState(0);
 
   useEffect(() => {
     adminApi.optionGroups.list(productId)
       .then((g) => setGroups(g))
       .catch(() => setLoadErr(true));
+    adminApi.settings.get()
+      .then((s) => { setDefaultAddPrice(s.customNoteAddPrice ?? 0); setDefaultRemovePrice(s.customNoteRemovePrice ?? 0); })
+      .catch(() => {});
   }, [productId]);
 
   // Close on backdrop click or Escape
@@ -232,10 +242,14 @@ function VariantDialog({ cartKey, productId, productName, unitPrice, existingNot
       .filter((o) => selected.has(o.id))
       .map((o) => ({ optionId: o.id, optionGroupId: o.optionGroupId, name: o.name, priceDelta: o.priceDelta, prefix: o.prefix ?? (o.groupType === "removal" ? "-" : "+"), isRemoval: o.prefix === "-" || o.groupType === "removal" }));
     const trimmedNote = freeNote.trim();
+    if (trimmedNote) {
+      const notePriceDelta = freeNotePrefix === "+" ? defaultAddPrice : -(defaultRemovePrice);
+      opts.push({ optionId: 0, optionGroupId: 0, name: trimmedNote, priceDelta: notePriceDelta, prefix: freeNotePrefix, isRemoval: freeNotePrefix === "-" });
+    }
     if (opts.length > 0) {
-      addToCart({ productId, name: productName, unitPrice, selectedOptions: opts, ...(trimmedNote ? { notes: trimmedNote } : {}) });
+      addToCart({ productId, name: productName, unitPrice, selectedOptions: opts });
     } else {
-      updateItemNotes(cartKey, trimmedNote);
+      updateItemNotes(cartKey, "");
     }
     onClose();
   }
@@ -361,22 +375,48 @@ function VariantDialog({ cartKey, productId, productName, unitPrice, existingNot
               <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--color-gray-800)", marginBottom: "8px" }}>
                 Nota libera
               </div>
-              <textarea
-                rows={3}
-                autoFocus={groups.length === 0}
-                placeholder="Es. senza cipolla, ben cotto, allergie…"
-                value={freeNote}
-                onChange={(e) => setFreeNote(e.target.value)}
-                style={{
-                  width: "100%", padding: "10px 12px",
-                  border: "2px solid var(--color-gray-200)", borderRadius: "var(--radius-md)",
-                  fontFamily: "var(--font)", fontSize: "var(--text-sm)",
-                  resize: "none", boxSizing: "border-box", outline: "none",
-                  transition: "border-color 0.1s",
-                }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-brand)"; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-gray-200)"; }}
-              />
+              <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
+                {/* +/- toggle */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px", flexShrink: 0 }}>
+                  {(["+", "-"] as const).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setFreeNotePrefix(p)}
+                      style={{
+                        width: "36px", height: "36px",
+                        borderRadius: "var(--radius-md)",
+                        border: `2px solid ${freeNotePrefix === p ? (p === "+" ? "var(--color-brand)" : "var(--color-danger)") : "var(--color-gray-200)"}`,
+                        background: freeNotePrefix === p ? (p === "+" ? "rgba(48,107,52,0.08)" : "rgba(239,68,68,0.08)") : "var(--color-white)",
+                        color: freeNotePrefix === p ? (p === "+" ? "var(--color-brand)" : "var(--color-danger)") : "var(--color-gray-400)",
+                        fontFamily: "var(--font)", fontSize: "18px", fontWeight: 800,
+                        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                        transition: "all 0.12s",
+                      }}
+                    >{p}</button>
+                  ))}
+                  {(freeNotePrefix === "+" ? defaultAddPrice : defaultRemovePrice) !== 0 && (
+                    <div style={{ fontSize: "10px", color: "var(--color-gray-400)", textAlign: "center", fontWeight: 600 }}>
+                      {freeNotePrefix === "+" ? `+€${defaultAddPrice.toFixed(2)}` : `-€${defaultRemovePrice.toFixed(2)}`}
+                    </div>
+                  )}
+                </div>
+                <textarea
+                  rows={3}
+                  autoFocus={groups.length === 0}
+                  placeholder="Es. senza cipolla, ben cotto, allergie…"
+                  value={freeNote}
+                  onChange={(e) => setFreeNote(e.target.value)}
+                  style={{
+                    flex: 1, padding: "10px 12px",
+                    border: "2px solid var(--color-gray-200)", borderRadius: "var(--radius-md)",
+                    fontFamily: "var(--font)", fontSize: "var(--text-sm)",
+                    resize: "none", boxSizing: "border-box", outline: "none",
+                    transition: "border-color 0.1s",
+                  }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-brand)"; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-gray-200)"; }}
+                />
+              </div>
             </div>
           )}
         </div>
@@ -434,16 +474,36 @@ export function CartPanel() {
   const [error, setError] = useState<string | null>(null);
 
   // Feature flags + text size (loaded once)
-  const [features, setFeatures] = useState<CartFeatures>({ notes: true, pax: true, discount: true });
+  const [features, setFeatures] = useState<CartFeatures>({ notes: true, pax: true, discount: true, tableInputMode: "checkout", tableEnabled: false, tableRequired: false, customerRequired: false });
   const [cartTextSize, setCartTextSize] = useState(14);
   useEffect(() => {
     adminApi.settings.get()
       .then((s) => {
-        setFeatures({ notes: s.cartNotesEnabled, pax: s.cartPaxEnabled, discount: s.cartDiscountEnabled });
+        setFeatures({
+          notes: s.cartNotesEnabled,
+          pax: s.cartPaxEnabled,
+          discount: s.cartDiscountEnabled,
+          tableInputMode: s.tableInputMode ?? "checkout",
+          tableEnabled: s.tablesEnabled,
+          tableRequired: s.tableRequired ?? false,
+          customerRequired: s.customerRequired ?? false,
+        });
         setCartTextSize(s.cartTextSize ?? 14);
       })
       .catch(() => { /* keep defaults */ });
   }, []);
+
+  // Table / customer (sidebar mode) — pre-filled from store when ProductGrid sets them via pre-order modal
+  const pendingTableId = useStore((s) => s.pendingTableId);
+  const pendingCustomerName = useStore((s) => s.pendingCustomerName);
+  const setPendingOrderInfo = useStore((s) => s.setPendingOrderInfo);
+  const [sidebarTableId, setSidebarTableId] = useState(pendingTableId ?? "");
+  const [sidebarCustomerName, setSidebarCustomerName] = useState(pendingCustomerName ?? "");
+
+  useEffect(() => {
+    setSidebarTableId(pendingTableId ?? "");
+    setSidebarCustomerName(pendingCustomerName ?? "");
+  }, [pendingTableId, pendingCustomerName]);
 
   // Order-level extras
   const [orderNotes, setOrderNotes] = useState("");
@@ -506,8 +566,13 @@ export function CartPanel() {
     }
   };
 
+  const isSidebarMode = features.tableEnabled && features.tableInputMode === "sidebar";
+  const sidebarTableMissing = isSidebarMode && features.tableRequired && sidebarTableId.trim() === "";
+  const sidebarCustomerMissing = isSidebarMode && features.customerRequired && sidebarCustomerName.trim() === "";
+  const sidebarBlocked = sidebarTableMissing || sidebarCustomerMissing;
+
   const handleCheckout = async () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || sidebarBlocked) return;
     setLoading(true);
     setError(null);
     try {
@@ -518,6 +583,8 @@ export function CartPanel() {
         ...(discountAmount > 0
           ? { discountAmount, discountType: discountMode === "pct" ? `${discountNum}%` : "fixed" }
           : {}),
+        ...(isSidebarMode && sidebarTableId.trim() ? { tableId: sidebarTableId.trim() } : {}),
+        ...(isSidebarMode && sidebarCustomerName.trim() ? { customerName: sidebarCustomerName.trim() } : {}),
         items: cart.map((c) => ({
           productId: c.productId,
           name: c.name,
@@ -537,6 +604,8 @@ export function CartPanel() {
       });
       setCheckoutOrder(order);
       setOrderNotes(""); setPax(null); setDiscountInput(""); setOpenExtras(null); setVariantTarget(null);
+      setSidebarTableId(""); setSidebarCustomerName("");
+      setPendingOrderInfo({ tableId: null, customerName: null });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore creazione ordine");
     } finally {
@@ -776,6 +845,50 @@ export function CartPanel() {
         </div>
       )}
 
+      {/* Tavolo / Cliente — sidebar mode */}
+      {isSidebarMode && hasItems && (
+        <div style={{
+          padding: "10px var(--sp-md)",
+          borderTop: "1px solid var(--color-gray-100)",
+          display: "flex", flexDirection: "column", gap: "8px", flexShrink: 0,
+        }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+            <div>
+              <label style={{ fontSize: "11px", fontWeight: 700, color: "var(--color-gray-500)", display: "block", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                Tavolo{features.tableRequired ? " *" : ""}
+              </label>
+              <input
+                value={sidebarTableId}
+                onChange={(e) => setSidebarTableId(e.target.value)}
+                placeholder="Es. 12"
+                style={{
+                  width: "100%", height: "36px", padding: "0 10px",
+                  borderRadius: "var(--radius-md)",
+                  border: `2px solid ${sidebarTableMissing ? "var(--color-danger)" : "var(--color-gray-200)"}`,
+                  fontFamily: "var(--font)", fontSize: "var(--text-sm)", boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: "11px", fontWeight: 700, color: "var(--color-gray-500)", display: "block", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                Cliente{features.customerRequired ? " *" : ""}
+              </label>
+              <input
+                value={sidebarCustomerName}
+                onChange={(e) => setSidebarCustomerName(e.target.value)}
+                placeholder="Es. Mario"
+                style={{
+                  width: "100%", height: "36px", padding: "0 10px",
+                  borderRadius: "var(--radius-md)",
+                  border: `2px solid ${sidebarCustomerMissing ? "var(--color-danger)" : "var(--color-gray-200)"}`,
+                  fontFamily: "var(--font)", fontSize: "var(--text-sm)", boxSizing: "border-box",
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <div style={{
         padding: "var(--sp-md)",
@@ -822,11 +935,11 @@ export function CartPanel() {
         ) : (
           <Button
             fullWidth size="xl"
-            disabled={!hasItems || loading || !currentShift}
+            disabled={!hasItems || loading || !currentShift || sidebarBlocked}
             loading={loading}
             onClick={() => void handleCheckout()}
           >
-            {!currentShift ? "Apri un turno per iniziare" : !hasItems ? "Carrello vuoto" : " Paga"}
+            {!currentShift ? "Apri un turno per iniziare" : !hasItems ? "Carrello vuoto" : "Paga"}
           </Button>
         )}
       </div>

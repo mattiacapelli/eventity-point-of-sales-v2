@@ -228,8 +228,14 @@ export function InterfaceTab() {
   const [cartPaxEnabled, setCartPaxEnabled] = useState(true);
   const [cartDiscountEnabled, setCartDiscountEnabled] = useState(true);
   const [cartTextSize, setCartTextSize] = useState(14);
+  const [customNoteAddPrice, setCustomNoteAddPrice] = useState(0);
+  const [customNoteRemovePrice, setCustomNoteRemovePrice] = useState(0);
   const [tablesEnabled, setTablesEnabled] = useState(false);
+  const [tableInputMode, setTableInputMode] = useState<"checkout" | "sidebar">("checkout");
+  const [tableRequired, setTableRequired] = useState(false);
+  const [customerRequired, setCustomerRequired] = useState(false);
   const [shiftAutoPrintReport, setShiftAutoPrintReport] = useState(false);
+  const [shiftForceCloseDefault, setShiftForceCloseDefault] = useState(false);
   const [productDateFilterEnabled, setProductDateFilterEnabled] = useState(false);
   const [savingCart, setSavingCart] = useState<string | null>(null);
 
@@ -244,8 +250,14 @@ export function InterfaceTab() {
       setCartPaxEnabled(s.cartPaxEnabled);
       setCartDiscountEnabled(s.cartDiscountEnabled);
       setCartTextSize(s.cartTextSize ?? 14);
+      setCustomNoteAddPrice(s.customNoteAddPrice ?? 0);
+      setCustomNoteRemovePrice(s.customNoteRemovePrice ?? 0);
       setTablesEnabled(s.tablesEnabled);
+      setTableInputMode(s.tableInputMode ?? "checkout");
+      setTableRequired(s.tableRequired ?? false);
+      setCustomerRequired(s.customerRequired ?? false);
       setShiftAutoPrintReport(s.shiftAutoPrintReport ?? false);
+      setShiftForceCloseDefault(s.shiftForceCloseDefault ?? false);
       setProductDateFilterEnabled(s.productDateFilterEnabled ?? false);
       setLoaded(true);
     }).catch(() => setLoaded(true));
@@ -394,6 +406,26 @@ export function InterfaceTab() {
             <div style={{ borderTop: "1px solid var(--color-gray-100)", marginTop: "14px", paddingTop: "14px" }}>
               <div style={rowStyle}>
                 <div>
+                  <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)", marginBottom: "3px" }}>Forza chiusura di default</div>
+                  <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", lineHeight: 1.5 }}>Chiude il turno direttamente anche se ci sono ordini aperti, senza mostrare il messaggio di errore.</div>
+                </div>
+                <button
+                  disabled={savingCart === "shiftForceCloseDefault"}
+                  onClick={async () => {
+                    const next = !shiftForceCloseDefault;
+                    setShiftForceCloseDefault(next);
+                    setSavingCart("shiftForceCloseDefault");
+                    try { await adminApi.settings.update({ shiftForceCloseDefault: next }); } catch { /* ignore */ } finally { setSavingCart(null); }
+                  }}
+                  style={toggleStyle(shiftForceCloseDefault, savingCart === "shiftForceCloseDefault")}
+                >
+                  <span style={thumbStyle(shiftForceCloseDefault)} />
+                </button>
+              </div>
+            </div>
+            <div style={{ borderTop: "1px solid var(--color-gray-100)", marginTop: "14px", paddingTop: "14px" }}>
+              <div style={rowStyle}>
+                <div>
                   <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)", marginBottom: "3px" }}>Filtro prodotti per data</div>
                   <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", lineHeight: 1.5 }}>
                     Nasconde i prodotti che non sono programmati per la data odierna. Configura le date disponibili nella scheda di ogni prodotto.
@@ -417,23 +449,81 @@ export function InterfaceTab() {
 
           <div style={cardStyle}>
             <div style={sectionTitle}>Modulo tavoli</div>
-            <div style={rowStyle}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)", marginBottom: "3px" }}>Tavolo e nome cliente</div>
-                <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", lineHeight: 1.5 }}>Mostra i campi tavolo e nome cliente nel modal di pagamento.</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+              <div style={rowStyle}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)", marginBottom: "3px" }}>Abilita tavolo e nome cliente</div>
+                  <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", lineHeight: 1.5 }}>Mostra i campi tavolo e nome cliente durante l'ordine.</div>
+                </div>
+                <button
+                  disabled={savingCart === "tablesEnabled"}
+                  onClick={async () => {
+                    const next = !tablesEnabled;
+                    setTablesEnabled(next);
+                    setSavingCart("tablesEnabled");
+                    try { await adminApi.settings.update({ tablesEnabled: next }); } catch { /* ignore */ } finally { setSavingCart(null); }
+                  }}
+                  style={toggleStyle(tablesEnabled, savingCart === "tablesEnabled")}
+                >
+                  <span style={thumbStyle(tablesEnabled)} />
+                </button>
               </div>
-              <button
-                disabled={savingCart === "tablesEnabled"}
-                onClick={async () => {
-                  const next = !tablesEnabled;
-                  setTablesEnabled(next);
-                  setSavingCart("tablesEnabled");
-                  try { await adminApi.settings.update({ tablesEnabled: next }); } catch { /* ignore */ } finally { setSavingCart(null); }
-                }}
-                style={toggleStyle(tablesEnabled, savingCart === "tablesEnabled")}
-              >
-                <span style={thumbStyle(tablesEnabled)} />
-              </button>
+
+              {tablesEnabled && (
+                <>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)", marginBottom: "8px" }}>Dove inserire tavolo e cliente</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                      {(["checkout", "sidebar"] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          onClick={async () => {
+                            setTableInputMode(mode);
+                            try { await adminApi.settings.update({ tableInputMode: mode }); } catch { /* ignore */ }
+                          }}
+                          style={{
+                            padding: "10px 12px", borderRadius: "var(--radius-md)", cursor: "pointer",
+                            border: `2px solid ${tableInputMode === mode ? "var(--color-brand)" : "var(--color-gray-200)"}`,
+                            background: tableInputMode === mode ? "rgba(48,107,52,0.06)" : "var(--color-white)",
+                            fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 600,
+                            color: tableInputMode === mode ? "var(--color-brand)" : "var(--color-gray-700)",
+                            textAlign: "left",
+                          }}
+                        >
+                          <div>{mode === "checkout" ? "Al pagamento" : "Nel carrello"}</div>
+                          <div style={{ fontSize: "var(--text-xs)", fontWeight: 400, color: "var(--color-gray-400)", marginTop: "2px" }}>
+                            {mode === "checkout" ? "Appare nel modal di conferma pagamento" : "Appare nella sidebar prima di inviare l'ordine"}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)", marginBottom: "10px" }}>Campi obbligatori</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                      {([
+                        { key: "tableRequired" as const, label: "Tavolo obbligatorio", value: tableRequired, set: setTableRequired },
+                        { key: "customerRequired" as const, label: "Nome cliente obbligatorio", value: customerRequired, set: setCustomerRequired },
+                      ] as const).map(({ key, label, value, set }) => (
+                        <div key={key} style={rowStyle}>
+                          <span style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-700)" }}>{label}</span>
+                          <button
+                            onClick={async () => {
+                              const next = !value;
+                              set(next);
+                              try { await adminApi.settings.update({ [key]: next } as Parameters<typeof adminApi.settings.update>[0]); } catch { /* ignore */ }
+                            }}
+                            style={toggleStyle(value, false)}
+                          >
+                            <span style={thumbStyle(value)} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -463,6 +553,37 @@ export function InterfaceTab() {
                   >
                     <span style={thumbStyle(value)} />
                   </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={sectionTitle}>Prezzi default note libere</div>
+            <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", marginBottom: "16px", lineHeight: 1.5 }}>
+              Quando si aggiunge una nota libera con + o −, viene applicato questo prezzo automaticamente. Lascia 0 per non applicare nessun costo.
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+              {([
+                { label: "+ Aggiunta", value: customNoteAddPrice, set: setCustomNoteAddPrice, key: "customNoteAddPrice" as const },
+                { label: "− Rimozione", value: customNoteRemovePrice, set: setCustomNoteRemovePrice, key: "customNoteRemovePrice" as const },
+              ] as const).map(({ label, value, set, key }) => (
+                <div key={key}>
+                  <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "6px" }}>{label}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)" }}>€</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={value}
+                      onChange={(e) => set(parseFloat(e.target.value) || 0)}
+                      onBlur={async () => {
+                        try { await adminApi.settings.update({ [key]: value } as Parameters<typeof adminApi.settings.update>[0]); } catch { /* ignore */ }
+                      }}
+                      style={{ width: "100%", height: "38px", padding: "0 10px", borderRadius: "var(--radius-md)", border: "2px solid var(--color-gray-200)", fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 600, boxSizing: "border-box" }}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
