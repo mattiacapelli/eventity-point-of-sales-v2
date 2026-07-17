@@ -52,7 +52,8 @@ export class WindowsPrinterAdapter implements PrinterAdapter {
     try {
       writeFileSync(binPath, buf);
 
-      // The script reads raw bytes from the bin file and sends them via winspool RAW job.
+      // The script tries multiple datatypes because some drivers reject "RAW" (error 1804).
+      // It tries: "RAW", "XPS_PASS", "" (driver default) — uses the first that works.
       const script = `
 param([string]$PrinterName, [string]$BinPath)
 Add-Type -TypeDefinition @"
@@ -76,9 +77,10 @@ public class RawPrint {
   public static extern bool ClosePrinter(IntPtr h);
   [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
   public class DOCINFO { public string pDocName; public string pOutputFile; public string pDataType; }
-  public static string Send(string name, byte[] data) {
-    IntPtr h; if (!OpenPrinter(name, out h, IntPtr.Zero)) return "ERR:OpenPrinter:" + Marshal.GetLastWin32Error();
-    var di = new DOCINFO { pDocName="ESC/POS", pOutputFile=null, pDataType="RAW" };
+  public static string TrySend(string name, string dataType, byte[] data) {
+    IntPtr h;
+    if (!OpenPrinter(name, out h, IntPtr.Zero)) return "ERR:OpenPrinter:" + Marshal.GetLastWin32Error();
+    var di = new DOCINFO { pDocName="ESC/POS", pOutputFile=null, pDataType=dataType };
     if (!StartDocPrinter(h, 1, di)) { ClosePrinter(h); return "ERR:StartDoc:" + Marshal.GetLastWin32Error(); }
     StartPagePrinter(h);
     IntPtr p = Marshal.AllocCoTaskMem(data.Length);
@@ -91,7 +93,12 @@ public class RawPrint {
 }
 "@
 $bytes = [System.IO.File]::ReadAllBytes($BinPath)
-Write-Output ([RawPrint]::Send($PrinterName, $bytes))
+foreach ($dt in @("RAW", "XPS_PASS", "")) {
+  $r = [RawPrint]::TrySend($PrinterName, $dt, $bytes)
+  if ($r -eq "OK") { Write-Output "OK:$dt"; exit 0 }
+  if ($r -notmatch "ERR:StartDoc:1804") { Write-Output $r; exit 1 }
+}
+Write-Output "ERR:NoSupportedDatatype"
 `;
       writeFileSync(ps1Path, script, { encoding: "utf8" });
 
@@ -100,7 +107,7 @@ Write-Output ([RawPrint]::Send($PrinterName, $bytes))
         { timeout: 15000, windowsHide: true },
       ).toString().trim();
 
-      if (out.startsWith("OK")) {
+      if (out.startsWith("OK:")) {
         this.logger.info({ printerName: this.printerName, bytes: buf.length }, "[win-printer] print OK");
         return { success: true, message: "OK" };
       }
