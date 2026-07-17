@@ -4,7 +4,7 @@ import { eq } from "@pos/db";
 import { printers, productionCenters, productionCenterPrinters } from "@pos/db";
 import * as net from "node:net";
 import * as os from "node:os";
-import { requireRole, AuthError, listUsbPrinters, listWindowsPrinters } from "@pos/core";
+import { requireRole, AuthError, listUsbPrinters, listWindowsPrinters, listWindowsUsbPorts } from "@pos/core";
 
 const printersRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("onRequest", async (request, reply) => {
@@ -208,15 +208,25 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
     const printerList = listWindowsPrinters();
     return reply.send({ printers: printerList });
   });
+
+  fastify.get("/printers/discover/windows-ports", {
+    schema: { tags: ["printers"], summary: "List USB port paths (USB001…USB009) that have a device attached" },
+  }, async (_request, reply) => {
+    const ports = listWindowsUsbPorts();
+    return reply.send({ ports });
+  });
 };
 
 export default printersRoutes;
 
-type PrinterRow = { connectionType: string; host: string | null; port: number | null; usbVendorId: number | null; usbProductId: number | null };
+type PrinterRow = { connectionType: string; host: string | null; port: number | null; usbVendorId: number | null; usbProductId: number | null; winPrinterName: string | null };
 
 function buildPrinterConfig(printer: PrinterRow) {
   if (printer.connectionType === "usb" && printer.usbVendorId && printer.usbProductId) {
     return { connectionType: "usb" as const, usbVendorId: printer.usbVendorId, usbProductId: printer.usbProductId };
+  }
+  if (printer.connectionType === "windows" && printer.winPrinterName) {
+    return { connectionType: "windows" as const, winPrinterName: printer.winPrinterName };
   }
   if (printer.host && printer.port) {
     return { connectionType: "network" as const, host: printer.host, port: printer.port };

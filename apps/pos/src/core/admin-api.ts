@@ -179,7 +179,8 @@ export const adminApi = {
     discoverSubnet: () => req<{ subnet: string | null }>("GET", "/printers/discover/subnet"),
     discover: (subnet?: string) => req<{ subnet: string; found: Array<{ host: string; port: number }> }>("POST", "/printers/discover", { subnet }),
     discoverUsb: () => req<{ devices: Array<{ vendorId: number; productId: number; vendorIdHex: string; productIdHex: string }> }>("GET", "/printers/discover/usb"),
-    discoverWindows: () => req<{ printers: Array<{ name: string; status: string; isDefault: boolean }> }>("GET", "/printers/discover/windows"),
+    discoverWindows: () => req<{ printers: Array<{ name: string; status: string; isDefault: boolean; portName: string | null }> }>("GET", "/printers/discover/windows"),
+    discoverWindowsPorts: () => req<{ ports: Array<{ portName: string; description: string }> }>("GET", "/printers/discover/windows-ports"),
     getProductionCenters: (id: number) => req<ProductionCenter[]>("GET", `/printers/${id}/production-centers`),
   },
   receiptTemplates: {

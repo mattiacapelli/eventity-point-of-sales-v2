@@ -10,21 +10,76 @@ export interface WindowsPrinterInfo {
   name: string;
   status: string;
   isDefault: boolean;
+  portName: string | null;
 }
 
+export interface WindowsUsbPortInfo {
+  portName: string;   // e.g. "USB001"
+  description: string;
+}
+
+/** List printers installed in Windows via Get-Printer, including their port name. */
 export function listWindowsPrinters(): WindowsPrinterInfo[] {
   if (process.platform !== "win32") return [];
   try {
-    const ps = `powershell -NoProfile -Command "Get-Printer | Select-Object Name,PrinterStatus,Default | ConvertTo-Json -Compress"`;
+    const ps = `powershell -NoProfile -Command "Get-Printer | Select-Object Name,PrinterStatus,Default,PortName | ConvertTo-Json -Compress"`;
     const out = execSync(ps, { timeout: 8000, windowsHide: true }).toString().trim();
     if (!out) return [];
     const raw = JSON.parse(out);
     const arr = Array.isArray(raw) ? raw : [raw];
-    return arr.map((r: { Name?: string; PrinterStatus?: number; Default?: boolean }) => ({
+    return arr.map((r: { Name?: string; PrinterStatus?: number; Default?: boolean; PortName?: string }) => ({
       name: r.Name ?? "",
-      status: r.PrinterStatus === 0 ? "Pronta" : "Occupata/Offline",
+      status: r.PrinterStatus === 0 ? "Pronta" : "Offline/Occupata",
       isDefault: r.Default === true,
+      portName: r.PortName ?? null,
     })).filter((r) => r.name !== "");
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * List USB ports (USB001, USB002, …) that have a device attached, by trying
+ * to open each with CreateFile. Returns only ports that open successfully.
+ */
+export function listWindowsUsbPorts(): WindowsUsbPortInfo[] {
+  if (process.platform !== "win32") return [];
+  try {
+    const id = randomBytes(8).toString("hex");
+    const ps1 = join(tmpdir(), `pos-usbports-${id}.ps1`);
+    const script = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class WinPort {
+  [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+  public static extern IntPtr CreateFile(string lpFileName, uint dwAccess, uint dwShare,
+    IntPtr lpSec, uint dwCreate, uint dwFlags, IntPtr hTemplate);
+  [DllImport("kernel32.dll", SetLastError=true)]
+  public static extern bool CloseHandle(IntPtr h);
+  public static bool CanOpen(string path) {
+    var h = CreateFile(path, 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
+    if (h == new IntPtr(-1)) return false;
+    CloseHandle(h); return true;
+  }
+}
+"@
+$results = @()
+for ($i = 1; $i -le 9; $i++) {
+  $port = "USB00$i"
+  $path = "\\\\.\\$port"
+  if ([WinPort]::CanOpen($path)) { $results += $port }
+}
+if ($results.Count -eq 0) { Write-Output "NONE" } else { Write-Output ($results -join ",") }
+`;
+    writeFileSync(ps1, script, { encoding: "utf8" });
+    const out = execSync(
+      `powershell -NoProfile -ExecutionPolicy Bypass -File "${ps1}"`,
+      { timeout: 10000, windowsHide: true },
+    ).toString().trim();
+    try { unlinkSync(ps1); } catch { /* ignore */ }
+    if (!out || out === "NONE") return [];
+    return out.split(",").map((p) => ({ portName: p.trim(), description: `Porta ${p.trim()}` }));
   } catch {
     return [];
   }
@@ -32,7 +87,7 @@ export function listWindowsPrinters(): WindowsPrinterInfo[] {
 
 export class WindowsPrinterAdapter implements PrinterAdapter {
   constructor(
-    private readonly printerName: string,
+    private readonly portName: string,   // e.g. "USB003" or a printer name fallback
     private readonly logger: Logger,
   ) {}
 
@@ -42,9 +97,6 @@ export class WindowsPrinterAdapter implements PrinterAdapter {
     }
 
     const buf = job.contentBuffer ?? buildEscPosBuffer(job.content ?? "");
-
-    // Write data and script to temp files to avoid command-line length limits
-    // and quoting issues when embedding binary/base64 inline in PowerShell -Command.
     const id = randomBytes(8).toString("hex");
     const binPath = join(tmpdir(), `pos-print-${id}.bin`);
     const ps1Path = join(tmpdir(), `pos-print-${id}.ps1`);
@@ -52,70 +104,54 @@ export class WindowsPrinterAdapter implements PrinterAdapter {
     try {
       writeFileSync(binPath, buf);
 
-      // The script tries multiple datatypes because some drivers reject "RAW" (error 1804).
-      // It tries: "RAW", "XPS_PASS", "" (driver default) — uses the first that works.
+      // Write directly to the USB port device path (e.g. \\.\USB003), bypassing
+      // the Windows print spooler entirely. This is the only reliable way to send
+      // raw ESC/POS bytes to an Epson printer without a vendor-specific RAW driver.
       const script = `
-param([string]$PrinterName, [string]$BinPath)
+param([string]$PortName, [string]$BinPath)
 Add-Type -TypeDefinition @"
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
-public class RawPrint {
-  [DllImport("winspool.drv", CharSet=CharSet.Unicode)]
-  public static extern bool OpenPrinter(string n, out IntPtr h, IntPtr d);
-  [DllImport("winspool.drv", SetLastError=true)]
-  public static extern bool StartDocPrinter(IntPtr h, int lvl, [In,MarshalAs(UnmanagedType.LPStruct)] DOCINFO di);
-  [DllImport("winspool.drv", SetLastError=true)]
-  public static extern bool EndDocPrinter(IntPtr h);
-  [DllImport("winspool.drv", SetLastError=true)]
-  public static extern bool StartPagePrinter(IntPtr h);
-  [DllImport("winspool.drv", SetLastError=true)]
-  public static extern bool EndPagePrinter(IntPtr h);
-  [DllImport("winspool.drv", SetLastError=true)]
-  public static extern bool WritePrinter(IntPtr h, IntPtr p, int n, out int w);
-  [DllImport("winspool.drv", SetLastError=true)]
-  public static extern bool ClosePrinter(IntPtr h);
-  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
-  public class DOCINFO { public string pDocName; public string pOutputFile; public string pDataType; }
-  public static string TrySend(string name, string dataType, byte[] data) {
-    IntPtr h;
-    if (!OpenPrinter(name, out h, IntPtr.Zero)) return "ERR:OpenPrinter:" + Marshal.GetLastWin32Error();
-    var di = new DOCINFO { pDocName="ESC/POS", pOutputFile=null, pDataType=dataType };
-    if (!StartDocPrinter(h, 1, di)) { ClosePrinter(h); return "ERR:StartDoc:" + Marshal.GetLastWin32Error(); }
-    StartPagePrinter(h);
-    IntPtr p = Marshal.AllocCoTaskMem(data.Length);
-    Marshal.Copy(data, 0, p, data.Length);
-    int w; bool ok = WritePrinter(h, p, data.Length, out w);
-    Marshal.FreeCoTaskMem(p);
-    EndPagePrinter(h); EndDocPrinter(h); ClosePrinter(h);
-    return ok ? "OK" : "ERR:WritePrinter:" + Marshal.GetLastWin32Error();
+public class DirectPrint {
+  [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+  public static extern IntPtr CreateFile(string lpFileName, uint dwAccess, uint dwShare,
+    IntPtr lpSec, uint dwCreate, uint dwFlags, IntPtr hTemplate);
+  [DllImport("kernel32.dll", SetLastError=true)]
+  public static extern bool WriteFile(IntPtr h, byte[] buf, uint n, out uint written, IntPtr ov);
+  [DllImport("kernel32.dll", SetLastError=true)]
+  public static extern bool CloseHandle(IntPtr h);
+  public static string Send(string portName, byte[] data) {
+    string path = "\\\\\\\\.\\\\\" + portName;
+    IntPtr h = CreateFile(path, 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
+    if (h == new IntPtr(-1)) return "ERR:CreateFile:" + Marshal.GetLastWin32Error();
+    uint w;
+    bool ok = WriteFile(h, data, (uint)data.Length, out w, IntPtr.Zero);
+    CloseHandle(h);
+    return ok ? "OK:" + w : "ERR:WriteFile:" + Marshal.GetLastWin32Error();
   }
 }
 "@
 $bytes = [System.IO.File]::ReadAllBytes($BinPath)
-foreach ($dt in @("RAW", "XPS_PASS", "")) {
-  $r = [RawPrint]::TrySend($PrinterName, $dt, $bytes)
-  if ($r -eq "OK") { Write-Output "OK:$dt"; exit 0 }
-  if ($r -notmatch "ERR:StartDoc:1804") { Write-Output $r; exit 1 }
-}
-Write-Output "ERR:NoSupportedDatatype"
+Write-Output ([DirectPrint]::Send($PortName, $bytes))
 `;
       writeFileSync(ps1Path, script, { encoding: "utf8" });
 
+      const escapedPort = this.portName.replace(/"/g, '`"');
       const out = execSync(
-        `powershell -NoProfile -ExecutionPolicy Bypass -File "${ps1Path}" -PrinterName "${this.printerName.replace(/"/g, '`"')}" -BinPath "${binPath}"`,
+        `powershell -NoProfile -ExecutionPolicy Bypass -File "${ps1Path}" -PortName "${escapedPort}" -BinPath "${binPath}"`,
         { timeout: 15000, windowsHide: true },
       ).toString().trim();
 
       if (out.startsWith("OK:")) {
-        this.logger.info({ printerName: this.printerName, bytes: buf.length }, "[win-printer] print OK");
+        this.logger.info({ portName: this.portName, bytes: buf.length }, "[win-printer] direct port print OK");
         return { success: true, message: "OK" };
       }
-      this.logger.error({ printerName: this.printerName, out }, "[win-printer] print failed");
+      this.logger.error({ portName: this.portName, out }, "[win-printer] direct port print failed");
       return { success: false, message: `Windows print error: ${out}` };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error({ printerName: this.printerName, err: msg }, "[win-printer] exec error");
+      this.logger.error({ portName: this.portName, err: msg }, "[win-printer] exec error");
       return { success: false, message: msg };
     } finally {
       try { unlinkSync(binPath); } catch { /* ignore */ }
