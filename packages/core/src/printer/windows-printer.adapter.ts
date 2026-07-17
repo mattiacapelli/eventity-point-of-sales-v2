@@ -1,10 +1,13 @@
-import { execSync } from "node:child_process";
+import { execSync, exec } from "node:child_process";
+import { promisify } from "node:util";
 import { writeFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import type { Logger } from "pino";
 import type { PrinterAdapter, PrintJob, PrintResult } from "./printer.service.js";
+
+const execAsync = promisify(exec);
 
 export interface WindowsPrinterInfo {
   name: string;
@@ -84,12 +87,14 @@ export class WindowsPrinterAdapter implements PrinterAdapter {
 
       // copy /B su \\localhost\NomeStampante usa lo spooler Windows ma con il
       // driver Epson installato funziona correttamente per ESC/POS raw.
-      const out = execSync(
+      // Usiamo exec async (non execSync) per non bloccare l'event loop di Node
+      // durante l'I/O verso la stampante.
+      const { stdout } = await execAsync(
         `copy /B "${binPath}" "\\\\localhost\\${this.printerName}"`,
         { timeout: 15000, windowsHide: true, shell: "cmd.exe" },
-      ).toString().trim();
+      );
 
-      this.logger.info({ printerName: this.printerName, bytes: buf.length, out }, "[win-printer] copy /B OK");
+      this.logger.info({ printerName: this.printerName, bytes: buf.length, out: stdout.trim() }, "[win-printer] copy /B OK");
       return { success: true, message: "OK" };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
