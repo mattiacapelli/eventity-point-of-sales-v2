@@ -60,6 +60,7 @@ export const printers = sqliteTable("printers", {
   port:            integer("port"),
   usbVendorId:     integer("usb_vendor_id"),
   usbProductId:    integer("usb_product_id"),
+  winPrinterName:  text("win_printer_name"),
   active:          integer("active", { mode: "boolean" }).notNull().default(true),
   receiptEnabled:  integer("receipt_enabled", { mode: "boolean" }).notNull().default(false),
   kitchenEnabled:  integer("kitchen_enabled", { mode: "boolean" }).notNull().default(false),

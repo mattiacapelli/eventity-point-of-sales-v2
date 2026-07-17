@@ -368,6 +368,7 @@ ALTER TABLE printers ADD COLUMN usb_vendor_id INTEGER;
 ALTER TABLE printers ADD COLUMN usb_product_id INTEGER;
 CREATE TABLE IF NOT EXISTS terminal_products (terminal_id INTEGER NOT NULL REFERENCES terminals(id) ON DELETE CASCADE, product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE, PRIMARY KEY (terminal_id, product_id));
 ALTER TABLE categories ADD COLUMN receipt_print_mode TEXT NOT NULL DEFAULT 'inherit';
+ALTER TABLE printers ADD COLUMN win_printer_name TEXT;
 `;
 
 // payments.method used to be a CHECK-constrained enum column (cash/card/digital_wallet/tab).

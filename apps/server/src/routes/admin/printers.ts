@@ -4,7 +4,7 @@ import { eq } from "@pos/db";
 import { printers, productionCenters, productionCenterPrinters } from "@pos/db";
 import * as net from "node:net";
 import * as os from "node:os";
-import { requireRole, AuthError, listUsbPrinters } from "@pos/core";
+import { requireRole, AuthError, listUsbPrinters, listWindowsPrinters } from "@pos/core";
 
 const printersRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("onRequest", async (request, reply) => {
@@ -50,6 +50,7 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       port?: number;
       usbVendorId?: number | null;
       usbProductId?: number | null;
+      winPrinterName?: string | null;
       active?: boolean;
       receiptEnabled?: boolean;
       kitchenEnabled?: boolean;
@@ -63,6 +64,7 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       port:           body.port ?? null,
       usbVendorId:    body.usbVendorId ?? null,
       usbProductId:   body.usbProductId ?? null,
+      winPrinterName: body.winPrinterName ?? null,
       active:         body.active ?? true,
       receiptEnabled: body.receiptEnabled ?? false,
       kitchenEnabled: body.kitchenEnabled ?? false,
@@ -85,6 +87,7 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       port: number | null;
       usbVendorId: number | null;
       usbProductId: number | null;
+      winPrinterName: string | null;
       active: boolean;
       receiptEnabled: boolean;
       kitchenEnabled: boolean;
@@ -102,6 +105,7 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       port?: number | null;
       usbVendorId?: number | null;
       usbProductId?: number | null;
+      winPrinterName?: string | null;
       active?: boolean;
       receiptEnabled?: boolean;
       kitchenEnabled?: boolean;
@@ -114,6 +118,7 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
     if ("port" in body) update.port = body.port ?? null;
     if ("usbVendorId" in body) update.usbVendorId = body.usbVendorId ?? null;
     if ("usbProductId" in body) update.usbProductId = body.usbProductId ?? null;
+    if ("winPrinterName" in body) update.winPrinterName = body.winPrinterName ?? null;
     if (body.active !== undefined) update.active = body.active;
     if (body.receiptEnabled !== undefined) update.receiptEnabled = body.receiptEnabled;
     if (body.kitchenEnabled !== undefined) update.kitchenEnabled = body.kitchenEnabled;
@@ -195,6 +200,13 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (_request, reply) => {
     const devices = listUsbPrinters();
     return reply.send({ devices });
+  });
+
+  fastify.get("/printers/discover/windows", {
+    schema: { tags: ["printers"], summary: "List printers installed in Windows (Win32 only)" },
+  }, async (_request, reply) => {
+    const printerList = listWindowsPrinters();
+    return reply.send({ printers: printerList });
   });
 };
 

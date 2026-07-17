@@ -22,6 +22,7 @@ export type PrinterRow = {
   port: number | null;
   usbVendorId: number | null;
   usbProductId: number | null;
+  winPrinterName: string | null;
   kitchenEnabled: boolean;
   receiptEnabled: boolean;
   active: boolean;

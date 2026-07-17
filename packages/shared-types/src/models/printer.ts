@@ -7,6 +7,7 @@ export interface Printer {
   port: number | null;
   usbVendorId: number | null;
   usbProductId: number | null;
+  winPrinterName: string | null;
   active: boolean;
   receiptEnabled: boolean;
   kitchenEnabled: boolean;

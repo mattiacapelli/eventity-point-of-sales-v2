@@ -1,6 +1,7 @@
 import type { Logger } from "pino";
 import { TcpPrinterAdapter } from "./tcp-printer.adapter.js";
 import { UsbPrinterAdapter } from "./usb-printer.adapter.js";
+import { WindowsPrinterAdapter } from "./windows-printer.adapter.js";
 
 export interface PrintJob {
   printerId: number;
@@ -23,13 +24,15 @@ export interface PrinterAdapter {
 }
 
 export interface PrinterConfig {
-  connectionType?: "network" | "usb";
+  connectionType?: "network" | "usb" | "windows";
   // network
   host?: string;
   port?: number;
   // usb
   usbVendorId?: number;
   usbProductId?: number;
+  // windows
+  winPrinterName?: string;
 }
 
 class MockPrinterAdapter implements PrinterAdapter {
@@ -69,11 +72,21 @@ export class PrinterService {
 
     if (cfg.connectionType === "usb") {
       if (!cfg.usbVendorId || !cfg.usbProductId) return this.fallbackAdapter;
-      // USB adapters are stateless (open/close per job) — no pooling needed
       const key = `usb:${job.printerId}:${cfg.usbVendorId}:${cfg.usbProductId}`;
       let adapter = this.adapterPool.get(key);
       if (!adapter) {
         adapter = new UsbPrinterAdapter(cfg.usbVendorId, cfg.usbProductId, this.logger);
+        this.adapterPool.set(key, adapter);
+      }
+      return adapter;
+    }
+
+    if (cfg.connectionType === "windows") {
+      if (!cfg.winPrinterName) return this.fallbackAdapter;
+      const key = `win:${job.printerId}:${cfg.winPrinterName}`;
+      let adapter = this.adapterPool.get(key);
+      if (!adapter) {
+        adapter = new WindowsPrinterAdapter(cfg.winPrinterName, this.logger);
         this.adapterPool.set(key, adapter);
       }
       return adapter;
@@ -138,6 +151,7 @@ export class PrinterService {
     const cfg = job.printerConfig;
     if (!cfg) return `fallback:${job.printerId}`;
     if (cfg.connectionType === "usb") return `usb:${job.printerId}`;
+    if (cfg.connectionType === "windows") return `win:${job.printerId}`;
     return `tcp:${job.printerId}`;
   }
 

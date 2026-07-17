@@ -13,6 +13,9 @@ function buildPrinterConfig(printer: PrinterRow): PrinterConfig | undefined {
   if (printer.connectionType === "usb" && printer.usbVendorId && printer.usbProductId) {
     return { connectionType: "usb", usbVendorId: printer.usbVendorId, usbProductId: printer.usbProductId };
   }
+  if (printer.connectionType === "windows" && printer.winPrinterName) {
+    return { connectionType: "windows", winPrinterName: printer.winPrinterName };
+  }
   if (printer.host && printer.port) {
     return { connectionType: "network", host: printer.host, port: printer.port };
   }

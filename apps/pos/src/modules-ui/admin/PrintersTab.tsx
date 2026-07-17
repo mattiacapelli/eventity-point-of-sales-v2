@@ -7,13 +7,19 @@ import type { Printer, ProductionCenter } from "@pos/shared-types";
 import { PlusIcon, PrinterIcon, PencilSquareIcon, TrashIcon, BuildingStorefrontIcon, XMarkIcon } from "../../components/ui/icons.js";
 import { inputStyle, labelStyle, Toggle } from "./shared.js";
 
-type ConnectionType = "network" | "usb";
+type ConnectionType = "network" | "usb" | "windows";
 
 interface UsbDevice {
   vendorId: number;
   productId: number;
   vendorIdHex: string;
   productIdHex: string;
+}
+
+interface WinPrinter {
+  name: string;
+  status: string;
+  isDefault: boolean;
 }
 
 interface PrinterForm {
@@ -25,6 +31,8 @@ interface PrinterForm {
   // usb
   usbVendorId: number | null;
   usbProductId: number | null;
+  // windows
+  winPrinterName: string | null;
   receiptEnabled: boolean;
   kitchenEnabled: boolean;
   printMode: "text" | "image";
@@ -37,6 +45,7 @@ const defaultForm = (): PrinterForm => ({
   port: "",
   usbVendorId: null,
   usbProductId: null,
+  winPrinterName: null,
   receiptEnabled: false,
   kitchenEnabled: false,
   printMode: "text",
@@ -63,6 +72,10 @@ export function PrintersTab() {
   const [usbDiscoverOpen, setUsbDiscoverOpen] = useState(false);
   const [usbDevices, setUsbDevices] = useState<UsbDevice[]>([]);
   const [usbDiscovering, setUsbDiscovering] = useState(false);
+
+  // Windows printer discovery
+  const [winPrinters, setWinPrinters] = useState<WinPrinter[]>([]);
+  const [winDiscovering, setWinDiscovering] = useState(false);
 
   // Per-printer assigned production centers
   const [printerCenters, setPrinterCenters] = useState<Record<number, ProductionCenter[]>>({});
@@ -112,10 +125,12 @@ export function PrintersTab() {
       port: p.port ? String(p.port) : "",
       usbVendorId: p.usbVendorId,
       usbProductId: p.usbProductId,
+      winPrinterName: p.winPrinterName ?? null,
       receiptEnabled: p.receiptEnabled,
       kitchenEnabled: p.kitchenEnabled,
       printMode: p.printMode ?? "text",
     });
+    if (p.connectionType === "windows") void loadWinPrinters();
     setModalOpen(true);
   }
 
@@ -126,6 +141,7 @@ export function PrintersTab() {
       const networkPort = form.connectionType === "network" && form.port !== "" ? parseInt(form.port) : null;
       const usbVid = form.connectionType === "usb" ? form.usbVendorId : null;
       const usbPid = form.connectionType === "usb" ? form.usbProductId : null;
+      const winName = form.connectionType === "windows" ? form.winPrinterName : null;
 
       if (editTarget) {
         const updated = await adminApi.printers.update(editTarget.id, {
@@ -135,6 +151,7 @@ export function PrintersTab() {
           port: networkPort,
           usbVendorId: usbVid,
           usbProductId: usbPid,
+          winPrinterName: winName,
           receiptEnabled: form.receiptEnabled,
           kitchenEnabled: form.kitchenEnabled,
           printMode: form.printMode,
@@ -148,6 +165,7 @@ export function PrintersTab() {
           ...(networkPort !== null ? { port: networkPort } : {}),
           usbVendorId: usbVid,
           usbProductId: usbPid,
+          winPrinterName: winName,
           receiptEnabled: form.receiptEnabled,
           kitchenEnabled: form.kitchenEnabled,
           printMode: form.printMode,
@@ -228,7 +246,20 @@ export function PrintersTab() {
     setModalOpen(true);
   }
 
+  async function loadWinPrinters() {
+    setWinDiscovering(true);
+    try {
+      const { printers: list } = await adminApi.printers.discoverWindows();
+      setWinPrinters(list);
+    } catch {
+      setWinPrinters([]);
+    } finally {
+      setWinDiscovering(false);
+    }
+  }
+
   function printerSubtitle(p: Printer): string {
+    if (p.connectionType === "windows" && p.winPrinterName) return `Windows · ${p.winPrinterName}`;
     if (p.connectionType === "usb" && p.usbVendorId && p.usbProductId) {
       return `USB · VID:0x${p.usbVendorId.toString(16).padStart(4, "0")} PID:0x${p.usbProductId.toString(16).padStart(4, "0")}`;
     }
@@ -237,9 +268,9 @@ export function PrintersTab() {
   }
 
   const formValid = form.name.trim() !== "" && (
-    form.connectionType === "network"
-      ? (form.host !== "" && form.port !== "")
-      : (form.usbVendorId !== null && form.usbProductId !== null)
+    form.connectionType === "network" ? (form.host !== "" && form.port !== "") :
+    form.connectionType === "usb" ? (form.usbVendorId !== null && form.usbProductId !== null) :
+    form.winPrinterName !== null
   );
 
   return (
@@ -379,8 +410,11 @@ export function PrintersTab() {
           <div>
             <label style={labelStyle}>Tipo connessione</label>
             <div style={{ display: "flex", gap: "8px" }}>
-              {(["network", "usb"] as ConnectionType[]).map((ct) => (
-                <button key={ct} onClick={() => setForm((f) => ({ ...f, connectionType: ct }))}
+              {([["network", "Rete (TCP/IP)"], ["usb", "USB raw"], ["windows", "Stampante Windows"]] as [ConnectionType, string][]).map(([ct, label]) => (
+                <button key={ct} onClick={() => {
+                  setForm((f) => ({ ...f, connectionType: ct }));
+                  if (ct === "windows") void loadWinPrinters();
+                }}
                   style={{
                     flex: 1, padding: "8px", borderRadius: "var(--radius-md)", cursor: "pointer",
                     border: form.connectionType === ct ? "2px solid var(--color-brand)" : "1.5px solid var(--color-gray-200)",
@@ -388,7 +422,7 @@ export function PrintersTab() {
                     color: form.connectionType === ct ? "var(--color-brand)" : "var(--color-gray-600)",
                     fontWeight: 600, fontSize: "var(--text-sm)", fontFamily: "var(--font)",
                   }}>
-                  {ct === "network" ? "Rete (TCP/IP)" : "USB"}
+                  {label}
                 </button>
               ))}
             </div>
@@ -405,6 +439,43 @@ export function PrintersTab() {
                 <label style={labelStyle}>Porta</label>
                 <input style={inputStyle} type="number" value={form.port} onChange={(e) => setForm((f) => ({ ...f, port: e.target.value }))} placeholder="9100" />
               </div>
+            </div>
+          )}
+
+          {/* Windows printer fields */}
+          {form.connectionType === "windows" && (
+            <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", padding: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+              {winDiscovering ? (
+                <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)", textAlign: "center", padding: "8px" }}>
+                  Caricamento stampanti Windows...
+                </div>
+              ) : winPrinters.length === 0 ? (
+                <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)", textAlign: "center", padding: "8px" }}>
+                  Nessuna stampante Windows trovata.{" "}
+                  <button onClick={() => void loadWinPrinters()} style={{ background: "none", border: "none", color: "var(--color-brand)", cursor: "pointer", fontWeight: 600, fontSize: "inherit", fontFamily: "var(--font)" }}>
+                    Riprova
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <label style={labelStyle}>Seleziona stampante</label>
+                  <select
+                    value={form.winPrinterName ?? ""}
+                    onChange={(e) => setForm((f) => ({ ...f, winPrinterName: e.target.value || null }))}
+                    style={{ ...inputStyle, height: "40px" }}
+                  >
+                    <option value="">— Seleziona —</option>
+                    {winPrinters.map((wp) => (
+                      <option key={wp.name} value={wp.name}>
+                        {wp.name}{wp.isDefault ? " (predefinita)" : ""} · {wp.status}
+                      </option>
+                    ))}
+                  </select>
+                  <button onClick={() => void loadWinPrinters()} style={{ alignSelf: "flex-start", background: "none", border: "none", color: "var(--color-brand)", cursor: "pointer", fontWeight: 600, fontSize: "var(--text-xs)", fontFamily: "var(--font)", padding: 0 }}>
+                    Aggiorna elenco
+                  </button>
+                </>
+              )}
             </div>
           )}
 

@@ -2,6 +2,7 @@ export * from "./printer.service.js";
 export * from "./escpos.formatter.js";
 export * from "./tcp-printer.adapter.js";
 export * from "./usb-printer.adapter.js";
+export * from "./windows-printer.adapter.js";
 export * from "./kitchen-ticket.formatter.js";
 export * from "./image-receipt.renderer.js";
 export * from "./raster.encoder.js";
