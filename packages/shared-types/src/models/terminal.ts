@@ -5,4 +5,5 @@ export interface Terminal {
   createdAt: number;
   lastSeenAt: number | null;
   defaultViewMode: string | null;
+  disableTableInput: boolean;
 }

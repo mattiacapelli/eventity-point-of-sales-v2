@@ -5,7 +5,7 @@ import { useToastStore } from "../../components/ui/Toast.js";
 import { Button } from "../../components/ui/Button.js";
 import type { Terminal, Printer, Category } from "@pos/shared-types";
 import { PlusIcon, TrashIcon } from "../../components/ui/icons.js";
-import { inputStyle } from "./shared.js";
+import { inputStyle, Toggle } from "./shared.js";
 import { wsClient } from "../../core/ws-client.js";
 
 const VIEW_MODE_LABELS: Record<string, string> = {
@@ -416,6 +416,24 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
                   >
                     {Object.entries(VIEW_MODE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
+
+                  <div style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "10px" }}>
+                    <Toggle
+                      value={t.disableTableInput ?? false}
+                      onChange={async (v) => {
+                        const updated = await adminApi.terminals.update(t.id, { disableTableInput: v });
+                        setTerminals((prev) => prev.map((x) => x.id === updated.id ? updated : x));
+                      }}
+                    />
+                    <div>
+                      <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-700)" }}>
+                        Disabilita input tavolo/cliente
+                      </div>
+                      <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
+                        Su questa cassa i campi tavolo e cliente non vengono richiesti, anche se obbligatori globalmente
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

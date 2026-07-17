@@ -4,7 +4,7 @@ import { eq, and, inArray, terminals, terminalPrinters, terminalCategories, term
 import { requireRole, AuthError } from "@pos/core";
 import type { Terminal } from "@pos/shared-types";
 
-function toTerminal(row: { id: number; name: string; active: boolean | number; createdAt: number; lastSeenAt: number | null; defaultViewMode: string | null }): Terminal {
+function toTerminal(row: { id: number; name: string; active: boolean | number; createdAt: number; lastSeenAt: number | null; defaultViewMode: string | null; disableTableInput: boolean | number | null }): Terminal {
   return {
     id: row.id,
     name: row.name,
@@ -12,6 +12,7 @@ function toTerminal(row: { id: number; name: string; active: boolean | number; c
     createdAt: row.createdAt,
     lastSeenAt: row.lastSeenAt ?? null,
     defaultViewMode: row.defaultViewMode ?? null,
+    disableTableInput: row.disableTableInput === true || row.disableTableInput === 1,
   };
 }
 
@@ -57,14 +58,15 @@ const terminalsRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const numId = parseInt(id, 10);
-    const body = request.body as Partial<{ name: string; active: boolean; defaultViewMode: string | null }>;
+    const body = request.body as Partial<{ name: string; active: boolean; defaultViewMode: string | null; disableTableInput: boolean }>;
     const [existing] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
-    const update: Partial<{ name: string; active: boolean; defaultViewMode: string | null }> = {};
+    const update: Partial<{ name: string; active: boolean; defaultViewMode: string | null; disableTableInput: boolean }> = {};
     if (body.name !== undefined) update.name = body.name.trim();
     if (body.active !== undefined) update.active = body.active;
     if (body.defaultViewMode !== undefined) update.defaultViewMode = body.defaultViewMode;
+    if (body.disableTableInput !== undefined) update.disableTableInput = body.disableTableInput;
 
     if (Object.keys(update).length > 0) {
       await fastify.ctx.db.update(terminals).set(update).where(eq(terminals.id, numId));

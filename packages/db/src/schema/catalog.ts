@@ -147,12 +147,13 @@ export const shiftReportTemplates = sqliteTable("shift_report_templates", {
 });
 
 export const terminals = sqliteTable("terminals", {
-  id:              integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
-  name:            text("name").notNull(),
-  active:          integer("active", { mode: "boolean" }).notNull().default(true),
-  createdAt:       integer("created_at").notNull(),
-  lastSeenAt:      integer("last_seen_at"),
-  defaultViewMode: text("default_view_mode"),
+  id:                 integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
+  name:               text("name").notNull(),
+  active:             integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt:          integer("created_at").notNull(),
+  lastSeenAt:         integer("last_seen_at"),
+  defaultViewMode:    text("default_view_mode"),
+  disableTableInput:  integer("disable_table_input", { mode: "boolean" }).notNull().default(false),
 });
 
 export const terminalPrinters = sqliteTable("terminal_printers", {

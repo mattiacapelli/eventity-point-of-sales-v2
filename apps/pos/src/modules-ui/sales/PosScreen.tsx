@@ -5,6 +5,7 @@ import { CartPanel } from "./CartPanel.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { Button } from "../../components/ui/Button.js";
 import { useStore } from "../../state/global-store.js";
+import { useTerminalStore } from "../../state/terminal-store.js";
 import { useAdminStore } from "../../state/admin-store.js";
 import { useShiftStore } from "../../state/shift-store.js";
 import { apiClient } from "../../core/api-client.js";
@@ -105,6 +106,7 @@ function CashCalculator({ total, received, onChange }: { total: number; received
 function CheckoutModal() {
   const { checkoutOrder, setCheckoutOrder, clearCart, pendingTableId, pendingCustomerName } = useStore();
   const { paymentMethods, setPaymentMethods } = useAdminStore();
+  const { terminalId } = useTerminalStore();
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +117,7 @@ function CheckoutModal() {
   const [tableInputMode, setTableInputMode] = useState<"checkout" | "sidebar">("checkout");
   const [tableRequired, setTableRequired] = useState(false);
   const [customerRequired, setCustomerRequired] = useState(false);
+  const [disableTableInput, setDisableTableInput] = useState(false);
   const [received, setReceived] = useState("");
 
   const activeMethods = paymentMethods.filter((m) => m.active);
@@ -132,6 +135,12 @@ function CheckoutModal() {
       setTableRequired(s.tableRequired ?? false);
       setCustomerRequired(s.customerRequired ?? false);
     }).catch(() => {});
+    if (terminalId) {
+      adminApi.terminals.list().then((ts) => {
+        const mine = ts.find((t) => t.id === terminalId);
+        if (mine) setDisableTableInput(mine.disableTableInput ?? false);
+      }).catch(() => {});
+    }
     if (paymentMethods.length === 0) {
       adminApi.paymentMethods.list().then((ms) => {
         setPaymentMethods(ms);
@@ -149,7 +158,7 @@ function CheckoutModal() {
   const selectedMethod = activeMethods.find((m) => m.id === selectedMethodId);
   const isCash = selectedMethod?.type === "cash";
   const receivedNum = parseFloat(received) || 0;
-  const showTableFields = tablesEnabled && tableInputMode === "checkout";
+  const showTableFields = tablesEnabled && tableInputMode === "checkout" && !disableTableInput;
   const tableMissing = showTableFields && tableRequired && tableId.trim() === "";
   const customerMissing = showTableFields && customerRequired && customerName.trim() === "";
   const canPay = !!selectedMethod && !tableMissing && !customerMissing;

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import type { OptionGroupWithOptions } from "@pos/shared-types";
 import { useStore } from "../../state/global-store.js";
 import { useShiftStore } from "../../state/shift-store.js";
+import { useTerminalStore } from "../../state/terminal-store.js";
 import { apiClient } from "../../core/api-client.js";
 import { adminApi } from "../../core/admin-api.js";
 import { Button } from "../../components/ui/Button.js";
@@ -469,6 +470,7 @@ export function CartPanel() {
   const editingOrderId = useStore((s) => s.editingOrderId);
   const setEditingOrderId = useStore((s) => s.setEditingOrderId);
   const { currentShift } = useShiftStore();
+  const { terminalId } = useTerminalStore();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -476,6 +478,7 @@ export function CartPanel() {
   // Feature flags + text size (loaded once)
   const [features, setFeatures] = useState<CartFeatures>({ notes: true, pax: true, discount: true, tableInputMode: "checkout", tableEnabled: false, tableRequired: false, customerRequired: false });
   const [cartTextSize, setCartTextSize] = useState(14);
+  const [disableTableInput, setDisableTableInput] = useState(false);
   useEffect(() => {
     adminApi.settings.get()
       .then((s) => {
@@ -491,7 +494,15 @@ export function CartPanel() {
         setCartTextSize(s.cartTextSize ?? 14);
       })
       .catch(() => { /* keep defaults */ });
-  }, []);
+    if (terminalId) {
+      adminApi.terminals.list()
+        .then((ts) => {
+          const mine = ts.find((t) => t.id === terminalId);
+          if (mine) setDisableTableInput(mine.disableTableInput ?? false);
+        })
+        .catch(() => {});
+    }
+  }, [terminalId]);
 
   // Table / customer (sidebar mode) — pre-filled from store when ProductGrid sets them via pre-order modal
   const pendingTableId = useStore((s) => s.pendingTableId);
@@ -566,7 +577,7 @@ export function CartPanel() {
     }
   };
 
-  const isSidebarMode = features.tableEnabled && features.tableInputMode === "sidebar";
+  const isSidebarMode = features.tableEnabled && features.tableInputMode === "sidebar" && !disableTableInput;
   const sidebarTableMissing = isSidebarMode && features.tableRequired && sidebarTableId.trim() === "";
   const sidebarCustomerMissing = isSidebarMode && features.customerRequired && sidebarCustomerName.trim() === "";
   const sidebarBlocked = sidebarTableMissing || sidebarCustomerMissing;
