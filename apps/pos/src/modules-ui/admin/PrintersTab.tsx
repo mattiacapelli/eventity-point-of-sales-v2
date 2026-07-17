@@ -72,8 +72,9 @@ export function PrintersTab() {
   const [usbDevices, setUsbDevices] = useState<UsbDevice[]>([]);
   const [usbDiscovering, setUsbDiscovering] = useState(false);
 
-  // Windows USB port discovery
+  // Windows printer discovery
   const [winPorts, setWinPorts] = useState<WinUsbPort[]>([]);
+  const [winPrinterList, setWinPrinterList] = useState<Array<{ name: string; status: string; isDefault: boolean; portName: string | null }>>([]);
   const [winDiscovering, setWinDiscovering] = useState(false);
 
   // Per-printer assigned production centers
@@ -129,7 +130,7 @@ export function PrintersTab() {
       kitchenEnabled: p.kitchenEnabled,
       printMode: p.printMode ?? "text",
     });
-    if (p.connectionType === "windows") void loadWinPorts();
+    if (p.connectionType === "windows") void loadWinPrinters();
     setModalOpen(true);
   }
 
@@ -257,8 +258,20 @@ export function PrintersTab() {
     }
   }
 
+  async function loadWinPrinters() {
+    setWinDiscovering(true);
+    try {
+      const { printers: list } = await adminApi.printers.discoverWindows();
+      setWinPrinterList(list);
+    } catch {
+      setWinPrinterList([]);
+    } finally {
+      setWinDiscovering(false);
+    }
+  }
+
   function printerSubtitle(p: Printer): string {
-    if (p.connectionType === "windows" && p.winPrinterName) return `Windows USB · porta ${p.winPrinterName}`;
+    if (p.connectionType === "windows" && p.winPrinterName) return `Windows · ${p.winPrinterName}`;
     if (p.connectionType === "usb" && p.usbVendorId && p.usbProductId) {
       return `USB · VID:0x${p.usbVendorId.toString(16).padStart(4, "0")} PID:0x${p.usbProductId.toString(16).padStart(4, "0")}`;
     }
@@ -412,7 +425,7 @@ export function PrintersTab() {
               {([["network", "Rete (TCP/IP)"], ["usb", "USB raw"], ["windows", "Stampante Windows"]] as [ConnectionType, string][]).map(([ct, label]) => (
                 <button key={ct} onClick={() => {
                   setForm((f) => ({ ...f, connectionType: ct }));
-                  if (ct === "windows") void loadWinPorts();
+                  if (ct === "windows") void loadWinPrinters();
                 }}
                   style={{
                     flex: 1, padding: "8px", borderRadius: "var(--radius-md)", cursor: "pointer",
@@ -441,40 +454,37 @@ export function PrintersTab() {
             </div>
           )}
 
-          {/* Windows USB direct port fields */}
+          {/* Windows printer fields */}
           {form.connectionType === "windows" && (
             <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", padding: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
-              <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", lineHeight: 1.4 }}>
-                Modalità <strong>porta USB diretta</strong> — bypassa lo spooler di Windows e invia ESC/POS direttamente alla stampante.
-              </div>
               {winDiscovering ? (
                 <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)", textAlign: "center", padding: "8px" }}>
-                  Rilevamento porte USB...
+                  Caricamento stampanti Windows...
                 </div>
-              ) : winPorts.length === 0 ? (
+              ) : winPrinterList.length === 0 ? (
                 <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)", textAlign: "center", padding: "8px" }}>
-                  Nessuna porta USB rilevata. Assicurati che la stampante sia collegata e accesa.{" "}
-                  <button onClick={() => void loadWinPorts()} style={{ background: "none", border: "none", color: "var(--color-brand)", cursor: "pointer", fontWeight: 600, fontSize: "inherit", fontFamily: "var(--font)" }}>
+                  Nessuna stampante Windows trovata.{" "}
+                  <button onClick={() => void loadWinPrinters()} style={{ background: "none", border: "none", color: "var(--color-brand)", cursor: "pointer", fontWeight: 600, fontSize: "inherit", fontFamily: "var(--font)" }}>
                     Riprova
                   </button>
                 </div>
               ) : (
                 <>
-                  <label style={labelStyle}>Porta USB</label>
+                  <label style={labelStyle}>Seleziona stampante</label>
                   <select
                     value={form.winPrinterName ?? ""}
                     onChange={(e) => setForm((f) => ({ ...f, winPrinterName: e.target.value || null }))}
                     style={{ ...inputStyle, height: "40px" }}
                   >
-                    <option value="">— Seleziona porta —</option>
-                    {winPorts.map((p) => (
-                      <option key={p.portName} value={p.portName}>
-                        {p.portName} — {p.description}
+                    <option value="">— Seleziona —</option>
+                    {winPrinterList.map((wp) => (
+                      <option key={wp.name} value={wp.name}>
+                        {wp.name}{wp.isDefault ? " (predefinita)" : ""} · {wp.status}
                       </option>
                     ))}
                   </select>
-                  <button onClick={() => void loadWinPorts()} style={{ alignSelf: "flex-start", background: "none", border: "none", color: "var(--color-brand)", cursor: "pointer", fontWeight: 600, fontSize: "var(--text-xs)", fontFamily: "var(--font)", padding: 0 }}>
-                    Aggiorna elenco porte
+                  <button onClick={() => void loadWinPrinters()} style={{ alignSelf: "flex-start", background: "none", border: "none", color: "var(--color-brand)", cursor: "pointer", fontWeight: 600, fontSize: "var(--text-xs)", fontFamily: "var(--font)", padding: 0 }}>
+                    Aggiorna elenco
                   </button>
                 </>
               )}

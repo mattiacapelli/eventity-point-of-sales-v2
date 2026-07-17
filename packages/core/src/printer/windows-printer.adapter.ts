@@ -63,9 +63,10 @@ export function listWindowsUsbPorts(): WindowsUsbPortInfo[] {
   return found;
 }
 
+
 export class WindowsPrinterAdapter implements PrinterAdapter {
   constructor(
-    private readonly portName: string,   // e.g. "USB003"
+    private readonly printerName: string,   // nome stampante Windows installata, es. "EPSON TM-T20III"
     private readonly logger: Logger,
   ) {}
 
@@ -81,20 +82,18 @@ export class WindowsPrinterAdapter implements PrinterAdapter {
     try {
       writeFileSync(binPath, buf);
 
-      // "copy /B file PORT" writes raw bytes directly to the port device,
-      // bypassing the Windows print spooler. This is the simplest reliable
-      // approach for ESC/POS printers without a vendor RAW driver.
-      const portPath = this.portName.startsWith("\\\\.\\") ? this.portName : `\\\\.\\${this.portName}`;
+      // copy /B su \\localhost\NomeStampante usa lo spooler Windows ma con il
+      // driver Epson installato funziona correttamente per ESC/POS raw.
       const out = execSync(
-        `copy /B "${binPath}" "${portPath}"`,
+        `copy /B "${binPath}" "\\\\localhost\\${this.printerName}"`,
         { timeout: 15000, windowsHide: true, shell: "cmd.exe" },
       ).toString().trim();
 
-      this.logger.info({ portName: this.portName, bytes: buf.length, out }, "[win-printer] copy /B OK");
+      this.logger.info({ printerName: this.printerName, bytes: buf.length, out }, "[win-printer] copy /B OK");
       return { success: true, message: "OK" };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error({ portName: this.portName, err: msg }, "[win-printer] copy /B failed");
+      this.logger.error({ printerName: this.printerName, err: msg }, "[win-printer] copy /B failed");
       return { success: false, message: msg };
     } finally {
       try { unlinkSync(binPath); } catch { /* ignore */ }
