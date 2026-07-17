@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import { execSync } from "node:child_process";
 import type { Logger } from "pino";
 import type { PrinterAdapter, PrintJob, PrintResult } from "./printer.service.js";
 
@@ -47,7 +48,46 @@ export interface UsbDeviceInfo {
 const PRINTER_CLASS = 7;
 const HUB_CLASS = 9;
 
+/**
+ * On Windows, libusb cannot enumerate devices that have a native driver (usbprint.sys)
+ * already attached — getDeviceList() returns empty. We fall back to PowerShell WMI which
+ * can see all USB devices regardless of driver, then parse VID/PID from the DeviceID string.
+ */
+function listUsbPrintersWindows(): UsbDeviceInfo[] {
+  try {
+    // Query all USB devices whose DeviceID starts with USB\ (filters out non-USB PnP entities)
+    const ps = `powershell -NoProfile -Command "Get-WmiObject Win32_PnPEntity | Where-Object { $_.DeviceID -like 'USB\\\\*' } | Select-Object -ExpandProperty DeviceID"`;
+    const output = execSync(ps, { timeout: 8000, windowsHide: true }).toString();
+    const results: UsbDeviceInfo[] = [];
+    // DeviceID format: USB\VID_04B8&PID_0202\...
+    const re = /USB\\VID_([0-9A-Fa-f]{4})&PID_([0-9A-Fa-f]{4})/g;
+    const seen = new Set<string>();
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(output)) !== null) {
+      const key = `${m[1]}:${m[2]}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const vendorId  = parseInt(m[1]!, 16);
+      const productId = parseInt(m[2]!, 16);
+      results.push({
+        vendorId,
+        productId,
+        vendorIdHex:  `0x${m[1]!.toLowerCase()}`,
+        productIdHex: `0x${m[2]!.toLowerCase()}`,
+      });
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+
 export function listUsbPrinters(): UsbDeviceInfo[] {
+  // On Windows libusb cannot see devices with native drivers — use WMI instead.
+  if (process.platform === "win32") {
+    return listUsbPrintersWindows();
+  }
+
   const usb = loadUsb();
   if (!usb) return [];
 
@@ -72,9 +112,6 @@ export function listUsbPrinters(): UsbDeviceInfo[] {
         d.close();
       } catch {
         // Cannot open device (Windows permission/driver restriction) — include it anyway.
-        // On Windows many ESC/POS printers report bDeviceClass values other than 0 or 7,
-        // so filtering by class here would silently hide valid printers. The only safe
-        // exclusion is HUB_CLASS (9), which is already filtered above.
         isPrinter = true;
       }
     }
