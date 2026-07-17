@@ -1,9 +1,12 @@
+export type CategoryReceiptPrintMode = "inherit" | "per_item";
+
 export interface Category {
   id: number;
   name: string;
   color: string | null;
   sortOrder: number;
   active: boolean;
+  receiptPrintMode: CategoryReceiptPrintMode;
 }
 
 export type ProductReceiptPrintMode = "inherit" | "included" | "separate";

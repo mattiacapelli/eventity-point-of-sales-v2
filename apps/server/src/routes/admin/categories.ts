@@ -60,17 +60,20 @@ const categoriesRoutes: FastifyPluginAsync = async (fastify) => {
       color: string | null;
       sortOrder: number;
       active: boolean;
+      receiptPrintMode: string;
     }>;
     const update: {
       name?: string;
       color?: string | null;
       sortOrder?: number;
       active?: boolean;
+      receiptPrintMode?: string;
     } = {};
     if (body.name !== undefined) update.name = body.name;
     if ("color" in body) update.color = body.color ?? null;
     if (body.sortOrder !== undefined) update.sortOrder = body.sortOrder;
     if (body.active !== undefined) update.active = body.active;
+    if (body.receiptPrintMode !== undefined) update.receiptPrintMode = body.receiptPrintMode;
 
     if (Object.keys(update).length > 0) {
       await fastify.ctx.db.update(categories).set(update).where(eq(categories.id, numId));

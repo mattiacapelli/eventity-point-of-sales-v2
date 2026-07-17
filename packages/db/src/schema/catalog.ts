@@ -1,11 +1,12 @@
 import { sqliteTable, text, real, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const categories = sqliteTable("categories", {
-  id:        integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
-  name:      text("name").notNull(),
-  color:     text("color"),
-  sortOrder: integer("sort_order").notNull().default(0),
-  active:    integer("active", { mode: "boolean" }).notNull().default(true),
+  id:               integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
+  name:             text("name").notNull(),
+  color:            text("color"),
+  sortOrder:        integer("sort_order").notNull().default(0),
+  active:           integer("active", { mode: "boolean" }).notNull().default(true),
+  receiptPrintMode: text("receipt_print_mode").notNull().default("inherit"),
 });
 
 export const products = sqliteTable("products", {

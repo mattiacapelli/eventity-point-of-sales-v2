@@ -256,8 +256,19 @@ export function buildSeparateGroups(
       continue;
     }
 
-    // "inherit" — check production center mode
-    const catId     = ctx.productCategoryMap[item.productId] ?? null;
+    // "inherit" — check category mode first, then production center mode
+    const catId      = ctx.productCategoryMap[item.productId] ?? null;
+    const catMode    = catId !== null ? (ctx.categoryPrintModeMap[catId] ?? "inherit") : "inherit";
+
+    if (catMode === "per_item") {
+      // One slip per unit: expand quantity into individual single-unit items
+      for (let i = 0; i < item.quantity; i++) {
+        const slotKey = `peritem:${item.productId}:${i}`;
+        separateGroups.set(slotKey, { name: item.name, items: [{ ...item, quantity: 1 }] });
+      }
+      continue;
+    }
+
     const centerIds = catId !== null ? (ctx.categoryCentersMap[catId] ?? []) : [];
     const separateCenterId = centerIds.find((cid) => ctx.centerPrintModeMap[cid] === "separate");
     if (separateCenterId !== undefined) {

@@ -67,6 +67,7 @@ export type ReceiptContext = {
   resolvedLogoPath: string | null;
   productCategoryMap: Record<number, number | null>;
   categoryNameMap: Record<number, string>;
+  categoryPrintModeMap: Record<number, string>;
   productPrintModeMap: Record<number, string>;
   categoryCentersMap: Record<number, number[]>;
   categoryFirstCenterMap: Record<number, number>;

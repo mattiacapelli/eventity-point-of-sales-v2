@@ -97,7 +97,7 @@ export const adminApi = {
   categories: {
     list: () => req<Category[]>("GET", "/categories"),
     create: (data: { name: string; color?: string | null }) => req<Category>("POST", "/categories", data),
-    update: (id: number, data: { name?: string; color?: string | null }) => req<Category>("PATCH", `/categories/${id}`, data),
+    update: (id: number, data: { name?: string; color?: string | null; receiptPrintMode?: string }) => req<Category>("PATCH", `/categories/${id}`, data),
     delete: (id: number) => req<void>("DELETE", `/categories/${id}`),
     reorder: (ids: number[]) => req<void>("PUT", "/categories/reorder", { ids }),
   },

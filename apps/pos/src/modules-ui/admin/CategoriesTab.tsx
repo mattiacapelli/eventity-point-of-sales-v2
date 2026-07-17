@@ -14,6 +14,7 @@ export function CategoriesTab() {
   const [editTarget, setEditTarget] = useState<Category | null>(null);
   const [editName, setEditName] = useState("");
   const [editColor, setEditColor] = useState("");
+  const [editPerItem, setEditPerItem] = useState(false);
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -42,6 +43,7 @@ export function CategoriesTab() {
     setEditTarget(c);
     setEditName(c.name);
     setEditColor(c.color ?? "");
+    setEditPerItem(c.receiptPrintMode === "per_item");
   }
 
   async function handleEditSave() {
@@ -51,6 +53,7 @@ export function CategoriesTab() {
       const updated = await adminApi.categories.update(editTarget.id, {
         name: editName.trim(),
         color: editColor === "" ? null : editColor,
+        receiptPrintMode: editPerItem ? "per_item" : "inherit",
       });
       upsertCategory(updated);
       setEditTarget(null);
@@ -179,8 +182,16 @@ export function CategoriesTab() {
               title="Trascina per riordinare"
             />
             <TagIcon style={{ width: "18px", height: "18px", color: c.color ?? "var(--color-brand)", flexShrink: 0 }} />
-            <span style={{ flex: 1, fontSize: "var(--text-md)", fontWeight: 600, color: "var(--color-gray-800)" }}>
+            <span style={{ flex: 1, fontSize: "var(--text-md)", fontWeight: 600, color: "var(--color-gray-800)", display: "flex", alignItems: "center", gap: "8px" }}>
               {c.name}
+              {c.receiptPrintMode === "per_item" && (
+                <span style={{
+                  fontSize: "var(--text-xs)", fontWeight: 600, padding: "2px 7px",
+                  borderRadius: "999px", background: "#dbeafe", color: "#1d4ed8",
+                }}>
+                  1 per unità
+                </span>
+              )}
             </span>
             <div style={{ display: "flex", gap: "6px" }}>
               <button
@@ -235,6 +246,39 @@ export function CategoriesTab() {
             />
           </div>
           <ColorField value={editColor} onChange={setEditColor} />
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "12px 14px", borderRadius: "var(--radius-lg)",
+            background: "var(--color-gray-50)", border: "1px solid var(--color-gray-200)",
+            gap: "12px",
+          }}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)" }}>
+                Stampa uno scontrino per unità
+              </div>
+              <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", marginTop: "2px" }}>
+                Ogni prodotto di questa categoria genera uno scontrino separato per ogni unità ordinata
+              </div>
+            </div>
+            <button
+              onClick={() => setEditPerItem((v) => !v)}
+              style={{
+                width: "52px", height: "28px", borderRadius: "14px",
+                background: editPerItem ? "var(--color-brand)" : "var(--color-gray-200)",
+                border: "none", cursor: "pointer",
+                position: "relative", transition: "background 0.2s", flexShrink: 0,
+              }}
+            >
+              <span style={{
+                position: "absolute", top: "3px",
+                left: editPerItem ? "27px" : "3px",
+                width: "22px", height: "22px", borderRadius: "50%",
+                background: "var(--color-white)",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                transition: "left 0.2s",
+              }} />
+            </button>
+          </div>
           <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
             <Button variant="ghost" size="sm" onClick={() => setEditTarget(null)}>Annulla</Button>
             <Button size="sm" loading={saving} onClick={() => void handleEditSave()}>Salva</Button>

@@ -106,6 +106,7 @@ export async function loadReceiptContext(
 
   let productCategoryMap: Record<number, number | null> = {};
   let categoryNameMap: Record<number, string> = {};
+  let categoryPrintModeMap: Record<number, string> = {};
   let productPrintModeMap: Record<number, string> = {};
   let categoryCentersMap: Record<number, number[]> = {};
   let categoryFirstCenterMap: Record<number, number> = {};
@@ -123,8 +124,9 @@ export async function loadReceiptContext(
 
     const categoryIds = [...new Set(productRows.map((pr) => pr.categoryId).filter((id): id is number => id !== null && id !== undefined))];
     if (categoryIds.length > 0) {
-      const categoryRows = await db.select({ id: categories.id, name: categories.name }).from(categories).where(inArray(categories.id, categoryIds));
-      categoryNameMap = Object.fromEntries(categoryRows.map((c) => [c.id, c.name]));
+      const categoryRows = await db.select({ id: categories.id, name: categories.name, receiptPrintMode: categories.receiptPrintMode }).from(categories).where(inArray(categories.id, categoryIds));
+      categoryNameMap     = Object.fromEntries(categoryRows.map((c) => [c.id, c.name]));
+      categoryPrintModeMap = Object.fromEntries(categoryRows.map((c) => [c.id, c.receiptPrintMode]));
 
       const pcCatRows = await db
         .select({ categoryId: productionCenterCategories.categoryId, productionCenterId: productionCenterCategories.productionCenterId })
@@ -167,6 +169,7 @@ export async function loadReceiptContext(
     resolvedLogoPath,
     productCategoryMap,
     categoryNameMap,
+    categoryPrintModeMap,
     productPrintModeMap,
     categoryCentersMap,
     categoryFirstCenterMap,
