@@ -560,7 +560,7 @@ export function CartPanel() {
         quantity: c.quantity,
         ...(c.selectedOptions.length > 0
           ? {
-              selectedOptionIds: c.selectedOptions.map((o) => o.optionId),
+              selectedOptionIds: c.selectedOptions.map((o) => o.optionId).filter((id) => id !== 0),
               notes: c.selectedOptions.map((o) => {
                 const p = o.prefix ?? (o.isRemoval ? "-" : "+");
                 if (p === "-") return `senza ${o.name}`;
@@ -605,7 +605,7 @@ export function CartPanel() {
           quantity: c.quantity,
           ...(c.selectedOptions.length > 0
             ? {
-                selectedOptionIds: c.selectedOptions.map((o) => o.optionId),
+                selectedOptionIds: c.selectedOptions.map((o) => o.optionId).filter((id) => id !== 0),
                 notes: c.selectedOptions.map((o) => {
                   const p = o.prefix ?? (o.isRemoval ? "-" : "+");
                   if (p === "-") return `senza ${o.name}`;
