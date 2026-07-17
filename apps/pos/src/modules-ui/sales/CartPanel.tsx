@@ -554,22 +554,26 @@ export function CartPanel() {
     setLoading(true);
     setError(null);
     try {
-      await apiClient.orders.updateItems(editingOrderId, cart.map((c) => ({
-        productId: c.productId,
-        name: c.name,
-        quantity: c.quantity,
-        ...(c.selectedOptions.length > 0
-          ? {
-              selectedOptionIds: c.selectedOptions.map((o) => o.optionId).filter((id) => id !== 0),
-              notes: c.selectedOptions.map((o) => {
-                const p = o.prefix ?? (o.isRemoval ? "-" : "+");
-                if (p === "-") return `senza ${o.name}`;
-                if (p === ">>") return `>> ${o.name}`;
-                return o.name;
-              }).join(", "),
-            }
-          : c.notes !== undefined ? { notes: c.notes } : {}),
-      })));
+      await apiClient.orders.updateItems(editingOrderId, cart.map((c) => {
+        const customDelta = c.selectedOptions.filter((o) => o.optionId === 0).reduce((s, o) => s + o.priceDelta, 0);
+        return {
+          productId: c.productId,
+          name: c.name,
+          quantity: c.quantity,
+          ...(c.selectedOptions.length > 0
+            ? {
+                selectedOptionIds: c.selectedOptions.map((o) => o.optionId).filter((id) => id !== 0),
+                ...(customDelta !== 0 ? { customPriceDelta: customDelta } : {}),
+                notes: c.selectedOptions.map((o) => {
+                  const p = o.prefix ?? (o.isRemoval ? "-" : "+");
+                  if (p === "-") return `senza ${o.name}`;
+                  if (p === ">>") return `>> ${o.name}`;
+                  return o.name;
+                }).join(", "),
+              }
+            : c.notes !== undefined ? { notes: c.notes } : {}),
+        };
+      }));
       setEditingOrderId(null);
       clearCart();
       setOrderNotes(""); setPax(null); setDiscountInput(""); setOpenExtras(null); setVariantTarget(null);
@@ -599,22 +603,26 @@ export function CartPanel() {
           : {}),
         ...(isSidebarMode && sidebarTableId.trim() ? { tableId: sidebarTableId.trim() } : {}),
         ...(isSidebarMode && sidebarCustomerName.trim() ? { customerName: sidebarCustomerName.trim() } : {}),
-        items: cart.map((c) => ({
-          productId: c.productId,
-          name: c.name,
-          quantity: c.quantity,
-          ...(c.selectedOptions.length > 0
-            ? {
-                selectedOptionIds: c.selectedOptions.map((o) => o.optionId).filter((id) => id !== 0),
-                notes: c.selectedOptions.map((o) => {
-                  const p = o.prefix ?? (o.isRemoval ? "-" : "+");
-                  if (p === "-") return `senza ${o.name}`;
-                  if (p === ">>") return `>> ${o.name}`;
-                  return o.name;
-                }).join(", "),
-              }
-            : c.notes !== undefined ? { notes: c.notes } : {}),
-        })),
+        items: cart.map((c) => {
+          const customDelta = c.selectedOptions.filter((o) => o.optionId === 0).reduce((s, o) => s + o.priceDelta, 0);
+          return {
+            productId: c.productId,
+            name: c.name,
+            quantity: c.quantity,
+            ...(c.selectedOptions.length > 0
+              ? {
+                  selectedOptionIds: c.selectedOptions.map((o) => o.optionId).filter((id) => id !== 0),
+                  ...(customDelta !== 0 ? { customPriceDelta: customDelta } : {}),
+                  notes: c.selectedOptions.map((o) => {
+                    const p = o.prefix ?? (o.isRemoval ? "-" : "+");
+                    if (p === "-") return `senza ${o.name}`;
+                    if (p === ">>") return `>> ${o.name}`;
+                    return o.name;
+                  }).join(", "),
+                }
+              : c.notes !== undefined ? { notes: c.notes } : {}),
+          };
+        }),
       });
       setCheckoutOrder(order);
       setOrderNotes(""); setPax(null); setDiscountInput(""); setOpenExtras(null); setVariantTarget(null);

@@ -229,7 +229,7 @@ export class OrderRepository {
         productId: item.productId,
         name: item.name,
         quantity: item.quantity,
-        unitPrice: productData.price + optionDelta,
+        unitPrice: productData.price + optionDelta + (item.customPriceDelta ?? 0),
         vatRate: productData.vatRate,
         notes: item.notes ?? null,
         selectedOptionIds: item.selectedOptionIds ?? [],
@@ -393,7 +393,7 @@ export class OrderRepository {
     return this.findById(id);
   }
 
-  async replaceItems(id: number, items: Array<{ productId: number; name: string; quantity: number; selectedOptionIds?: number[] | undefined; notes?: string | undefined }>): Promise<Order | null> {
+  async replaceItems(id: number, items: Array<{ productId: number; name: string; quantity: number; selectedOptionIds?: number[] | undefined; customPriceDelta?: number | undefined; notes?: string | undefined }>): Promise<Order | null> {
     const now = new Date();
 
     // Resolve prices from catalog
@@ -412,7 +412,7 @@ export class OrderRepository {
       const productData = productPriceMap.get(item.productId);
       if (productData === undefined) throw new Error(`Product not found: ${item.productId}`);
       const optionDelta = (item.selectedOptionIds ?? []).reduce((sum, oid) => sum + (optionMap.get(oid)?.priceDelta ?? 0), 0);
-      return { productId: item.productId, name: item.name, quantity: item.quantity, unitPrice: productData.price + optionDelta, vatRate: productData.vatRate, notes: item.notes ?? null, selectedOptionIds: item.selectedOptionIds ?? [] };
+      return { productId: item.productId, name: item.name, quantity: item.quantity, unitPrice: productData.price + optionDelta + (item.customPriceDelta ?? 0), vatRate: productData.vatRate, notes: item.notes ?? null, selectedOptionIds: item.selectedOptionIds ?? [] };
     });
 
     const totalAmount = resolvedItems.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);

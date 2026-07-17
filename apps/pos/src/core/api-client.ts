@@ -119,7 +119,7 @@ export const apiClient = {
       request<Order>("PATCH", `/orders/${id}/status`, { status }),
     updateDetails: (id: number, data: { tableId?: string | null; customerName?: string | null }) =>
       request<Order>("PATCH", `/orders/${id}/details`, data),
-    updateItems: (id: number, items: Array<{ productId: number; name: string; quantity: number; selectedOptionIds?: number[]; notes?: string }>) =>
+    updateItems: (id: number, items: Array<{ productId: number; name: string; quantity: number; selectedOptionIds?: number[]; customPriceDelta?: number; notes?: string }>) =>
       request<Order>("PATCH", `/orders/${id}/items`, { items }),
     cancel: (id: number, reason?: string) =>
       request<Order>("DELETE", `/orders/${id}`, { reason }),

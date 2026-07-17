@@ -69,6 +69,7 @@ export interface CreateOrderItemInput {
   readonly name: string;
   readonly quantity: number;
   readonly selectedOptionIds?: ReadonlyArray<number>;
+  readonly customPriceDelta?: number;
   readonly notes?: string;
 }
 

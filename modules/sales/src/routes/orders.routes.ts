@@ -27,6 +27,7 @@ const orderItemInputSchema = {
     name: { type: "string" },
     quantity: { type: "integer", minimum: 1 },
     selectedOptionIds: { type: "array", items: { type: "integer" } },
+    customPriceDelta: { type: "number" },
     notes: { type: "string" },
   },
 } as const;
@@ -157,7 +158,7 @@ export function registerOrderRoutes(
     const terminalId = terminalIdHeader !== undefined ? parseInt(terminalIdHeader, 10) : undefined;
     try {
       const input = request.body as Parameters<typeof service.create>[0];
-      const order = await service.create({
+const order = await service.create({
         ...input,
         ...(terminalId !== undefined ? { terminalId } : {}),
       });
@@ -254,7 +255,7 @@ export function registerOrderRoutes(
     },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { items } = request.body as { items: Array<{ productId: number; name: string; quantity: number; selectedOptionIds?: number[]; notes?: string }> };
+    const { items } = request.body as { items: Array<{ productId: number; name: string; quantity: number; selectedOptionIds?: number[]; customPriceDelta?: number; notes?: string }> };
     try {
       const order = await service.updateItems(parseInt(id, 10), items);
       return reply.send(serializeOrder(order));
