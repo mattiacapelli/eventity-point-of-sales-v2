@@ -15,7 +15,11 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
 
   // ── PRINTER_OFFLINE → notify only the terminals assigned to that printer ──
 
-  eventBus.on("PRINTER_OFFLINE", async (payload) => {
+  // All event handlers use fire-and-forget (void async IIFE) so the event bus
+  // is never blocked waiting for I/O — print jobs, DB queries, or TCP timeouts
+  // cannot stall unrelated order processing.
+
+  eventBus.on("PRINTER_OFFLINE", (payload) => { void (async () => {
     const assignedTerminals = await db
       .select({ terminalId: terminalPrinters.terminalId })
       .from(terminalPrinters)
@@ -23,11 +27,11 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
     for (const { terminalId } of assignedTerminals) {
       fastify.wsBroadcaster.sendToTerminal(terminalId, "PRINTER_OFFLINE", payload);
     }
-  });
+  })(); });
 
   // ── ORDER_UPDATED → update shift totals when an order is completed ──────
 
-  eventBus.on("ORDER_UPDATED", async (payload) => {
+  eventBus.on("ORDER_UPDATED", (payload) => { void (async () => {
     if (payload.order.status !== "completed") return;
     const claimed = await claimEvent(db, "shift-totals:order-completed", payload.traceId);
     if (!claimed) return;
@@ -46,11 +50,11 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
         totalOrders: sql`total_orders + 1`,
       })
       .where(eq(shifts.id, orderRow.shiftId));
-  });
+  })(); });
 
   // ── ORDER_UPDATED (itemsChanged) → reprint kitchen + receipt ─────────────
 
-  eventBus.on("ORDER_UPDATED", async (payload) => {
+  eventBus.on("ORDER_UPDATED", (payload) => { void (async () => {
     if (!payload.itemsChanged) return;
     const claimed = await claimEvent(db, "printer-trigger:items-changed", payload.traceId);
     if (!claimed) return;
@@ -70,10 +74,8 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
       receiptDisplay = formatReceiptNumber(payload.order.receiptNumber, orderId, numSettings.prefix, numSettings.padding);
     }
 
-    // Kitchen reprint — marked as modification
     await printKitchenTickets(db, printerService, logger, eventBus, orderId, items as never, fastify.ctx.config.dataDir, receiptDisplay, centerNumbersMap, true);
 
-    // Receipt reprint — only if the order already has a completed payment
     const [payment] = await db
       .select()
       .from(payments)
@@ -98,11 +100,11 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
         timestamp: new Date(),
       });
     }
-  });
+  })(); });
 
   // ── ORDER_CREATED → kitchen ticket (express mode OFF) ───────────────────
 
-  eventBus.on("ORDER_CREATED", async (payload) => {
+  eventBus.on("ORDER_CREATED", (payload) => { void (async () => {
     const claimed = await claimEvent(db, "printer-trigger:kitchen", payload.traceId);
     if (!claimed) return;
     if (await loadExpressMode(db)) return;
@@ -120,11 +122,11 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
       receiptDisplay = formatReceiptNumber(payload.order.receiptNumber, payload.order.id, numSettings.prefix, numSettings.padding);
     }
     await printKitchenTickets(db, printerService, logger, eventBus, payload.order.id, items as never, fastify.ctx.config.dataDir, receiptDisplay, centerNumbersMap);
-  });
+  })(); });
 
   // ── PAYMENT_COMPLETED → kitchen ticket (express mode ON) + receipt ───────
 
-  eventBus.on("PAYMENT_COMPLETED", async (payload) => {
+  eventBus.on("PAYMENT_COMPLETED", (payload) => { void (async () => {
     const claimed = await claimEvent(db, "printer-trigger:receipt", payload.traceId);
     if (!claimed) return;
 
@@ -166,11 +168,11 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
       },
       timestamp: new Date(),
     });
-  });
+  })(); });
 
   // ── PRINT_JOB_QUEUED → resolve printer + template + print receipt ────────
 
-  eventBus.on("PRINT_JOB_QUEUED", async (payload) => {
+  eventBus.on("PRINT_JOB_QUEUED", (payload) => { void (async () => {
     if (payload.type !== "receipt") return;
     const claimed = await claimEvent(db, "printer-trigger:print-job", payload.jobId);
     if (!claimed) return;
@@ -180,7 +182,7 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
     const terminalId: number | null = rawTerminalId !== undefined
       ? (typeof rawTerminalId === "string" ? parseInt(rawTerminalId, 10) : rawTerminalId)
       : null;
-    const printer    = await resolveReceiptPrinter(db, multiTerminalEnabled, terminalId);
+    const printer = await resolveReceiptPrinter(db, multiTerminalEnabled, terminalId);
 
     if (!printer) {
       logger.debug({ jobId: payload.jobId }, "No active receipt printer — skipping print");
@@ -269,10 +271,9 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
       }
 
     } else {
-      // "single" — default
       await printOneReceipt({ ...printOpts, tmpl: masterTemplate, jobItems: ctx.items, jobTotal: p.amount });
     }
-  });
+  })(); });
 };
 
 export default fp(printerTriggerPlugin, {
