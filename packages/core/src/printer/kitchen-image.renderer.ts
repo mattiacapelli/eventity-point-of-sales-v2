@@ -82,7 +82,7 @@ export async function renderKitchenImage(data: KitchenRenderData): Promise<Buffe
 
     switch (block.type as KitchenBlockType) {
       case "center-name":
-        h += lineH;
+        h += lineH * (data.isModification ? 2 : 1);
         break;
       case "order-number":
         h += lineH;

@@ -366,13 +366,17 @@ export function registerOrderRoutes(
     }
 
     const content = formatReceipt(lines);
+    const reprConfig =
+      receiptPrinter.connectionType === "usb" && receiptPrinter.usbVendorId && receiptPrinter.usbProductId
+        ? { connectionType: "usb" as const, usbVendorId: receiptPrinter.usbVendorId, usbProductId: receiptPrinter.usbProductId }
+        : receiptPrinter.host && receiptPrinter.port
+          ? { host: receiptPrinter.host, port: receiptPrinter.port }
+          : undefined;
     await printerService.printDirect({
       printerId: receiptPrinter.id,
       content,
       type: "receipt",
-      ...(receiptPrinter.host && receiptPrinter.port
-        ? { printerConfig: { host: receiptPrinter.host, port: receiptPrinter.port } }
-        : {}),
+      ...(reprConfig ? { printerConfig: reprConfig } : {}),
     });
 
     return reply.send({ ok: true });
@@ -509,8 +513,13 @@ export function registerOrderRoutes(
       }));
 
       for (const printer of targetPrinters) {
-        if (!printer.host || !printer.port) continue;
-        const printerConfig = { host: printer.host, port: printer.port };
+        const isUsb = (printer as unknown as { connectionType: string }).connectionType === "usb";
+        const vid = (printer as unknown as { usbVendorId: number | null }).usbVendorId;
+        const pid = (printer as unknown as { usbProductId: number | null }).usbProductId;
+        if (isUsb ? (!vid || !pid) : (!printer.host || !printer.port)) continue;
+        const printerConfig = isUsb
+          ? { connectionType: "usb" as const, usbVendorId: vid!, usbProductId: pid! }
+          : { host: printer.host!, port: printer.port! };
         try {
           if ((printer as unknown as { printMode: string }).printMode === "image") {
             const templateRows = await db.select().from(kitchenTemplates).where(eq(kitchenTemplates.active, true));

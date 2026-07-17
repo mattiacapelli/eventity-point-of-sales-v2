@@ -71,8 +71,11 @@ export function listUsbPrinters(): UsbDeviceInfo[] {
         );
         d.close();
       } catch {
-        // Cannot open (permission/busy) — include anyway if class is not a known system class
-        isPrinter = devClass === 0; // 0 = "defined by interface", likely a printer or other HID
+        // Cannot open device (Windows permission/driver restriction) — include it anyway.
+        // On Windows many ESC/POS printers report bDeviceClass values other than 0 or 7,
+        // so filtering by class here would silently hide valid printers. The only safe
+        // exclusion is HUB_CLASS (9), which is already filtered above.
+        isPrinter = true;
       }
     }
 

@@ -55,6 +55,8 @@ export class PrinterService {
   private readonly queue: PrintJob[] = [];
   private readonly deadLetterQueue: PrintJob[] = [];
   private processing = false;
+  /** Per-printer serialization chain — prevents concurrent writes to the same socket/USB device. */
+  private readonly printChain = new Map<string, Promise<void>>();
 
   constructor(private readonly logger: Logger) {
     this.fallbackAdapter = new MockPrinterAdapter(logger);
@@ -117,7 +119,26 @@ export class PrinterService {
   }
 
   async printDirect(job: PrintJob): Promise<PrintResult> {
-    return this.getAdapter(job).print(job);
+    const key = this.adapterKey(job);
+    const prev = this.printChain.get(key) ?? Promise.resolve();
+    let resolve!: () => void;
+    const next = new Promise<void>((r) => { resolve = r; });
+    this.printChain.set(key, next);
+    try {
+      await prev;
+      return await this.getAdapter(job).print(job);
+    } finally {
+      resolve();
+      // Clean up the chain entry once it settles so the map doesn't grow unboundedly.
+      if (this.printChain.get(key) === next) this.printChain.delete(key);
+    }
+  }
+
+  private adapterKey(job: PrintJob): string {
+    const cfg = job.printerConfig;
+    if (!cfg) return `fallback:${job.printerId}`;
+    if (cfg.connectionType === "usb") return `usb:${job.printerId}`;
+    return `tcp:${job.printerId}`;
   }
 
   getDeadLetterQueue(): readonly PrintJob[] {

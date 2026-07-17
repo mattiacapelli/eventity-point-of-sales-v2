@@ -107,10 +107,10 @@ export class TcpPrinterAdapter implements PrinterAdapter {
   }
 
   async print(job: PrintJob): Promise<PrintResult> {
-    // Wait for initial connection attempt to complete (max CONNECT_TIMEOUT_MS)
+    // Wait for in-progress connection/reconnect without nulling it — concurrent callers
+    // must each await independently so they all benefit from the same reconnect.
     if (this.connectingPromise) {
       await this.connectingPromise;
-      this.connectingPromise = null;
     }
 
     if (!this.connected || !this.socket) {

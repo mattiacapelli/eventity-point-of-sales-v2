@@ -604,13 +604,17 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       content = formatReceipt(buildShiftReportLines(stats));
     }
 
+    const statsRpCfg =
+      receiptPrinter.connectionType === "usb" && receiptPrinter.usbVendorId && receiptPrinter.usbProductId
+        ? { connectionType: "usb" as const, usbVendorId: receiptPrinter.usbVendorId, usbProductId: receiptPrinter.usbProductId }
+        : receiptPrinter.host && receiptPrinter.port
+          ? { host: receiptPrinter.host, port: receiptPrinter.port }
+          : undefined;
     const result = await printerService.printDirect({
       printerId: receiptPrinter.id,
       ...(contentBuffer ? { contentBuffer } : { content: content! }),
       type: "receipt",
-      ...(receiptPrinter.host && receiptPrinter.port
-        ? { printerConfig: { host: receiptPrinter.host, port: receiptPrinter.port } }
-        : {}),
+      ...(statsRpCfg ? { printerConfig: statsRpCfg } : {}),
     });
 
     return reply.send({ ok: result.success, message: result.message });

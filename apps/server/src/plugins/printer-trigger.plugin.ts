@@ -1,7 +1,7 @@
 import fp from "fastify-plugin";
 import { randomUUID } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
-import { claimEvent, eq, sql, orderItems, orderCenterNumbers, orders, payments, shifts, receiptTemplates, terminalPrinters, appSettings } from "@pos/db";
+import { claimEvent, eq, desc, sql, orderItems, orderCenterNumbers, orders, payments, shifts, receiptTemplates, terminalPrinters, appSettings } from "@pos/db";
 import { formatReceiptNumber } from "@pos/module-sales";
 import type { DbClient } from "@pos/db";
 
@@ -78,6 +78,7 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
       .select()
       .from(payments)
       .where(eq(payments.orderId, orderId))
+      .orderBy(desc(payments.createdAt))
       .limit(1);
 
     if (payment) {
@@ -171,6 +172,8 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
 
   eventBus.on("PRINT_JOB_QUEUED", async (payload) => {
     if (payload.type !== "receipt") return;
+    const claimed = await claimEvent(db, "printer-trigger:print-job", payload.jobId);
+    if (!claimed) return;
 
     const multiTerminalEnabled = await loadMultiTerminalEnabled(db);
     const rawTerminalId = (payload.payload as { terminalId?: number | string }).terminalId;
