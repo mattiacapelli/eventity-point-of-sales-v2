@@ -63,10 +63,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T
 export class PrinterService {
   private readonly fallbackAdapter: PrinterAdapter;
   private readonly adapterPool = new Map<string, PrinterAdapter>();
-  private readonly queue: PrintJob[] = [];
   private readonly deadLetterQueue: PrintJob[] = [];
-  private processing = false;
-  /** Per-printer serialization chain — prevents concurrent writes to the same socket/USB device. */
+  /** Per-printer serialization chain — prevents concurrent writes to the same device. */
   private readonly printChain = new Map<string, Promise<void>>();
 
   constructor(private readonly logger: Logger) {
@@ -111,32 +109,34 @@ export class PrinterService {
   }
 
   enqueue(job: PrintJob): void {
-    this.queue.push(job);
-    void this.flush();
-  }
-
-  async flush(): Promise<void> {
-    if (this.processing) return;
-    this.processing = true;
-    while (this.queue.length > 0) {
-      const job = this.queue.shift()!;
-      await this.printWithRetry(job);
-    }
-    this.processing = false;
+    // Route into the per-printer chain so jobs for different printers run in
+    // parallel while jobs for the same printer remain serialized.
+    void this.printWithRetry(job);
   }
 
   private async printWithRetry(job: PrintJob): Promise<void> {
-    const adapter = this.getAdapter(job);
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        const result = await adapter.print(job);
-        if (result.success) return;
-        if (attempt < MAX_RETRIES) await sleep(RETRY_DELAY_MS);
-      } catch {
-        if (attempt < MAX_RETRIES) await sleep(RETRY_DELAY_MS);
+    const key = this.adapterKey(job);
+    const prev = this.printChain.get(key) ?? Promise.resolve();
+    let resolve!: () => void;
+    const next = new Promise<void>((r) => { resolve = r; });
+    this.printChain.set(key, next);
+    try {
+      await withTimeout(prev, PRINT_TIMEOUT_MS, undefined);
+      const adapter = this.getAdapter(job);
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const result = await withTimeout(adapter.print(job), PRINT_TIMEOUT_MS, { success: false, message: "timeout" });
+          if (result.success) return;
+          if (attempt < MAX_RETRIES) await sleep(RETRY_DELAY_MS);
+        } catch {
+          if (attempt < MAX_RETRIES) await sleep(RETRY_DELAY_MS);
+        }
       }
+      this.deadLetterQueue.push(job);
+    } finally {
+      resolve();
+      if (this.printChain.get(key) === next) this.printChain.delete(key);
     }
-    this.deadLetterQueue.push(job);
   }
 
   async printDirect(job: PrintJob): Promise<PrintResult> {
