@@ -257,7 +257,7 @@ export class OrderRepository {
 
     const [orderRow] = await this.db.insert(orders).values({
       tableId: input.tableId ?? null,
-      customerName: null,
+      customerName: input.customerName ?? null,
       eventId: input.eventId ?? null,
       shiftId: input.shiftId ?? null,
       terminalId: input.terminalId ?? null,
@@ -344,7 +344,7 @@ export class OrderRepository {
       {
         id,
         tableId: input.tableId ?? null,
-        customerName: null,
+        customerName: input.customerName ?? null,
         eventId: input.eventId ?? null,
         shiftId: input.shiftId ?? null,
         terminalId: input.terminalId ?? null,

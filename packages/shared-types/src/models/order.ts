@@ -74,6 +74,7 @@ export interface CreateOrderItemInput {
 
 export interface CreateOrderInput {
   readonly tableId?: string;
+  readonly customerName?: string | null;
   readonly eventId?: string;
   readonly shiftId?: number;
   readonly terminalId?: number;
