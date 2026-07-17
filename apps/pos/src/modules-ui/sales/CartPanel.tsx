@@ -196,6 +196,8 @@ interface VariantDialogProps {
 function VariantDialog({ cartKey, productId, productName, unitPrice, existingNotes, onClose }: VariantDialogProps) {
   const addToCart = useStore((s) => s.addToCart);
   const updateItemNotes = useStore((s) => s.updateItemNotes);
+  const updateCartQty = useStore((s) => s.updateCartQty);
+  const originalQuantity = useStore((s) => s.cart.find((c) => c.cartKey === cartKey)?.quantity ?? 1);
   const [groups, setGroups] = useState<OptionGroupWithOptions[] | null>(null);
   const [loadErr, setLoadErr] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -248,7 +250,8 @@ function VariantDialog({ cartKey, productId, productName, unitPrice, existingNot
       opts.push({ optionId: 0, optionGroupId: 0, name: trimmedNote, priceDelta: notePriceDelta, prefix: freeNotePrefix, isRemoval: freeNotePrefix === "-" });
     }
     if (opts.length > 0) {
-      addToCart({ productId, name: productName, unitPrice, selectedOptions: opts });
+      updateCartQty(cartKey, 0);
+      addToCart({ productId, name: productName, unitPrice, selectedOptions: opts, quantity: originalQuantity });
     } else {
       updateItemNotes(cartKey, "");
     }
