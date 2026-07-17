@@ -39,55 +39,33 @@ export function listWindowsPrinters(): WindowsPrinterInfo[] {
 }
 
 /**
- * List USB ports (USB001, USB002, …) that have a device attached, by trying
- * to open each with CreateFile. Returns only ports that open successfully.
+ * List USB ports (USB001…USB009) that have a device attached.
+ * Uses `copy /B nul PORT` — succeeds (exit 0) when the port exists and
+ * is writable, fails otherwise. No PowerShell or P/Invoke needed.
  */
 export function listWindowsUsbPorts(): WindowsUsbPortInfo[] {
   if (process.platform !== "win32") return [];
-  try {
-    const id = randomBytes(8).toString("hex");
-    const ps1 = join(tmpdir(), `pos-usbports-${id}.ps1`);
-    const script = `
-Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-public class WinPort {
-  [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
-  public static extern IntPtr CreateFile(string lpFileName, uint dwAccess, uint dwShare,
-    IntPtr lpSec, uint dwCreate, uint dwFlags, IntPtr hTemplate);
-  [DllImport("kernel32.dll", SetLastError=true)]
-  public static extern bool CloseHandle(IntPtr h);
-  public static bool CanOpen(string path) {
-    var h = CreateFile(path, 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
-    if (h == new IntPtr(-1)) return false;
-    CloseHandle(h); return true;
+  const found: WindowsUsbPortInfo[] = [];
+  for (let i = 1; i <= 9; i++) {
+    const portName = `USB00${i}`;
+    try {
+      execSync(`copy /B nul \\\\.\\${portName}`, {
+        timeout: 2000,
+        windowsHide: true,
+        shell: "cmd.exe",
+        stdio: "pipe",
+      });
+      found.push({ portName, description: `Porta ${portName}` });
+    } catch {
+      // port not available or no device
+    }
   }
-}
-"@
-$results = @()
-for ($i = 1; $i -le 9; $i++) {
-  $port = "USB00$i"
-  $path = "\\\\.\\$port"
-  if ([WinPort]::CanOpen($path)) { $results += $port }
-}
-if ($results.Count -eq 0) { Write-Output "NONE" } else { Write-Output ($results -join ",") }
-`;
-    writeFileSync(ps1, script, { encoding: "utf8" });
-    const out = execSync(
-      `powershell -NoProfile -ExecutionPolicy Bypass -File "${ps1}"`,
-      { timeout: 10000, windowsHide: true },
-    ).toString().trim();
-    try { unlinkSync(ps1); } catch { /* ignore */ }
-    if (!out || out === "NONE") return [];
-    return out.split(",").map((p) => ({ portName: p.trim(), description: `Porta ${p.trim()}` }));
-  } catch {
-    return [];
-  }
+  return found;
 }
 
 export class WindowsPrinterAdapter implements PrinterAdapter {
   constructor(
-    private readonly portName: string,   // e.g. "USB003" or a printer name fallback
+    private readonly portName: string,   // e.g. "USB003"
     private readonly logger: Logger,
   ) {}
 
@@ -99,63 +77,27 @@ export class WindowsPrinterAdapter implements PrinterAdapter {
     const buf = job.contentBuffer ?? buildEscPosBuffer(job.content ?? "");
     const id = randomBytes(8).toString("hex");
     const binPath = join(tmpdir(), `pos-print-${id}.bin`);
-    const ps1Path = join(tmpdir(), `pos-print-${id}.ps1`);
 
     try {
       writeFileSync(binPath, buf);
 
-      // Write directly to the USB port device path (e.g. \\.\USB003), bypassing
-      // the Windows print spooler entirely. This is the only reliable way to send
-      // raw ESC/POS bytes to an Epson printer without a vendor-specific RAW driver.
-      const script = `
-param([string]$PortName, [string]$BinPath)
-Add-Type -TypeDefinition @"
-using System;
-using System.IO;
-using System.Runtime.InteropServices;
-public class DirectPrint {
-  [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
-  public static extern IntPtr CreateFile(string lpFileName, uint dwAccess, uint dwShare,
-    IntPtr lpSec, uint dwCreate, uint dwFlags, IntPtr hTemplate);
-  [DllImport("kernel32.dll", SetLastError=true)]
-  public static extern bool WriteFile(IntPtr h, byte[] buf, uint n, out uint written, IntPtr ov);
-  [DllImport("kernel32.dll", SetLastError=true)]
-  public static extern bool CloseHandle(IntPtr h);
-  public static string Send(string portName, byte[] data) {
-    string path = "\\\\\\\\.\\\\\" + portName;
-    IntPtr h = CreateFile(path, 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
-    if (h == new IntPtr(-1)) return "ERR:CreateFile:" + Marshal.GetLastWin32Error();
-    uint w;
-    bool ok = WriteFile(h, data, (uint)data.Length, out w, IntPtr.Zero);
-    CloseHandle(h);
-    return ok ? "OK:" + w : "ERR:WriteFile:" + Marshal.GetLastWin32Error();
-  }
-}
-"@
-$bytes = [System.IO.File]::ReadAllBytes($BinPath)
-Write-Output ([DirectPrint]::Send($PortName, $bytes))
-`;
-      writeFileSync(ps1Path, script, { encoding: "utf8" });
-
-      const escapedPort = this.portName.replace(/"/g, '`"');
+      // "copy /B file PORT" writes raw bytes directly to the port device,
+      // bypassing the Windows print spooler. This is the simplest reliable
+      // approach for ESC/POS printers without a vendor RAW driver.
+      const portPath = this.portName.startsWith("\\\\.\\") ? this.portName : `\\\\.\\${this.portName}`;
       const out = execSync(
-        `powershell -NoProfile -ExecutionPolicy Bypass -File "${ps1Path}" -PortName "${escapedPort}" -BinPath "${binPath}"`,
-        { timeout: 15000, windowsHide: true },
+        `copy /B "${binPath}" "${portPath}"`,
+        { timeout: 15000, windowsHide: true, shell: "cmd.exe" },
       ).toString().trim();
 
-      if (out.startsWith("OK:")) {
-        this.logger.info({ portName: this.portName, bytes: buf.length }, "[win-printer] direct port print OK");
-        return { success: true, message: "OK" };
-      }
-      this.logger.error({ portName: this.portName, out }, "[win-printer] direct port print failed");
-      return { success: false, message: `Windows print error: ${out}` };
+      this.logger.info({ portName: this.portName, bytes: buf.length, out }, "[win-printer] copy /B OK");
+      return { success: true, message: "OK" };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error({ portName: this.portName, err: msg }, "[win-printer] exec error");
+      this.logger.error({ portName: this.portName, err: msg }, "[win-printer] copy /B failed");
       return { success: false, message: msg };
     } finally {
       try { unlinkSync(binPath); } catch { /* ignore */ }
-      try { unlinkSync(ps1Path); } catch { /* ignore */ }
     }
   }
 }
