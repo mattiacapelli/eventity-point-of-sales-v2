@@ -105,7 +105,7 @@ export async function printKitchenTickets(
     }
   }
   if (unroutedItems.length > 0) {
-    centerItems.set("__generale__", { centerName: "Generale", items: unroutedItems });
+    logger.debug({ orderId, count: unroutedItems.length }, "Kitchen items without production center — skipping");
   }
 
   const activePrinters = await db.select().from(printers).where(eq(printers.active, true)) as unknown as PrinterRow[];
@@ -121,20 +121,19 @@ export async function printKitchenTickets(
     const effectiveReceiptDisplay = (centerNumbersMap && typeof centerId === "number" && centerNumbersMap.has(centerId))
       ? String(centerNumbersMap.get(centerId)!)
       : receiptDisplay;
-    let targetPrinters: PrinterRow[];
-    if (centerId !== "__generale__" && typeof centerId === "number") {
-      const dedicatedRows = await db
-        .select({ printerId: productionCenterPrinters.printerId })
-        .from(productionCenterPrinters)
-        .where(eq(productionCenterPrinters.productionCenterId, centerId));
-      if (dedicatedRows.length > 0) {
-        const dedicatedIds = dedicatedRows.map((r) => r.printerId);
-        targetPrinters = allKitchenPrinters.filter((p) => dedicatedIds.includes(p.id));
-      } else {
-        targetPrinters = allKitchenPrinters;
-      }
-    } else {
-      targetPrinters = allKitchenPrinters;
+    const dedicatedRows = await db
+      .select({ printerId: productionCenterPrinters.printerId })
+      .from(productionCenterPrinters)
+      .where(eq(productionCenterPrinters.productionCenterId, centerId as number));
+    if (dedicatedRows.length === 0) {
+      logger.debug({ orderId, centerId, centerName }, "Production center has no dedicated printers — skipping");
+      continue;
+    }
+    const dedicatedIds = dedicatedRows.map((r) => r.printerId);
+    const targetPrinters = allKitchenPrinters.filter((p) => dedicatedIds.includes(p.id));
+    if (targetPrinters.length === 0) {
+      logger.debug({ orderId, centerId, centerName }, "Dedicated printers not active — skipping");
+      continue;
     }
 
     const ticketItems = centerGroupItems.map((i) => ({
