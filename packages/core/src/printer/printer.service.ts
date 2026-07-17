@@ -47,9 +47,17 @@ class MockPrinterAdapter implements PrinterAdapter {
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
+const PRINT_TIMEOUT_MS = 10_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    sleep(ms).then(() => fallback),
+  ]);
 }
 
 export class PrinterService {
@@ -138,11 +146,16 @@ export class PrinterService {
     const next = new Promise<void>((r) => { resolve = r; });
     this.printChain.set(key, next);
     try {
-      await prev;
-      return await this.getAdapter(job).print(job);
+      // Await the previous job in the chain, but never block longer than the
+      // print timeout — a permanently-hung job must not freeze all successors.
+      await withTimeout(prev, PRINT_TIMEOUT_MS, undefined);
+      return await withTimeout(
+        this.getAdapter(job).print(job),
+        PRINT_TIMEOUT_MS,
+        { success: false, message: `Print timeout after ${PRINT_TIMEOUT_MS}ms` },
+      );
     } finally {
       resolve();
-      // Clean up the chain entry once it settles so the map doesn't grow unboundedly.
       if (this.printChain.get(key) === next) this.printChain.delete(key);
     }
   }
