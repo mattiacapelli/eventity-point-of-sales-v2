@@ -498,13 +498,19 @@ const order = await service.create({
       }));
 
       for (const printer of targetPrinters) {
-        const isUsb = (printer as unknown as { connectionType: string }).connectionType === "usb";
+        const connType = (printer as unknown as { connectionType: string }).connectionType;
         const vid = (printer as unknown as { usbVendorId: number | null }).usbVendorId;
         const pid = (printer as unknown as { usbProductId: number | null }).usbProductId;
-        if (isUsb ? (!vid || !pid) : (!printer.host || !printer.port)) continue;
-        const printerConfig = isUsb
-          ? { connectionType: "usb" as const, usbVendorId: vid!, usbProductId: pid! }
-          : { host: printer.host!, port: printer.port! };
+        const winName = (printer as unknown as { winPrinterName: string | null }).winPrinterName;
+        const printerConfig =
+          connType === "usb" && vid && pid
+            ? { connectionType: "usb" as const, usbVendorId: vid, usbProductId: pid }
+            : connType === "windows" && winName
+              ? { connectionType: "windows" as const, winPrinterName: winName }
+              : printer.host && printer.port
+                ? { connectionType: "network" as const, host: printer.host, port: printer.port }
+                : null;
+        if (!printerConfig) continue;
         try {
           if ((printer as unknown as { printMode: string }).printMode === "image") {
             const templateRows = await db.select().from(kitchenTemplates).where(eq(kitchenTemplates.active, true));

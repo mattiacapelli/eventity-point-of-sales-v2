@@ -649,9 +649,11 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     const statsRpCfg =
       receiptPrinter.connectionType === "usb" && receiptPrinter.usbVendorId && receiptPrinter.usbProductId
         ? { connectionType: "usb" as const, usbVendorId: receiptPrinter.usbVendorId, usbProductId: receiptPrinter.usbProductId }
-        : receiptPrinter.host && receiptPrinter.port
-          ? { host: receiptPrinter.host, port: receiptPrinter.port }
-          : undefined;
+        : receiptPrinter.connectionType === "windows" && receiptPrinter.winPrinterName
+          ? { connectionType: "windows" as const, winPrinterName: receiptPrinter.winPrinterName }
+          : receiptPrinter.host && receiptPrinter.port
+            ? { connectionType: "network" as const, host: receiptPrinter.host, port: receiptPrinter.port }
+            : undefined;
     const result = await printerService.printDirect({
       printerId: receiptPrinter.id,
       ...(contentBuffer ? { contentBuffer } : { content: content! }),

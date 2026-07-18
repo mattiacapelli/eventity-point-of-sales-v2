@@ -13,7 +13,7 @@ import { OrderRepository } from "../repository/order.repository.js";
 import { createTestDb } from "./test-db.js";
 import type { DbClient } from "@pos/db";
 import {
-  products, categories, terminals, shifts, orders, payments, paymentMethods, appSettings,
+  products, categories, terminals, shifts, payments, appSettings,
 } from "@pos/db";
 
 const N_ORDERS   = 100;
@@ -53,14 +53,7 @@ async function seedBaseData() {
     terminalIds.push(t!.id);
   }
 
-  // ensure payment methods exist (runMigrations seeds them, but double-check)
-  const existingMethods = await db.select().from(paymentMethods);
-  if (existingMethods.length === 0) {
-    await db.insert(paymentMethods).values([
-      { id: "cash",   name: "Contanti",     sortOrder: 0 },
-      { id: "card",   name: "Carta",        sortOrder: 1 },
-    ]);
-  }
+  // runMigrations seeds payment methods — nothing to do here
 
   return { prodId: prod!.id, shiftId: shift!.id, terminalIds };
 }
@@ -76,7 +69,7 @@ describe(`Stress: ${N_ORDERS} ordini in parallelo da ${N_TERMINALS} terminali`, 
     const promises = Array.from({ length: N_ORDERS }, (_, i) =>
       repo.create({
         shiftId,
-        terminalId: terminalIds[i % N_TERMINALS],
+        terminalId: terminalIds[i % N_TERMINALS]!,
         items: [{ productId: prodId, name: "Pizza", quantity: 1 }],
       })
     );
@@ -104,7 +97,7 @@ describe(`Stress: ${N_ORDERS} ordini in parallelo da ${N_TERMINALS} terminali`, 
       Array.from({ length: N_ORDERS }, (_, i) =>
         repo.create({
           shiftId,
-          terminalId: terminalIds[i % N_TERMINALS],
+          terminalId: terminalIds[i % N_TERMINALS]!,
           items: [{ productId: prodId, name: "Pizza", quantity: 1 }],
         })
       )
@@ -122,7 +115,7 @@ describe(`Stress: ${N_ORDERS} ordini in parallelo da ${N_TERMINALS} terminali`, 
       Array.from({ length: N_ORDERS }, (_, i) =>
         repo.create({
           shiftId,
-          terminalId: terminalIds[i % N_TERMINALS],
+          terminalId: terminalIds[i % N_TERMINALS]!,
           items: [{ productId: prodId, name: "Pizza", quantity: 1 }],
         })
       )
@@ -141,10 +134,6 @@ describe(`Stress: ${N_ORDERS} ordini in parallelo da ${N_TERMINALS} terminali`, 
         createdAt: now,
       });
     }));
-
-    // Leggi direttamente dal DB per simulare getShiftFullStats
-    const completedOrders = await db.select().from(orders)
-      .where((t: typeof orders) => undefined as unknown as boolean); // fetch all
 
     // Conta per terminale
     const byTerminalCount: Record<number, number> = {};
@@ -167,12 +156,12 @@ describe(`Stress: ${N_ORDERS} ordini in parallelo da ${N_TERMINALS} terminali`, 
     const BURST = 50;
     const round1 = await Promise.all(
       Array.from({ length: BURST }, (_, i) =>
-        repo.create({ shiftId, terminalId: terminalIds[i % N_TERMINALS], items: [{ productId: prodId, name: "Pizza", quantity: 1 }] })
+        repo.create({ shiftId, terminalId: terminalIds[i % N_TERMINALS]!, items: [{ productId: prodId, name: "Pizza", quantity: 1 }] })
       )
     );
     const round2 = await Promise.all(
       Array.from({ length: BURST }, (_, i) =>
-        repo.create({ shiftId, terminalId: terminalIds[i % N_TERMINALS], items: [{ productId: prodId, name: "Pizza", quantity: 1 }] })
+        repo.create({ shiftId, terminalId: terminalIds[i % N_TERMINALS]!, items: [{ productId: prodId, name: "Pizza", quantity: 1 }] })
       )
     );
 
