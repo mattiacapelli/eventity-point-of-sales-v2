@@ -386,6 +386,7 @@ export function ProductGrid() {
   const [tableEnabled, setTableEnabled] = useState(false);
   const [tableRequired, setTableRequired] = useState(false);
   const [customerRequired, setCustomerRequired] = useState(false);
+  const [disableTableInput, setDisableTableInput] = useState(false);
   const [preOrderModalOpen, setPreOrderModalOpen] = useState(false);
   const [preOrderTableId, setPreOrderTableId] = useState("");
   const [preOrderCustomerName, setPreOrderCustomerName] = useState("");
@@ -400,7 +401,7 @@ export function ProductGrid() {
   useEffect(() => {
     if (!triggerPreOrderModal) return;
     setTriggerPreOrderModal(false);
-    if (tableEnabled && tableInputMode === "sidebar") {
+    if (tableEnabled && tableInputMode === "sidebar" && !disableTableInput) {
       setPreOrderTableId("");
       setPreOrderCustomerName("");
       setPreOrderModalOpen(true);
@@ -485,6 +486,7 @@ export function ProductGrid() {
         if (t?.defaultViewMode) {
           applyTerminalViewMode(t.defaultViewMode as GridViewMode);
         }
+        if (t) setDisableTableInput(t.disableTableInput ?? false);
       })
       .catch(() => {});
     refreshDailyExtras();
@@ -624,7 +626,7 @@ export function ProductGrid() {
 
   async function handleProductClick(product: Product) {
     if (!currentShift || loadingProductId) return;
-    if (tableEnabled && tableInputMode === "sidebar" && cart.length === 0 && !pendingTableId && !pendingCustomerName) {
+    if (tableEnabled && tableInputMode === "sidebar" && !disableTableInput && cart.length === 0 && !pendingTableId && !pendingCustomerName) {
       setPendingProduct(product);
       setPreOrderTableId("");
       setPreOrderCustomerName("");
@@ -652,6 +654,8 @@ export function ProductGrid() {
   const activeProducts = products.filter((p) => {
     if (!p.active) return false;
     if (searchLower && !p.name.toLowerCase().includes(searchLower)) return false;
+    // terminalProductIds bypasses the category filter — explicit product assignments always show
+    if (terminalProductIds && terminalProductIds.has(p.id)) return true;
     if (visibleCategoryIdSet && p.categoryId && !visibleCategoryIdSet.has(p.categoryId)) return false;
     if (terminalProductIds && !terminalProductIds.has(p.id)) return false;
     if (productDateFilterEnabled && p.availableDates && p.availableDates.length > 0 && !p.availableDates.includes(todayStr) && !dailyExtraIds.has(p.id)) return false;
