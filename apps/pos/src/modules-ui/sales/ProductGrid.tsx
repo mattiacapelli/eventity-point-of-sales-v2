@@ -391,6 +391,8 @@ export function ProductGrid() {
   const [preOrderCustomerName, setPreOrderCustomerName] = useState("");
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
   const cart = useStore((s) => s.cart);
+  const pendingTableId = useStore((s) => s.pendingTableId);
+  const pendingCustomerName = useStore((s) => s.pendingCustomerName);
   const setPendingOrderInfo = useStore((s) => s.setPendingOrderInfo);
   const triggerPreOrderModal = useStore((s) => s.triggerPreOrderModal);
   const setTriggerPreOrderModal = useStore((s) => s.setTriggerPreOrderModal);
@@ -622,7 +624,7 @@ export function ProductGrid() {
 
   async function handleProductClick(product: Product) {
     if (!currentShift || loadingProductId) return;
-    if (tableEnabled && tableInputMode === "sidebar" && cart.length === 0) {
+    if (tableEnabled && tableInputMode === "sidebar" && cart.length === 0 && !pendingTableId && !pendingCustomerName) {
       setPendingProduct(product);
       setPreOrderTableId("");
       setPreOrderCustomerName("");
