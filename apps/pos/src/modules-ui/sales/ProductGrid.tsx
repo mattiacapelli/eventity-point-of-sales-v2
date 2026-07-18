@@ -633,13 +633,14 @@ export function ProductGrid() {
   }
 
   function handlePreOrderConfirm() {
-    if (!pendingProduct) return;
     if (preOrderTableId.trim() || preOrderCustomerName.trim()) {
       setPendingOrderInfo({ tableId: preOrderTableId.trim() || null, customerName: preOrderCustomerName.trim() || null });
     }
     setPreOrderModalOpen(false);
-    void doAddProduct(pendingProduct);
-    setPendingProduct(null);
+    if (pendingProduct) {
+      void doAddProduct(pendingProduct);
+      setPendingProduct(null);
+    }
   }
 
   // ── Compute products for each view ──────────────────────────────────────────
