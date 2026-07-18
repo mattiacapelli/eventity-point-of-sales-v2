@@ -767,16 +767,21 @@ function migrateUuidToInt(sqlite: Database.Database): void {
   sqlite.exec(`ALTER TABLE terminals RENAME TO _term_old`);
   sqlite.exec(`
     CREATE TABLE terminals (
-      id               INTEGER PRIMARY KEY AUTOINCREMENT,
-      name             TEXT NOT NULL,
-      active           INTEGER NOT NULL DEFAULT 1,
-      created_at       INTEGER NOT NULL,
-      last_seen_at     INTEGER,
-      default_view_mode TEXT
+      id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+      name                  TEXT NOT NULL,
+      active                INTEGER NOT NULL DEFAULT 1,
+      created_at            INTEGER NOT NULL,
+      last_seen_at          INTEGER,
+      default_view_mode     TEXT,
+      disable_table_input   INTEGER NOT NULL DEFAULT 0,
+      disable_pre_order_modal INTEGER NOT NULL DEFAULT 0,
+      table_input_optional  INTEGER NOT NULL DEFAULT 0
     )
   `);
-  sqlite.exec(`INSERT INTO terminals(name, active, created_at, last_seen_at, default_view_mode)
-    SELECT name, active, created_at, last_seen_at, default_view_mode FROM _term_old`);
+  sqlite.exec(`INSERT INTO terminals(name, active, created_at, last_seen_at, default_view_mode, disable_table_input, disable_pre_order_modal, table_input_optional)
+    SELECT name, active, created_at, last_seen_at, default_view_mode,
+      COALESCE(disable_table_input,0), COALESCE(disable_pre_order_modal,0), COALESCE(table_input_optional,0)
+    FROM _term_old`);
   sqlite.exec(`CREATE TEMP TABLE _term_name_map AS
     SELECT old.id AS old_uuid, new.id AS new_int
     FROM _term_old old JOIN terminals new ON new.name = old.name`);
@@ -786,15 +791,16 @@ function migrateUuidToInt(sqlite: Database.Database): void {
   sqlite.exec(`ALTER TABLE categories RENAME TO _cat_old`);
   sqlite.exec(`
     CREATE TABLE categories (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      name       TEXT NOT NULL,
-      color      TEXT,
-      sort_order INTEGER NOT NULL DEFAULT 0,
-      active     INTEGER NOT NULL DEFAULT 1
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      name               TEXT NOT NULL,
+      color              TEXT,
+      sort_order         INTEGER NOT NULL DEFAULT 0,
+      active             INTEGER NOT NULL DEFAULT 1,
+      receipt_print_mode TEXT NOT NULL DEFAULT 'inherit'
     )
   `);
-  sqlite.exec(`INSERT INTO categories(name, color, sort_order, active)
-    SELECT name, color, COALESCE(sort_order,0), COALESCE(active,1) FROM _cat_old`);
+  sqlite.exec(`INSERT INTO categories(name, color, sort_order, active, receipt_print_mode)
+    SELECT name, color, COALESCE(sort_order,0), COALESCE(active,1), COALESCE(receipt_print_mode,'inherit') FROM _cat_old`);
   sqlite.exec(`CREATE TEMP TABLE _cat_name_map AS
     SELECT old.id AS old_uuid, new.id AS new_int
     FROM _cat_old old JOIN categories new ON new.name = old.name`);
