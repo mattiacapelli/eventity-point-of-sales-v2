@@ -392,6 +392,18 @@ export function ProductGrid() {
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
   const cart = useStore((s) => s.cart);
   const setPendingOrderInfo = useStore((s) => s.setPendingOrderInfo);
+  const triggerPreOrderModal = useStore((s) => s.triggerPreOrderModal);
+  const setTriggerPreOrderModal = useStore((s) => s.setTriggerPreOrderModal);
+
+  useEffect(() => {
+    if (!triggerPreOrderModal) return;
+    setTriggerPreOrderModal(false);
+    if (tableEnabled && tableInputMode === "sidebar") {
+      setPreOrderTableId("");
+      setPreOrderCustomerName("");
+      setPreOrderModalOpen(true);
+    }
+  }, [triggerPreOrderModal]);
 
   function refreshDailyExtras() {
     const today = new Date().toISOString().slice(0, 10);

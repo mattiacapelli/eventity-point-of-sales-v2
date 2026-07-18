@@ -90,6 +90,10 @@ interface GlobalState {
   productConfiguratorOpen: boolean;
   setProductConfiguratorOpen: (open: boolean) => void;
 
+  // Set to true after an order is paid so ProductGrid auto-opens the pre-order modal
+  triggerPreOrderModal: boolean;
+  setTriggerPreOrderModal: (v: boolean) => void;
+
   // WS
   wsStatus: WsStatus;
   setWsStatus: (status: WsStatus) => void;
@@ -204,6 +208,9 @@ export const useStore = create<GlobalState>((set, get) => ({
 
   productConfiguratorOpen: false,
   setProductConfiguratorOpen: (productConfiguratorOpen) => set({ productConfiguratorOpen }),
+
+  triggerPreOrderModal: false,
+  setTriggerPreOrderModal: (triggerPreOrderModal) => set({ triggerPreOrderModal }),
 
   wsStatus: "disconnected",
   setWsStatus: (wsStatus) => set({ wsStatus }),

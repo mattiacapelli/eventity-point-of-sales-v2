@@ -104,7 +104,7 @@ function CashCalculator({ total, received, onChange }: { total: number; received
 }
 
 function CheckoutModal() {
-  const { checkoutOrder, setCheckoutOrder, clearCart, pendingTableId, pendingCustomerName } = useStore();
+  const { checkoutOrder, setCheckoutOrder, clearCart, pendingTableId, pendingCustomerName, setTriggerPreOrderModal } = useStore();
   const { paymentMethods, setPaymentMethods } = useAdminStore();
   const { terminalId } = useTerminalStore();
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
@@ -183,6 +183,7 @@ function CheckoutModal() {
         clearCart();
         setPaid(false);
         setSelectedMethodId(null);
+        setTriggerPreOrderModal(true);
       }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore pagamento");
