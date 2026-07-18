@@ -89,7 +89,7 @@ export type ShiftFullStats = {
   byPaymentMethod: { method: string; count: number; amount: number; excludeFromTotal: boolean }[];
   byCategory: { categoryName: string; quantity: number; amount: number }[];
   byProductionCenter: { centerName: string; quantity: number; amount: number }[];
-  byTerminal: { terminalName: string; count: number; amount: number }[];
+  byTerminal: { terminalName: string; count: number; amount: number; byMethod: { method: string; count: number; amount: number }[] }[];
   byHour: { hour: number; orders: number; amount: number }[];
   topProducts: { name: string; quantity: number; amount: number }[];
 };

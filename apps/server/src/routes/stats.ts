@@ -287,7 +287,7 @@ function buildShiftReportLines(stats: NonNullable<Awaited<ReturnType<typeof getS
     lines.push({ type: "divider" });
   }
 
-  if (stats.byTerminal.length > 1) {
+  if (stats.byTerminal.length > 0) {
     lines.push({ type: "text", content: "PER TERMINALE" });
     for (const t of stats.byTerminal) {
       lines.push({ type: "item", left: `${t.terminalName} x${t.count}`, right: fmt(t.amount) });

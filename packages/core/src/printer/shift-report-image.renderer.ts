@@ -82,7 +82,7 @@ function topProductsRows(data: ShiftReportRenderData): [string, string][] {
 }
 
 function byTerminalRows(data: ShiftReportRenderData): [string, string][] {
-  if (!data.byTerminal || data.byTerminal.length <= 1) return [];
+  if (!data.byTerminal || data.byTerminal.length === 0) return [];
   const rows: [string, string][] = [];
   for (const t of data.byTerminal) {
     rows.push([`${t.terminalName} x${t.count}`, fmtEur(t.amount)]);
@@ -170,6 +170,7 @@ export async function renderShiftReportImage(data: ShiftReportRenderData): Promi
       case "by-category":
       case "by-production-center":
       case "by-payment-method":
+      case "by-terminal":
       case "top-products":
         h += tableRows(block, data).length * lineH;
         break;
@@ -257,6 +258,7 @@ export async function renderShiftReportImage(data: ShiftReportRenderData): Promi
       case "by-category":
       case "by-production-center":
       case "by-payment-method":
+      case "by-terminal":
       case "top-products": {
         const rightX = width - PADDING;
         for (const [label, value] of tableRows(block, data)) {

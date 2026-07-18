@@ -276,7 +276,7 @@ function ShiftTab({ terminalId }: { terminalId: number | null }) {
             </Section>
           )}
 
-          {stats.byTerminal.length > 1 && (
+          {stats.byTerminal.length > 0 && (
             <Section title="Per terminale">
               <DistributionBarChart data={stats.byTerminal.map((t) => ({ label: t.terminalName, value: t.amount }))} />
             </Section>
