@@ -123,8 +123,11 @@ export const apiClient = {
       request<Order>("PATCH", `/orders/${id}/items`, { items }),
     cancel: (id: number, reason?: string) =>
       request<Order>("DELETE", `/orders/${id}`, { reason }),
-    reprint: (id: number) =>
-      request<{ ok: boolean }>("POST", `/orders/${id}/reprint`, {}),
+    reprint: (id: number) => {
+      const terminalId = useTerminalStore.getState().terminalId;
+      const extraHeaders = terminalId !== null ? { "X-Terminal-Id": String(terminalId) } : undefined;
+      return request<{ ok: boolean }>("POST", `/orders/${id}/reprint`, {}, extraHeaders);
+    },
     reprintKitchen: (id: number) =>
       request<{ ok: boolean }>("POST", `/orders/${id}/reprint-kitchen`, {}),
   },

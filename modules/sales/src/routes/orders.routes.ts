@@ -3,8 +3,8 @@ import type { OrderService } from "../service/order.service.js";
 import { OrderNotFoundError, OrderValidationError } from "../service/order.service.js";
 import type { Order, OrderStatus } from "@pos/shared-types";
 import type { CoreContext } from "@pos/core";
-import { formatReceipt, formatKitchenTicket, renderKitchenImage, pngToEscposRaster, type ReceiptLine } from "@pos/core";
-import { eq, inArray, and, printers, receiptTemplates, orderItems, orderItemOptions, payments, orders, products, productionCenters, productionCenterCategories, productionCenterPrinters, kitchenTemplates, appSettings, terminals, paymentMethods } from "@pos/db";
+import { formatKitchenTicket, renderKitchenImage, pngToEscposRaster } from "@pos/core";
+import { eq, inArray, and, printers, orderItems, orderItemOptions, payments, orders, products, productionCenters, productionCenterCategories, productionCenterPrinters, kitchenTemplates, appSettings, terminals, paymentMethods, terminalPrinters } from "@pos/db";
 import { formatReceiptNumber } from "../repository/order.repository.js";
 import type { KitchenBlock } from "@pos/shared-types";
 
@@ -321,63 +321,46 @@ const order = await service.create({
       throw err;
     }
 
-    const { db, printerService } = ctx;
+    const { db, eventBus } = ctx;
 
+    // Resolve the terminal that is requesting the reprint (from header)
+    const terminalIdHeader = (request.headers["x-terminal-id"] as string | undefined);
+    const requestingTerminalId = terminalIdHeader !== undefined ? parseInt(terminalIdHeader, 10) : undefined;
+
+    // Check that at least one receipt printer is reachable
     const activePrinters = await db.select().from(printers).where(eq(printers.active, true));
-    const receiptPrinter = activePrinters.find((p) => p.receiptEnabled);
+    let receiptPrinter = activePrinters.find((p) => p.receiptEnabled);
+    if (requestingTerminalId) {
+      const tpRows = await db.select({ printerId: terminalPrinters.printerId })
+        .from(terminalPrinters).where(eq(terminalPrinters.terminalId, requestingTerminalId));
+      if (tpRows.length > 0) {
+        const tpIds = new Set(tpRows.map((r) => r.printerId));
+        const tp = activePrinters.find((p) => tpIds.has(p.id) && p.receiptEnabled);
+        if (tp) receiptPrinter = tp;
+      }
+    }
     if (!receiptPrinter) return reply.status(503).send({ error: "No active receipt printer" });
 
-    const templates = await db.select().from(receiptTemplates).where(eq(receiptTemplates.active, true));
-    const template = templates[0];
-
-    const items = await db.select().from(orderItems).where(eq(orderItems.orderId, numId));
-    const pmts = await db.select().from(payments).where(eq(payments.orderId, numId));
+    // Find the original completed payment for this order
+    const pmts = await db.select().from(payments).where(and(eq(payments.orderId, numId), eq(payments.status, "completed")));
     const payment = pmts[0];
+    if (!payment) return reply.status(404).send({ error: "No completed payment found for this order" });
 
-    const [multiTerminalRow] = await db.select().from(appSettings).where(eq(appSettings.key, "multi_terminal_enabled")).limit(1);
-    const multiTerminalEnabled = multiTerminalRow?.value === "true";
-    let terminalName: string | undefined;
-    if (multiTerminalEnabled && order.terminalId) {
-      const [t] = await db.select({ name: terminals.name }).from(terminals).where(eq(terminals.id, order.terminalId)).limit(1);
-      terminalName = t?.name;
-    }
-
-    const lines: ReceiptLine[] = [];
-    lines.push({ type: "header", content: template?.headerText ?? "Ristampa scontrino" });
-    lines.push({ type: "divider" });
-    lines.push({ type: "item", left: "Ordine", right: `#${String(numId)}` });
-    if (terminalName) lines.push({ type: "item", left: "Cassa", right: terminalName });
-    if (order.tableId) lines.push({ type: "item", left: "Tavolo", right: order.tableId });
-    if (order.customerName) lines.push({ type: "item", left: "Cliente", right: order.customerName });
-    lines.push({ type: "divider" });
-    for (const item of items) {
-      lines.push({ type: "item", left: `${item.quantity}x ${item.name}`, right: `€${(item.unitPrice * item.quantity).toFixed(2)}` });
-    }
-    lines.push({ type: "divider" });
-    const total = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
-    lines.push({ type: "total", left: "TOTALE", right: `€${total.toFixed(2)}` });
-    if (payment) {
-      const [methodRow] = await db.select({ name: paymentMethods.name }).from(paymentMethods).where(eq(paymentMethods.id, payment.method)).limit(1);
-      lines.push({ type: "item", left: "Pagamento", right: methodRow?.name ?? payment.method });
-    }
-    lines.push({ type: "divider" });
-    if (template?.footerText) {
-      lines.push({ type: "text", content: "" });
-      lines.push({ type: "text", content: template.footerText });
-    }
-
-    const content = formatReceipt(lines);
-    const reprConfig =
-      receiptPrinter.connectionType === "usb" && receiptPrinter.usbVendorId && receiptPrinter.usbProductId
-        ? { connectionType: "usb" as const, usbVendorId: receiptPrinter.usbVendorId, usbProductId: receiptPrinter.usbProductId }
-        : receiptPrinter.host && receiptPrinter.port
-          ? { host: receiptPrinter.host, port: receiptPrinter.port }
-          : undefined;
-    await printerService.printDirect({
-      printerId: receiptPrinter.id,
-      content,
+    // Reuse the full PRINT_JOB_QUEUED flow — same template, same renderer
+    const jobId = crypto.randomUUID();
+    eventBus.emit("PRINT_JOB_QUEUED", {
+      traceId: crypto.randomUUID(),
+      jobId,
       type: "receipt",
-      ...(reprConfig ? { printerConfig: reprConfig } : {}),
+      payload: {
+        orderId:  payment.orderId,
+        amount:   payment.amount,
+        currency: payment.currency,
+        method:   payment.method,
+        paidAt:   payment.createdAt,
+        ...(requestingTerminalId !== undefined ? { terminalId: requestingTerminalId } : {}),
+      },
+      timestamp: new Date(),
     });
 
     return reply.send({ ok: true });
@@ -483,27 +466,28 @@ const order = await service.create({
         }
       }
     }
-    if (unroutedItems.length > 0) centerItems.set("__generale__", { centerName: "Generale", items: unroutedItems });
+    if (unroutedItems.length > 0) {
+      logger.debug({ orderId: numId2, count: unroutedItems.length }, "Kitchen reprint: items without production center — skipping");
+    }
 
     const now = new Date();
     const tableId = orderRow.tableId ?? null;
     const customerName = orderRow.customerName ?? null;
 
     for (const [centerIdStr, { centerName, items: centerGroupItems }] of centerItems) {
-      let targetPrinters: typeof allKitchenPrinters;
-      if (centerIdStr !== "__generale__") {
-        const centerId = parseInt(centerIdStr, 10);
-        const dedicatedRows = await db.select({ printerId: productionCenterPrinters.printerId })
-          .from(productionCenterPrinters)
-          .where(eq(productionCenterPrinters.productionCenterId, centerId));
-        if (dedicatedRows.length > 0) {
-          const dedicatedIds = dedicatedRows.map((r) => r.printerId);
-          targetPrinters = allKitchenPrinters.filter((p) => dedicatedIds.includes(p.id));
-        } else {
-          targetPrinters = allKitchenPrinters;
-        }
-      } else {
-        targetPrinters = allKitchenPrinters;
+      const centerId = parseInt(centerIdStr, 10);
+      const dedicatedRows = await db.select({ printerId: productionCenterPrinters.printerId })
+        .from(productionCenterPrinters)
+        .where(eq(productionCenterPrinters.productionCenterId, centerId));
+      if (dedicatedRows.length === 0) {
+        logger.debug({ orderId: numId2, centerId, centerName }, "Kitchen reprint: production center has no dedicated printers — skipping");
+        continue;
+      }
+      const dedicatedIds = dedicatedRows.map((r) => r.printerId);
+      const targetPrinters = allKitchenPrinters.filter((p) => dedicatedIds.includes(p.id));
+      if (targetPrinters.length === 0) {
+        logger.debug({ orderId: numId2, centerId, centerName }, "Kitchen reprint: dedicated printers not active — skipping");
+        continue;
       }
 
       const ticketItems = centerGroupItems.map((i) => ({
