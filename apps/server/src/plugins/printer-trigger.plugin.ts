@@ -74,7 +74,11 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
       receiptDisplay = formatReceiptNumber(payload.order.receiptNumber, orderId, numSettings.prefix, numSettings.padding);
     }
 
-    await printKitchenTickets(db, printerService, logger, eventBus, orderId, items as never, fastify.ctx.config.dataDir, receiptDisplay, centerNumbersMap, true);
+    try {
+      await printKitchenTickets(db, printerService, logger, eventBus, orderId, items as never, fastify.ctx.config.dataDir, receiptDisplay, centerNumbersMap, true);
+    } catch (err) {
+      logger.error({ err, orderId }, "Kitchen ticket reprint failed — receipt reprint will still proceed");
+    }
 
     const [payment] = await db
       .select()
@@ -133,20 +137,24 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
     if (await loadExpressMode(db)) {
       const kitchenClaimed = await claimEvent(db, "printer-trigger:kitchen", payload.traceId);
       if (kitchenClaimed) {
-        const items = await db.select().from(orderItems).where(eq(orderItems.orderId, payload.payment.orderId));
-        const [orderRow] = await db.select({ receiptNumber: orders.receiptNumber }).from(orders).where(eq(orders.id, payload.payment.orderId)).limit(1);
-        const numSettings = await loadReceiptNumSettings(db);
-        const [modeRow] = await db.select().from(appSettings).where(eq(appSettings.key, "receipt_number_mode")).limit(1);
-        const mode = modeRow?.value ?? "shift";
-        let receiptDisplay: string | undefined;
-        let centerNumbersMap: Map<number, number> | undefined;
-        if (mode === "center") {
-          const cnRows = await db.select().from(orderCenterNumbers).where(eq(orderCenterNumbers.orderId, payload.payment.orderId));
-          centerNumbersMap = new Map(cnRows.map((r) => [r.productionCenterId, r.centerNumber]));
-        } else {
-          receiptDisplay = formatReceiptNumber(orderRow?.receiptNumber ?? undefined, payload.payment.orderId, numSettings.prefix, numSettings.padding);
+        try {
+          const items = await db.select().from(orderItems).where(eq(orderItems.orderId, payload.payment.orderId));
+          const [orderRow] = await db.select({ receiptNumber: orders.receiptNumber }).from(orders).where(eq(orders.id, payload.payment.orderId)).limit(1);
+          const numSettings = await loadReceiptNumSettings(db);
+          const [modeRow] = await db.select().from(appSettings).where(eq(appSettings.key, "receipt_number_mode")).limit(1);
+          const mode = modeRow?.value ?? "shift";
+          let receiptDisplay: string | undefined;
+          let centerNumbersMap: Map<number, number> | undefined;
+          if (mode === "center") {
+            const cnRows = await db.select().from(orderCenterNumbers).where(eq(orderCenterNumbers.orderId, payload.payment.orderId));
+            centerNumbersMap = new Map(cnRows.map((r) => [r.productionCenterId, r.centerNumber]));
+          } else {
+            receiptDisplay = formatReceiptNumber(orderRow?.receiptNumber ?? undefined, payload.payment.orderId, numSettings.prefix, numSettings.padding);
+          }
+          await printKitchenTickets(db, printerService, logger, eventBus, payload.payment.orderId, items as never, fastify.ctx.config.dataDir, receiptDisplay, centerNumbersMap);
+        } catch (err) {
+          logger.error({ err, orderId: payload.payment.orderId }, "Kitchen ticket failed in express mode — receipt will still print");
         }
-        await printKitchenTickets(db, printerService, logger, eventBus, payload.payment.orderId, items as never, fastify.ctx.config.dataDir, receiptDisplay, centerNumbersMap);
       }
     }
 
