@@ -4,7 +4,7 @@ import { formatReceipt, renderShiftReportImage, pngToEscposRaster, type ReceiptL
 import {
   eq, and, gte, lte, inArray,
   orders, orderItems, products, categories, payments, shifts,
-  productionCenters, productionCenterCategories, printers,
+  productionCenters, productionCenterCategories, printers, terminalPrinters,
   appSettings, shiftReportTemplates, terminals, paymentMethods,
   type DbClient,
 } from "@pos/db";
@@ -75,15 +75,36 @@ async function getShiftFullStats(db: DbClient, shiftId: number, terminalId?: num
     const terminalRows = await db.select().from(terminals).where(inArray(terminals.id, terminalIds));
     terminalNameMap = Object.fromEntries(terminalRows.map((t) => [t.id, t.name]));
   }
-  const byTerminalAgg: Record<string, { count: number; amount: number }> = {};
+  // Fetch payments for completed orders to build per-terminal payment method breakdown
+  const allPmtRowsForTerminal = orderIds.length > 0
+    ? await db.select({ orderId: payments.orderId, method: payments.method, amount: payments.amount, status: payments.status })
+        .from(payments).where(and(inArray(payments.orderId, orderIds), eq(payments.status, "completed")))
+    : [];
+  const orderPaymentMap = new Map<number, { method: string; amount: number }>();
+  for (const p of allPmtRowsForTerminal) orderPaymentMap.set(p.orderId, { method: p.method, amount: p.amount });
+
+  const byTerminalAgg: Record<string, { count: number; amount: number; byMethod: Record<string, { count: number; amount: number }> }> = {};
   for (const order of completedOrders) {
     const name = order.terminalId !== null && order.terminalId !== undefined ? (terminalNameMap[order.terminalId] ?? "Sconosciuta") : "Senza cassa";
-    const entry = byTerminalAgg[name] ?? { count: 0, amount: 0 };
+    const entry = byTerminalAgg[name] ?? { count: 0, amount: 0, byMethod: {} };
     entry.count += 1;
     entry.amount += order.totalAmount;
+    const pmt = orderPaymentMap.get(order.id);
+    if (pmt) {
+      const methodName = methodIdToName[pmt.method] ?? pmt.method;
+      const me = entry.byMethod[methodName] ?? { count: 0, amount: 0 };
+      me.count += 1;
+      me.amount += pmt.amount;
+      entry.byMethod[methodName] = me;
+    }
     byTerminalAgg[name] = entry;
   }
-  const byTerminal = Object.entries(byTerminalAgg).map(([terminalName, v]) => ({ terminalName, ...v }));
+  const byTerminal = Object.entries(byTerminalAgg).map(([terminalName, v]) => ({
+    terminalName,
+    count: v.count,
+    amount: v.amount,
+    byMethod: Object.entries(v.byMethod).map(([method, m]) => ({ method, ...m })),
+  }));
 
   if (orderIds.length === 0) {
     return {
@@ -270,6 +291,9 @@ function buildShiftReportLines(stats: NonNullable<Awaited<ReturnType<typeof getS
     lines.push({ type: "text", content: "PER TERMINALE" });
     for (const t of stats.byTerminal) {
       lines.push({ type: "item", left: `${t.terminalName} x${t.count}`, right: fmt(t.amount) });
+      for (const m of t.byMethod) {
+        lines.push({ type: "item", left: `  ${m.method} x${m.count}`, right: fmt(m.amount) });
+      }
     }
     lines.push({ type: "divider" });
   }
@@ -561,8 +585,25 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     const stats = await getShiftFullStats(db, parseInt(shiftId, 10));
     if (!stats) return reply.status(404).send({ error: "Shift not found" });
 
+    const terminalIdHeader = request.headers["x-terminal-id"] as string | undefined;
+    const terminalId = terminalIdHeader !== undefined ? parseInt(terminalIdHeader, 10) : null;
+
     const activePrinters = await db.select().from(printers).where(eq(printers.active, true));
-    const receiptPrinter = activePrinters.find((p) => p.receiptEnabled);
+
+    let receiptPrinter = activePrinters.find((p) => p.receiptEnabled);
+
+    // Prefer the printer assigned to this terminal (if any)
+    if (terminalId) {
+      const tpRows = await db.select({ printerId: terminalPrinters.printerId })
+        .from(terminalPrinters)
+        .where(eq(terminalPrinters.terminalId, terminalId));
+      if (tpRows.length > 0) {
+        const tpIds = new Set(tpRows.map((r) => r.printerId));
+        const terminalReceiptPrinter = activePrinters.find((p) => tpIds.has(p.id) && p.receiptEnabled);
+        if (terminalReceiptPrinter) receiptPrinter = terminalReceiptPrinter;
+      }
+    }
+
     if (!receiptPrinter) return reply.status(503).send({ error: "No active receipt printer" });
 
     const [activeTemplate] = await db.select().from(shiftReportTemplates).where(eq(shiftReportTemplates.active, true));
@@ -597,6 +638,7 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
         byCategory: stats.byCategory,
         byProductionCenter: stats.byProductionCenter,
         byPaymentMethod: stats.byPaymentMethod,
+        byTerminal: stats.byTerminal,
         topProducts: stats.topProducts,
       });
       contentBuffer = await pngToEscposRaster(pngBuffer, activeTemplate!.canvasWidth ?? 576);

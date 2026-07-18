@@ -158,8 +158,11 @@ export const apiClient = {
       const url = `/stats/shift/${shiftId}/full${terminalId !== undefined ? `?terminalId=${terminalId}` : ""}`;
       return request<ShiftFullStats>("GET", url);
     },
-    printShiftReport: (shiftId: number) =>
-      request<{ ok: boolean; message?: string }>("POST", `/stats/shift/${shiftId}/print`, {}),
+    printShiftReport: (shiftId: number) => {
+      const terminalId = useTerminalStore.getState().terminalId;
+      const extraHeaders = terminalId !== null ? { "X-Terminal-Id": String(terminalId) } : undefined;
+      return request<{ ok: boolean; message?: string }>("POST", `/stats/shift/${shiftId}/print`, {}, extraHeaders);
+    },
   },
   auth: {
     changePin: (currentPin: string, newPin: string) =>

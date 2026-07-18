@@ -22,6 +22,7 @@ const SHIFT_REPORT_BLOCK_TYPE_LABELS: Record<ShiftReportBlockType, string> = {
   "by-category":           "Per categoria",
   "by-production-center":  "Per centro di produzione",
   "by-payment-method":     "Per metodo di pagamento",
+  "by-terminal":           "Per terminale",
   "top-products":          "Top prodotti",
   "footer":                "Footer",
 };

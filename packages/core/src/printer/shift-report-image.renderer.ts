@@ -18,6 +18,7 @@ export interface ShiftReportRenderData {
   byCategory: { categoryName: string; quantity: number; amount: number }[];
   byProductionCenter: { centerName: string; quantity: number; amount: number }[];
   byPaymentMethod: { method: string; count: number; amount: number; excludeFromTotal?: boolean }[];
+  byTerminal?: { terminalName: string; count: number; amount: number; byMethod: { method: string; count: number; amount: number }[] }[];
   topProducts: { name: string; quantity: number; amount: number }[];
 }
 
@@ -80,6 +81,18 @@ function topProductsRows(data: ShiftReportRenderData): [string, string][] {
   return data.topProducts.map((p) => [`${p.name} x${p.quantity}`, fmtEur(p.amount)]);
 }
 
+function byTerminalRows(data: ShiftReportRenderData): [string, string][] {
+  if (!data.byTerminal || data.byTerminal.length <= 1) return [];
+  const rows: [string, string][] = [];
+  for (const t of data.byTerminal) {
+    rows.push([`${t.terminalName} x${t.count}`, fmtEur(t.amount)]);
+    for (const m of t.byMethod) {
+      rows.push([`  ${m.method} x${m.count}`, fmtEur(m.amount)]);
+    }
+  }
+  return rows;
+}
+
 function tableRows(block: ShiftReportBlock, data: ShiftReportRenderData): [string, string][] {
   switch (block.type) {
     case "shift-period": return shiftPeriodRows(data);
@@ -88,6 +101,7 @@ function tableRows(block: ShiftReportBlock, data: ShiftReportRenderData): [strin
     case "by-category": return byCategoryRows(data);
     case "by-production-center": return byProductionCenterRows(data);
     case "by-payment-method": return byPaymentMethodRows(data);
+    case "by-terminal": return byTerminalRows(data);
     case "top-products": return topProductsRows(data);
     default: return [];
   }
