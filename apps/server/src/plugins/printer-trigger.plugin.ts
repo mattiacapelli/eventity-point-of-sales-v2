@@ -125,7 +125,11 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
     } else {
       receiptDisplay = formatReceiptNumber(payload.order.receiptNumber, payload.order.id, numSettings.prefix, numSettings.padding);
     }
-    await printKitchenTickets(db, printerService, logger, eventBus, payload.order.id, items as never, fastify.ctx.config.dataDir, receiptDisplay, centerNumbersMap);
+    try {
+      await printKitchenTickets(db, printerService, logger, eventBus, payload.order.id, items as never, fastify.ctx.config.dataDir, receiptDisplay, centerNumbersMap);
+    } catch (err) {
+      logger.error({ err, orderId: payload.order.id }, "Kitchen ticket failed on ORDER_CREATED");
+    }
   })(); });
 
   // ── PAYMENT_COMPLETED → kitchen ticket (express mode ON) + receipt ───────
