@@ -126,6 +126,7 @@ function CheckoutModal() {
   // Load payment methods + settings when modal opens; auto-select if single method
   useEffect(() => {
     if (!checkoutOrder) return;
+    setReceived("");
     // Fall back to values prefilled by a QR scan when the order itself doesn't have them yet.
     setTableId(checkoutOrder.tableId ?? pendingTableId ?? "");
     setCustomerName(checkoutOrder.customerName ?? pendingCustomerName ?? "");
