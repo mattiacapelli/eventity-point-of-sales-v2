@@ -370,6 +370,8 @@ CREATE TABLE IF NOT EXISTS terminal_products (terminal_id INTEGER NOT NULL REFER
 ALTER TABLE categories ADD COLUMN receipt_print_mode TEXT NOT NULL DEFAULT 'inherit';
 ALTER TABLE printers ADD COLUMN win_printer_name TEXT;
 ALTER TABLE terminals ADD COLUMN disable_table_input INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE terminals ADD COLUMN disable_pre_order_modal INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE terminals ADD COLUMN table_input_optional INTEGER NOT NULL DEFAULT 0;
 `;
 
 // payments.method used to be a CHECK-constrained enum column (cash/card/digital_wallet/tab).

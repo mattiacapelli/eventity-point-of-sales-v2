@@ -417,20 +417,56 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
                     {Object.entries(VIEW_MODE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
 
-                  <div style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "10px" }}>
-                    <Toggle
-                      value={t.disableTableInput ?? false}
-                      onChange={async (v) => {
-                        const updated = await adminApi.terminals.update(t.id, { disableTableInput: v });
-                        setTerminals((prev) => prev.map((x) => x.id === updated.id ? updated : x));
-                      }}
-                    />
-                    <div>
-                      <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-700)" }}>
-                        Disabilita input tavolo/cliente
+                  <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <Toggle
+                        value={t.disableTableInput ?? false}
+                        onChange={async (v) => {
+                          const updated = await adminApi.terminals.update(t.id, { disableTableInput: v });
+                          setTerminals((prev) => prev.map((x) => x.id === updated.id ? updated : x));
+                        }}
+                      />
+                      <div>
+                        <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-700)" }}>
+                          Disabilita input tavolo/cliente
+                        </div>
+                        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
+                          Nasconde completamente i campi tavolo e cliente dalla sidebar
+                        </div>
                       </div>
-                      <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
-                        Su questa cassa i campi tavolo e cliente non vengono richiesti, anche se obbligatori globalmente
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <Toggle
+                        value={t.disablePreOrderModal ?? false}
+                        onChange={async (v) => {
+                          const updated = await adminApi.terminals.update(t.id, { disablePreOrderModal: v });
+                          setTerminals((prev) => prev.map((x) => x.id === updated.id ? updated : x));
+                        }}
+                      />
+                      <div>
+                        <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-700)" }}>
+                          Disabilita modal tavolo/cliente
+                        </div>
+                        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
+                          Non mostra il popup automatico prima del primo prodotto (i campi restano nella sidebar)
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <Toggle
+                        value={t.tableInputOptional ?? false}
+                        onChange={async (v) => {
+                          const updated = await adminApi.terminals.update(t.id, { tableInputOptional: v });
+                          setTerminals((prev) => prev.map((x) => x.id === updated.id ? updated : x));
+                        }}
+                      />
+                      <div>
+                        <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-700)" }}>
+                          Tavolo/cliente facoltativi
+                        </div>
+                        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
+                          Su questa cassa i campi tavolo e cliente non sono obbligatori, anche se configurati come tali
+                        </div>
                       </div>
                     </div>
                   </div>

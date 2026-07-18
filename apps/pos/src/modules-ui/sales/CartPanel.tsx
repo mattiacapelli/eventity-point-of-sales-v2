@@ -482,6 +482,7 @@ export function CartPanel() {
   const [features, setFeatures] = useState<CartFeatures>({ notes: true, pax: true, discount: true, tableInputMode: "checkout", tableEnabled: false, tableRequired: false, customerRequired: false });
   const [cartTextSize, setCartTextSize] = useState(14);
   const [disableTableInput, setDisableTableInput] = useState(false);
+  const [tableInputOptional, setTableInputOptional] = useState(false);
   useEffect(() => {
     adminApi.settings.get()
       .then((s) => {
@@ -501,7 +502,10 @@ export function CartPanel() {
       adminApi.terminals.list()
         .then((ts) => {
           const mine = ts.find((t) => t.id === terminalId);
-          if (mine) setDisableTableInput(mine.disableTableInput ?? false);
+          if (mine) {
+            setDisableTableInput(mine.disableTableInput ?? false);
+            setTableInputOptional(mine.tableInputOptional ?? false);
+          }
         })
         .catch(() => {});
     }
@@ -585,8 +589,10 @@ export function CartPanel() {
   };
 
   const isSidebarMode = features.tableEnabled && features.tableInputMode === "sidebar" && !disableTableInput;
-  const sidebarTableMissing = isSidebarMode && features.tableRequired && sidebarTableId.trim() === "";
-  const sidebarCustomerMissing = isSidebarMode && features.customerRequired && sidebarCustomerName.trim() === "";
+  const effectiveTableRequired = isSidebarMode && features.tableRequired && !tableInputOptional;
+  const effectiveCustomerRequired = isSidebarMode && features.customerRequired && !tableInputOptional;
+  const sidebarTableMissing = effectiveTableRequired && sidebarTableId.trim() === "";
+  const sidebarCustomerMissing = effectiveCustomerRequired && sidebarCustomerName.trim() === "";
   const sidebarBlocked = sidebarTableMissing || sidebarCustomerMissing;
 
   const handleCheckout = async () => {
@@ -877,7 +883,7 @@ export function CartPanel() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
             <div>
               <label style={{ fontSize: "11px", fontWeight: 700, color: "var(--color-gray-500)", display: "block", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                Tavolo{features.tableRequired ? " *" : ""}
+                Tavolo{effectiveTableRequired ? " *" : ""}
               </label>
               <input
                 value={sidebarTableId}
@@ -893,7 +899,7 @@ export function CartPanel() {
             </div>
             <div>
               <label style={{ fontSize: "11px", fontWeight: 700, color: "var(--color-gray-500)", display: "block", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                Cliente{features.customerRequired ? " *" : ""}
+                Cliente{effectiveCustomerRequired ? " *" : ""}
               </label>
               <input
                 value={sidebarCustomerName}

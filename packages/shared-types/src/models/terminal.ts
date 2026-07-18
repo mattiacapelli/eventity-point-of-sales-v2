@@ -6,4 +6,6 @@ export interface Terminal {
   lastSeenAt: number | null;
   defaultViewMode: string | null;
   disableTableInput: boolean;
+  disablePreOrderModal: boolean;
+  tableInputOptional: boolean;
 }

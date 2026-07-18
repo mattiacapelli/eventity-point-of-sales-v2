@@ -118,6 +118,7 @@ function CheckoutModal() {
   const [tableRequired, setTableRequired] = useState(false);
   const [customerRequired, setCustomerRequired] = useState(false);
   const [disableTableInput, setDisableTableInput] = useState(false);
+  const [tableInputOptional, setTableInputOptional] = useState(false);
   const [received, setReceived] = useState("");
 
   const activeMethods = paymentMethods.filter((m) => m.active);
@@ -139,7 +140,10 @@ function CheckoutModal() {
     if (terminalId) {
       adminApi.terminals.list().then((ts) => {
         const mine = ts.find((t) => t.id === terminalId);
-        if (mine) setDisableTableInput(mine.disableTableInput ?? false);
+        if (mine) {
+            setDisableTableInput(mine.disableTableInput ?? false);
+            setTableInputOptional(mine.tableInputOptional ?? false);
+          }
       }).catch(() => {});
     }
     if (paymentMethods.length === 0) {
@@ -160,8 +164,8 @@ function CheckoutModal() {
   const isCash = selectedMethod?.type === "cash";
   const receivedNum = parseFloat(received) || 0;
   const showTableFields = tablesEnabled && tableInputMode === "checkout" && !disableTableInput;
-  const tableMissing = showTableFields && tableRequired && tableId.trim() === "";
-  const customerMissing = showTableFields && customerRequired && customerName.trim() === "";
+  const tableMissing = showTableFields && tableRequired && !tableInputOptional && tableId.trim() === "";
+  const customerMissing = showTableFields && customerRequired && !tableInputOptional && customerName.trim() === "";
   const canPay = !!selectedMethod && !tableMissing && !customerMissing;
 
   const handlePay = async () => {
@@ -223,7 +227,7 @@ function CheckoutModal() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
               <div>
                 <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: tableMissing ? "var(--color-danger)" : "var(--color-gray-600)", marginBottom: "var(--sp-sm)", display: "block" }}>
-                  Tavolo{tableRequired ? " *" : ""}
+                  Tavolo{tableRequired && !tableInputOptional ? " *" : ""}
                 </label>
                 <input
                   value={tableId}
@@ -234,7 +238,7 @@ function CheckoutModal() {
               </div>
               <div>
                 <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: customerMissing ? "var(--color-danger)" : "var(--color-gray-600)", marginBottom: "var(--sp-sm)", display: "block" }}>
-                  Nome cliente{customerRequired ? " *" : ""}
+                  Nome cliente{customerRequired && !tableInputOptional ? " *" : ""}
                 </label>
                 <input
                   value={customerName}

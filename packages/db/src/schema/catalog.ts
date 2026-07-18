@@ -154,6 +154,8 @@ export const terminals = sqliteTable("terminals", {
   lastSeenAt:         integer("last_seen_at"),
   defaultViewMode:    text("default_view_mode"),
   disableTableInput:  integer("disable_table_input", { mode: "boolean" }).notNull().default(false),
+  disablePreOrderModal: integer("disable_pre_order_modal", { mode: "boolean" }).notNull().default(false),
+  tableInputOptional: integer("table_input_optional", { mode: "boolean" }).notNull().default(false),
 });
 
 export const terminalPrinters = sqliteTable("terminal_printers", {

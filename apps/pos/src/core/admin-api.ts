@@ -429,7 +429,7 @@ export const adminApi = {
   terminals: {
     list: () => req<Terminal[]>("GET", "/admin/terminals"),
     create: (data: { name: string }) => req<Terminal>("POST", "/admin/terminals", data),
-    update: (id: number, data: { name?: string; active?: boolean; defaultViewMode?: string | null; disableTableInput?: boolean }) => req<Terminal>("PATCH", `/admin/terminals/${id}`, data),
+    update: (id: number, data: { name?: string; active?: boolean; defaultViewMode?: string | null; disableTableInput?: boolean; disablePreOrderModal?: boolean; tableInputOptional?: boolean }) => req<Terminal>("PATCH", `/admin/terminals/${id}`, data),
     delete: (id: number) => req<void>("DELETE", `/admin/terminals/${id}`),
     getPrinters: (id: number) => req<Printer[]>("GET", `/admin/terminals/${id}/printers`),
     assignPrinter: (id: number, printerId: number) => req<void>("POST", `/admin/terminals/${id}/printers/${printerId}`),

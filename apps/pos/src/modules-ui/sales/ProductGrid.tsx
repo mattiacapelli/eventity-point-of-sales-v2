@@ -387,6 +387,7 @@ export function ProductGrid() {
   const [tableRequired, setTableRequired] = useState(false);
   const [customerRequired, setCustomerRequired] = useState(false);
   const [disableTableInput, setDisableTableInput] = useState(false);
+  const [disablePreOrderModal, setDisablePreOrderModal] = useState(false);
   const [preOrderModalOpen, setPreOrderModalOpen] = useState(false);
   const [preOrderTableId, setPreOrderTableId] = useState("");
   const [preOrderCustomerName, setPreOrderCustomerName] = useState("");
@@ -401,7 +402,7 @@ export function ProductGrid() {
   useEffect(() => {
     if (!triggerPreOrderModal) return;
     setTriggerPreOrderModal(false);
-    if (tableEnabled && tableInputMode === "sidebar" && !disableTableInput) {
+    if (tableEnabled && tableInputMode === "sidebar" && !disableTableInput && !disablePreOrderModal) {
       setPreOrderTableId("");
       setPreOrderCustomerName("");
       setPreOrderModalOpen(true);
@@ -486,7 +487,10 @@ export function ProductGrid() {
         if (t?.defaultViewMode) {
           applyTerminalViewMode(t.defaultViewMode as GridViewMode);
         }
-        if (t) setDisableTableInput(t.disableTableInput ?? false);
+        if (t) {
+          setDisableTableInput(t.disableTableInput ?? false);
+          setDisablePreOrderModal(t.disablePreOrderModal ?? false);
+        }
       })
       .catch(() => {});
     refreshDailyExtras();
@@ -626,7 +630,7 @@ export function ProductGrid() {
 
   async function handleProductClick(product: Product) {
     if (!currentShift || loadingProductId) return;
-    if (tableEnabled && tableInputMode === "sidebar" && !disableTableInput && cart.length === 0 && !pendingTableId && !pendingCustomerName) {
+    if (tableEnabled && tableInputMode === "sidebar" && !disableTableInput && !disablePreOrderModal && cart.length === 0 && !pendingTableId && !pendingCustomerName) {
       setPendingProduct(product);
       setPreOrderTableId("");
       setPreOrderCustomerName("");
