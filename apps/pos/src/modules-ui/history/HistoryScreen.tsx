@@ -539,6 +539,7 @@ export function HistoryScreen() {
 
   return (
     <PosLayout>
+      <div style={{ height: "100%", overflowY: "auto", boxSizing: "border-box" }}>
       <div style={{ maxWidth: "720px", margin: "0 auto", padding: "var(--sp-lg)", display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <h1 style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-gray-900)", margin: 0 }}>
@@ -676,6 +677,7 @@ export function HistoryScreen() {
           {toast.msg}
         </div>
       )}
+      </div>
     </PosLayout>
   );
 }
