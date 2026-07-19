@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { formatReceipt, renderReceiptImage, pngToEscposRaster } from "@pos/core";
+import { formatReceipt, renderPool } from "@pos/core";
 import { computeVatBreakdown } from "@pos/module-sales";
 import type { ReceiptBlock } from "@pos/shared-types";
 import type { PrinterService, Logger, PrinterConfig } from "@pos/core";
@@ -155,7 +155,7 @@ export async function printOneReceipt(opts: {
         return;
       }
 
-      const pngBuffer = await renderReceiptImage({
+      const rasterBuffer = await renderPool.renderReceipt({
         blocks,
         canvasWidth:       tmpl!.canvasWidth ?? 576,
         logoPath:          ctx.resolvedLogoPath,
@@ -181,8 +181,6 @@ export async function printOneReceipt(opts: {
         ...(ctx.orderRow?.tableId    ? { tableId:      ctx.orderRow.tableId }    : {}),
         ...(ctx.orderRow?.customerName ? { customerName: ctx.orderRow.customerName } : {}),
       });
-
-      const rasterBuffer = await pngToEscposRaster(pngBuffer, tmpl!.canvasWidth ?? 576);
       const result = await printerService.printDirect({
         printerId: printer.id,
         contentBuffer: rasterBuffer,

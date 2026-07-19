@@ -9,3 +9,4 @@ export * from "./raster.encoder.js";
 export * from "./kitchen-image.renderer.js";
 export * from "./canvas-helpers.js";
 export * from "./shift-report-image.renderer.js";
+export * from "./render-pool.js";

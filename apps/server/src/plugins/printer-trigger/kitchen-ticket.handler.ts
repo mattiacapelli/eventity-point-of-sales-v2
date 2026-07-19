@@ -2,12 +2,34 @@ import { randomUUID } from "node:crypto";
 import { resolve, join } from "node:path";
 import { eq, inArray } from "@pos/db";
 import { orders, orderItems, orderItemOptions, products, productionCenters, productionCenterCategories, productionCenterPrinters, printers, kitchenTemplates, orderCenterNumbers } from "@pos/db";
-import { formatKitchenTicket, renderKitchenImage, pngToEscposRaster } from "@pos/core";
+import { formatKitchenTicket, renderPool } from "@pos/core";
 import type { KitchenBlock } from "@pos/shared-types";
 import type { DbClient } from "@pos/db";
-import type { PrinterService, Logger, PrinterConfig } from "@pos/core";
+import type { PrinterService, Logger, PrinterConfig, PrintResult } from "@pos/core";
 import type { EventBus } from "@pos/event-bus";
 import type { OrderItemRow, OrderItemOptionRow, PrinterRow } from "./types.js";
+
+const KITCHEN_RETRY_DELAYS = [3_000, 6_000];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function printWithKitchenRetry(
+  printerService: PrinterService,
+  job: Parameters<PrinterService["printDirect"]>[0],
+  logger: Logger,
+): Promise<PrintResult> {
+  let result = await printerService.printDirect(job);
+  if (result.success) return result;
+  for (const [i, delay] of KITCHEN_RETRY_DELAYS.entries()) {
+    logger.warn({ printerId: job.printerId, attempt: i + 1, delay }, "Kitchen ticket failed — retrying");
+    await sleep(delay);
+    result = await printerService.printDirect(job);
+    if (result.success) return result;
+  }
+  return result;
+}
 
 function buildPrinterConfig(printer: PrinterRow): PrinterConfig | undefined {
   if (printer.connectionType === "usb" && printer.usbVendorId && printer.usbProductId) {
@@ -143,9 +165,13 @@ export async function printKitchenTickets(
       ...(i.notes ? { notes: i.notes } : {}),
     }));
 
-    for (const printer of targetPrinters) {
+    await Promise.allSettled(targetPrinters.map(async (printer) => {
       const printerConfig = buildPrinterConfig(printer);
-      if (!printerConfig) continue;
+      if (!printerConfig) return;
+
+      const emitOffline = (reason: string) => {
+        eventBus.emit("PRINTER_OFFLINE", { traceId: randomUUID(), printerId: printer.id, printerName: printer.name, reason, timestamp: new Date() });
+      };
 
       try {
         if (printer.printMode === "image") {
@@ -162,20 +188,21 @@ export async function printKitchenTickets(
               blocks = [];
             }
             if (blocks.length > 0) {
-              const pngBuffer    = await renderKitchenImage({
+              const rasterBuffer = await renderPool.renderKitchen({
                 blocks,
                 canvasWidth:  template.canvasWidth ?? 576,
                 logoPath:     template.logoPath ? resolve(join(dataDir, template.logoPath)) : null,
                 centerName, orderId, receiptDisplay: effectiveReceiptDisplay, tableId, customerName, orderNotes, pax,
                 timestamp: now, items: ticketItems, isModification,
               });
-              const rasterBuffer = await pngToEscposRaster(pngBuffer, template.canvasWidth ?? 576);
-              const result       = await printerService.printDirect({ printerId: printer.id, contentBuffer: rasterBuffer, type: "kitchen", printerConfig });
+              const result = await printWithKitchenRetry(printerService, { printerId: printer.id, contentBuffer: rasterBuffer, type: "kitchen", printerConfig }, logger);
               if (!result.success) {
-                eventBus.emit("PRINTER_OFFLINE", { traceId: randomUUID(), printerId: printer.id, printerName: printer.name, reason: result.message, timestamp: new Date() });
+                emitOffline(result.message);
+                logger.error({ printerId: printer.id, orderId, centerName, mode: "image" }, "Kitchen ticket failed after retries");
+              } else {
+                logger.info({ printerId: printer.id, orderId, centerName, mode: "image" }, "Kitchen ticket printed");
               }
-              logger.info({ printerId: printer.id, orderId, centerName, mode: "image" }, "Kitchen ticket printed");
-              continue;
+              return;
             }
           }
         }
@@ -189,15 +216,17 @@ export async function printKitchenTickets(
           ...(pax          ? { pax }          : {}),
           centerName, timestamp: now, items: ticketItems, isModification,
         });
-        const result = await printerService.printDirect({ printerId: printer.id, content, type: "kitchen", printerConfig });
+        const result = await printWithKitchenRetry(printerService, { printerId: printer.id, content, type: "kitchen", printerConfig }, logger);
         if (!result.success) {
-          eventBus.emit("PRINTER_OFFLINE", { traceId: randomUUID(), printerId: printer.id, printerName: printer.name, reason: result.message, timestamp: new Date() });
+          emitOffline(result.message);
+          logger.error({ printerId: printer.id, orderId, centerName, mode: "text" }, "Kitchen ticket failed after retries");
+        } else {
+          logger.info({ printerId: printer.id, orderId, centerName, mode: "text" }, "Kitchen ticket printed");
         }
-        logger.info({ printerId: printer.id, orderId, centerName, mode: "text" }, "Kitchen ticket printed");
       } catch (err) {
         logger.error({ err, printerId: printer.id, orderId, centerName }, "Kitchen ticket print failed");
-        eventBus.emit("PRINTER_OFFLINE", { traceId: randomUUID(), printerId: printer.id, printerName: printer.name, reason: err instanceof Error ? err.message : "Print failed", timestamp: new Date() });
+        emitOffline(err instanceof Error ? err.message : "Print failed");
       }
-    }
+    }));
   }
 }

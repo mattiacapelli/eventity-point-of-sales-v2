@@ -43,7 +43,7 @@ function buildEscPosBuffer(text: string): Buffer {
 
 const CONNECT_TIMEOUT_MS = 5000;
 
-const OFFLINE_FAST_FAIL_MS = 10_000;
+const OFFLINE_FAST_FAIL_MS = 3_000;
 
 export class TcpPrinterAdapter implements PrinterAdapter {
   private socket: net.Socket | null = null;
