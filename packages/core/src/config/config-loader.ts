@@ -6,7 +6,7 @@ const ConfigSchema = z.object({
   host: z.string().default("0.0.0.0"),
   port: z.coerce.number().int().positive().default(3000),
   databaseUrl: z.string().default("./pos.db"),
-  sessionTtlSeconds: z.coerce.number().int().positive().default(28800), // 8 hours
+  sessionTtlSeconds: z.coerce.number().int().positive().default(2592000), // 30 days
   jwtSecret: z.string().min(32).default(INSECURE_JWT_DEFAULT),
   logLevel: z.enum(["debug", "info", "warn", "error"]).default("info"),
   env: z.enum(["development", "production", "test"]).default("development"),
