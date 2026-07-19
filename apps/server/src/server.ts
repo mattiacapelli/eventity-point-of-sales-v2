@@ -37,6 +37,7 @@ import kitchenTemplatesRoutes from "./routes/admin/kitchen-templates.js";
 import shiftReportTemplatesRoutes from "./routes/admin/shift-report-templates.js";
 import gridLayoutsRoutes from "./routes/admin/grid-layouts.js";
 import auditLogRoutes from "./routes/admin/audit-log.js";
+import printLogRoutes from "./routes/admin/print-log.js";
 import terminalsRoutes from "./routes/admin/terminals.js";
 import usersRoutes from "./routes/admin/users.js";
 import factoryResetRoutes from "./routes/admin/factory-reset.js";
@@ -95,6 +96,7 @@ export async function buildServer(config: AppConfig) {
   await fastify.register(shiftReportTemplatesRoutes, { prefix: "/api" });
   await fastify.register(gridLayoutsRoutes, { prefix: "/api" });
   await fastify.register(auditLogRoutes, { prefix: "/api" });
+  await fastify.register(printLogRoutes, { prefix: "/api" });
   await fastify.register(terminalsRoutes, { prefix: "/api" });
   await fastify.register(usersRoutes, { prefix: "/api" });
   await fastify.register(factoryResetRoutes, { prefix: "/api" });

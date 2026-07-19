@@ -5,6 +5,7 @@ import { orders, orderItems, orderItemOptions, products, productionCenters, prod
 import { formatKitchenTicket, renderPool } from "@pos/core";
 import type { KitchenBlock } from "@pos/shared-types";
 import type { DbClient } from "@pos/db";
+import { logPrint } from "@pos/db";
 import type { PrinterService, Logger, PrinterConfig, PrintResult } from "@pos/core";
 import type { EventBus } from "@pos/event-bus";
 import type { OrderItemRow, OrderItemOptionRow, PrinterRow } from "./types.js";
@@ -19,15 +20,26 @@ async function printWithKitchenRetry(
   printerService: PrinterService,
   job: Parameters<PrinterService["printDirect"]>[0],
   logger: Logger,
+  db: DbClient,
+  logBase: Omit<Parameters<typeof logPrint>[1], "event">,
 ): Promise<PrintResult> {
   let result = await printerService.printDirect(job);
-  if (result.success) return result;
+  if (result.success) {
+    logPrint(db, { ...logBase, event: "ok", bytes: job.contentBuffer?.length ?? job.content?.length });
+    return result;
+  }
   for (const [i, delay] of KITCHEN_RETRY_DELAYS.entries()) {
-    logger.warn({ printerId: job.printerId, attempt: i + 1, delay }, "Kitchen ticket failed — retrying");
+    const attempt = i + 1;
+    logger.warn({ printerId: job.printerId, attempt, delay }, "Kitchen ticket failed — retrying");
+    logPrint(db, { ...logBase, event: "retry", attempt, errorMsg: result.message });
     await sleep(delay);
     result = await printerService.printDirect(job);
-    if (result.success) return result;
+    if (result.success) {
+      logPrint(db, { ...logBase, event: "ok", attempt, bytes: job.contentBuffer?.length ?? job.content?.length });
+      return result;
+    }
   }
+  logPrint(db, { ...logBase, event: "failed", attempt: KITCHEN_RETRY_DELAYS.length + 1, errorMsg: result.message });
   return result;
 }
 
@@ -55,6 +67,8 @@ export async function printKitchenTickets(
   receiptDisplay?: string,
   centerNumbersMap?: Map<number, number>,
   isModification = false,
+  terminalId?: number,
+  terminalIp?: string,
 ): Promise<void> {
   if (items.length === 0) return;
 
@@ -137,6 +151,8 @@ export async function printKitchenTickets(
     return;
   }
 
+  logPrint(db, { orderId, jobType: "kitchen", event: "queued", terminalId, terminalIp });
+
   const now = new Date();
 
   for (const [centerId, { centerName, items: centerGroupItems }] of centerItems) {
@@ -169,6 +185,16 @@ export async function printKitchenTickets(
       const printerConfig = buildPrinterConfig(printer);
       if (!printerConfig) return;
 
+      const cfg = printerConfig;
+      const logBase = {
+        orderId, jobType: "kitchen" as const,
+        printerId: printer.id, printerName: printer.name,
+        connectionType: cfg.connectionType ?? "network",
+        printerHost: (cfg as { host?: string }).host,
+        printerPort: (cfg as { port?: number }).port,
+        terminalId, terminalIp, centerName,
+      };
+
       const emitOffline = (reason: string) => {
         eventBus.emit("PRINTER_OFFLINE", { traceId: randomUUID(), printerId: printer.id, printerName: printer.name, reason, timestamp: new Date() });
       };
@@ -188,6 +214,7 @@ export async function printKitchenTickets(
               blocks = [];
             }
             if (blocks.length > 0) {
+              logPrint(db, { ...logBase, event: "rendering" });
               const rasterBuffer = await renderPool.renderKitchen({
                 blocks,
                 canvasWidth:  template.canvasWidth ?? 576,
@@ -195,7 +222,8 @@ export async function printKitchenTickets(
                 centerName, orderId, receiptDisplay: effectiveReceiptDisplay, tableId, customerName, orderNotes, pax,
                 timestamp: now, items: ticketItems, isModification,
               });
-              const result = await printWithKitchenRetry(printerService, { printerId: printer.id, contentBuffer: rasterBuffer, type: "kitchen", printerConfig }, logger);
+              logPrint(db, { ...logBase, event: "sent", bytes: rasterBuffer.length });
+              const result = await printWithKitchenRetry(printerService, { printerId: printer.id, contentBuffer: rasterBuffer, type: "kitchen", printerConfig }, logger, db, logBase);
               if (!result.success) {
                 emitOffline(result.message);
                 logger.error({ printerId: printer.id, orderId, centerName, mode: "image" }, "Kitchen ticket failed after retries");
@@ -216,7 +244,8 @@ export async function printKitchenTickets(
           ...(pax          ? { pax }          : {}),
           centerName, timestamp: now, items: ticketItems, isModification,
         });
-        const result = await printWithKitchenRetry(printerService, { printerId: printer.id, content, type: "kitchen", printerConfig }, logger);
+        logPrint(db, { ...logBase, event: "sent", bytes: content.length });
+        const result = await printWithKitchenRetry(printerService, { printerId: printer.id, content, type: "kitchen", printerConfig }, logger, db, logBase);
         if (!result.success) {
           emitOffline(result.message);
           logger.error({ printerId: printer.id, orderId, centerName, mode: "text" }, "Kitchen ticket failed after retries");
@@ -225,6 +254,7 @@ export async function printKitchenTickets(
         }
       } catch (err) {
         logger.error({ err, printerId: printer.id, orderId, centerName }, "Kitchen ticket print failed");
+        logPrint(db, { ...logBase, event: "failed", errorMsg: err instanceof Error ? err.message : "Print failed" });
         emitOffline(err instanceof Error ? err.message : "Print failed");
       }
     }));

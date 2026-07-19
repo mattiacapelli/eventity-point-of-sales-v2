@@ -1,7 +1,7 @@
 import fp from "fastify-plugin";
 import { randomUUID } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
-import { claimEvent, eq, desc, sql, orderItems, orderCenterNumbers, orders, payments, shifts, receiptTemplates, terminalPrinters, appSettings } from "@pos/db";
+import { claimEvent, eq, desc, sql, orderItems, orderCenterNumbers, orders, payments, shifts, receiptTemplates, terminalPrinters, appSettings, logPrint } from "@pos/db";
 import { formatReceiptNumber } from "@pos/module-sales";
 import type { DbClient } from "@pos/db";
 
@@ -126,7 +126,7 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
       receiptDisplay = formatReceiptNumber(payload.order.receiptNumber, payload.order.id, numSettings.prefix, numSettings.padding);
     }
     try {
-      await printKitchenTickets(db, printerService, logger, eventBus, payload.order.id, items as never, fastify.ctx.config.dataDir, receiptDisplay, centerNumbersMap);
+      await printKitchenTickets(db, printerService, logger, eventBus, payload.order.id, items as never, fastify.ctx.config.dataDir, receiptDisplay, centerNumbersMap, false, payload.order.terminalId, payload.clientIp);
     } catch (err) {
       logger.error({ err, orderId: payload.order.id }, "Kitchen ticket failed on ORDER_CREATED");
     }
@@ -164,6 +164,7 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
 
     const jobId = randomUUID();
     logger.info({ jobId, orderId: payload.payment.orderId }, "Queuing receipt print job");
+    logPrint(db, { orderId: payload.payment.orderId, jobType: "receipt", event: "queued", terminalId: payload.terminalId });
 
     eventBus.emit("PRINT_JOB_QUEUED", {
       traceId: payload.traceId,
@@ -221,7 +222,7 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
     const copyTemplate   = allActiveTemplates.find((t) => t.role === "client_copy");
     const printMethod    = masterTemplate?.printMethod ?? "single";
 
-    const printOpts = { ctx, p, printer, printerService, logger, eventBus, jobId: payload.jobId, printMethod };
+    const printOpts = { ctx, p, printer, printerService, logger, eventBus, db, jobId: payload.jobId, printMethod, ...(terminalId !== null ? { terminalId } : {}) };
 
     const separateGroups = buildSeparateGroups(ctx.items, ctx);
 

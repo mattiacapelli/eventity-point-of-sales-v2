@@ -6,3 +6,4 @@ export * from "./processed-events.js";
 export * from "./catalog.js";
 export * from "./options.js";
 export * from "./inventory.js";
+export * from "./print-log.js";

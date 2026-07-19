@@ -278,6 +278,28 @@ CREATE TABLE IF NOT EXISTS terminal_categories (
   sort_order  INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (terminal_id, category_id)
 );
+
+CREATE TABLE IF NOT EXISTS print_log (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts               INTEGER NOT NULL,
+  order_id         INTEGER,
+  job_type         TEXT NOT NULL CHECK(job_type IN ('kitchen','receipt')),
+  printer_id       INTEGER,
+  printer_name     TEXT,
+  connection_type  TEXT,
+  printer_host     TEXT,
+  printer_port     INTEGER,
+  terminal_id      INTEGER,
+  terminal_ip      TEXT,
+  event            TEXT NOT NULL CHECK(event IN ('queued','rendering','sent','ok','retry','failed','offline_fast_fail')),
+  attempt          INTEGER,
+  error_msg        TEXT,
+  center_name      TEXT,
+  bytes            INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS print_log_order_id_idx ON print_log(order_id);
+CREATE INDEX IF NOT EXISTS print_log_ts_idx        ON print_log(ts);
 `;
 
 const EXTRA_COLUMNS = `

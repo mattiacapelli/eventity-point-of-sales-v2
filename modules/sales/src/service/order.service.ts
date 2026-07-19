@@ -74,7 +74,7 @@ export class OrderService {
     return this.repo.findAll(filters);
   }
 
-  async create(input: CreateOrderInput): Promise<Order> {
+  async create(input: CreateOrderInput, clientIp?: string): Promise<Order> {
     if (input.items.length === 0) {
       throw new OrderValidationError("Order must have at least one item");
     }
@@ -86,6 +86,7 @@ export class OrderService {
       order,
       input,
       timestamp: new Date(),
+      ...(clientIp !== undefined ? { clientIp } : {}),
     });
 
     return order;

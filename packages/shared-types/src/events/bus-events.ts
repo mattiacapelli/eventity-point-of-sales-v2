@@ -16,6 +16,7 @@ export interface PlatformEventMap {
     readonly order: Order;
     readonly input: CreateOrderInput;
     readonly timestamp: Date;
+    readonly clientIp?: string;
   };
   ORDER_UPDATED: {
     readonly traceId: string;

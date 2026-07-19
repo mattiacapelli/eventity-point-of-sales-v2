@@ -162,12 +162,13 @@ export function registerOrderRoutes(
   }, async (request, reply) => {
     const terminalIdHeader = (request.headers["x-terminal-id"] as string | undefined) ?? undefined;
     const terminalId = terminalIdHeader !== undefined ? parseInt(terminalIdHeader, 10) : undefined;
+    const clientIp = request.ip;
     try {
       const input = request.body as Parameters<typeof service.create>[0];
-const order = await service.create({
+      const order = await service.create({
         ...input,
         ...(terminalId !== undefined ? { terminalId } : {}),
-      });
+      }, clientIp);
       return reply.status(201).send(serializeOrder(order));
     } catch (err) {
       if (err instanceof OrderValidationError) return reply.status(400).send({ error: err.message });

@@ -4,6 +4,8 @@ import { computeVatBreakdown } from "@pos/module-sales";
 import type { ReceiptBlock } from "@pos/shared-types";
 import type { PrinterService, Logger, PrinterConfig } from "@pos/core";
 import type { EventBus } from "@pos/event-bus";
+import type { DbClient } from "@pos/db";
+import { logPrint } from "@pos/db";
 import type { OrderItemRow, PrinterRow, ReceiptContext, ReceiptJobData } from "./types.js";
 import type { ReceiptLine } from "@pos/core";
 
@@ -124,11 +126,14 @@ export async function printOneReceipt(opts: {
   printerService: PrinterService;
   logger: Logger;
   eventBus: EventBus;
+  db: DbClient;
   jobId: string;
   printMethod: string;
   groupName?: string;
+  terminalId?: number;
+  terminalIp?: string;
 }): Promise<void> {
-  const { tmpl, jobItems, jobTotal, ctx, p, printer, printerService, logger, eventBus, jobId, printMethod, groupName } = opts;
+  const { tmpl, jobItems, jobTotal, ctx, p, printer, printerService, logger, eventBus, db, jobId, printMethod, groupName, terminalId, terminalIp } = opts;
   const printerConfig = buildPrinterConfig(printer);
   const isSub = groupName !== undefined;
 
@@ -140,6 +145,16 @@ export async function printOneReceipt(opts: {
       reason,
       timestamp:   new Date(),
     });
+  };
+
+  const cfg = printerConfig;
+  const logBase = {
+    orderId: p.orderId, jobType: "receipt" as const,
+    printerId: printer.id, printerName: printer.name,
+    connectionType: cfg?.connectionType ?? "network",
+    printerHost: (cfg as { host?: string } | undefined)?.host,
+    printerPort: (cfg as { port?: number } | undefined)?.port,
+    terminalId, terminalIp,
   };
 
   try {
@@ -155,6 +170,7 @@ export async function printOneReceipt(opts: {
         return;
       }
 
+      logPrint(db, { ...logBase, event: "rendering" });
       const rasterBuffer = await renderPool.renderReceipt({
         blocks,
         canvasWidth:       tmpl!.canvasWidth ?? 576,
@@ -181,6 +197,7 @@ export async function printOneReceipt(opts: {
         ...(ctx.orderRow?.tableId    ? { tableId:      ctx.orderRow.tableId }    : {}),
         ...(ctx.orderRow?.customerName ? { customerName: ctx.orderRow.customerName } : {}),
       });
+      logPrint(db, { ...logBase, event: "sent", bytes: rasterBuffer.length });
       const result = await printerService.printDirect({
         printerId: printer.id,
         contentBuffer: rasterBuffer,
@@ -188,10 +205,16 @@ export async function printOneReceipt(opts: {
         ...(printerConfig ? { printerConfig } : {}),
       });
       logger.info({ result, printerId: printer.id, mode: "image", printMethod, isSub }, "Print result");
-      if (!result.success) emitOffline(result.message);
+      if (result.success) {
+        logPrint(db, { ...logBase, event: "ok", bytes: rasterBuffer.length });
+      } else {
+        logPrint(db, { ...logBase, event: "failed", errorMsg: result.message });
+        emitOffline(result.message);
+      }
     } else {
       const lines   = buildTextLines(tmpl, jobItems, jobTotal, ctx, p, groupName);
       const content = formatReceipt(lines);
+      logPrint(db, { ...logBase, event: "sent", bytes: content.length });
       const result  = await printerService.printDirect({
         printerId: printer.id,
         content,
@@ -199,9 +222,15 @@ export async function printOneReceipt(opts: {
         ...(printerConfig ? { printerConfig } : {}),
       });
       logger.info({ result, printerId: printer.id, mode: "text", printMethod, isSub }, "Print result");
-      if (!result.success) emitOffline(result.message);
+      if (result.success) {
+        logPrint(db, { ...logBase, event: "ok", bytes: content.length });
+      } else {
+        logPrint(db, { ...logBase, event: "failed", errorMsg: result.message });
+        emitOffline(result.message);
+      }
     }
   } catch (err) {
+    logPrint(db, { ...logBase, event: "failed", errorMsg: err instanceof Error ? err.message : "Print failed" });
     emitOffline(err instanceof Error ? err.message : "Print failed");
     throw err;
   }
