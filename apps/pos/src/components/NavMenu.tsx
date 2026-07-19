@@ -10,6 +10,7 @@ import {
   Cog6ToothIcon,
   ShieldCheckIcon,
   WrenchScrewdriverIcon,
+  PrinterIcon,
 } from "./ui/icons.js";
 
 const NAV_ITEMS = [
@@ -17,7 +18,8 @@ const NAV_ITEMS = [
   { path: "/history",  label: "Storico",         Icon: ClipboardDocumentListIcon },
   { path: "/stats",    label: "Statistiche",     Icon: ChartBarIcon },
   { path: "/admin",    label: "Amministrazione", Icon: WrenchScrewdriverIcon, roles: ["admin"] },
-  { path: "/audit",    label: "Audit log",       Icon: ShieldCheckIcon,       roles: ["admin"] },
+  { path: "/audit",     label: "Audit log",       Icon: ShieldCheckIcon,  roles: ["admin"] },
+  { path: "/print-log", label: "Log stampe",      Icon: PrinterIcon,      roles: ["admin"] },
 ] as const;
 
 function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {

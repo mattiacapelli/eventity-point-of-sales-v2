@@ -1,5 +1,24 @@
 import type { Category, Product, ProductionCenter, OptionGroupWithOptions, Option, PaymentMethodRecord, Printer, ReceiptTemplate, Shift, ReceiptBlock, KitchenTemplate, KitchenBlock, ShiftReportTemplate, ShiftReportBlock, ProductGridSlot, Terminal, User, UserRole } from "@pos/shared-types";
 
+export interface PrintLogRow {
+  id: number;
+  ts: string | number;
+  orderId: number | null;
+  jobType: "kitchen" | "receipt";
+  printerId: number | null;
+  printerName: string | null;
+  connectionType: string | null;
+  printerHost: string | null;
+  printerPort: number | null;
+  terminalId: number | null;
+  terminalIp: string | null;
+  event: "queued" | "rendering" | "sent" | "ok" | "retry" | "failed" | "offline_fast_fail";
+  attempt: number | null;
+  errorMsg: string | null;
+  centerName: string | null;
+  bytes: number | null;
+}
+
 export interface AuditEntry {
   id: number;
   type: "order_created" | "order_completed" | "order_cancelled" | "payment_completed" | "payment_refunded" | "shift_opened" | "shift_closed";
@@ -424,6 +443,14 @@ export const adminApi = {
         Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
       ).toString() : "";
       return req<{ entries: AuditEntry[]; total: number; offset: number; limit: number }>("GET", `/admin/audit-log${q ? `?${q}` : ""}`);
+    },
+  },
+  printLog: {
+    list: (params?: { from?: number; to?: number; orderId?: number; jobType?: string; event?: string; printerId?: number; limit?: number; offset?: number }) => {
+      const q = params ? new URLSearchParams(
+        Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      ).toString() : "";
+      return req<{ rows: PrintLogRow[]; limit: number; offset: number }>("GET", `/admin/print-log${q ? `?${q}` : ""}`);
     },
   },
   terminals: {
