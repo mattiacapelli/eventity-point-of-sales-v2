@@ -3,7 +3,7 @@ import type { OrderService } from "../service/order.service.js";
 import { OrderNotFoundError, OrderValidationError } from "../service/order.service.js";
 import type { Order, OrderStatus } from "@pos/shared-types";
 import type { CoreContext } from "@pos/core";
-import { formatKitchenTicket, renderKitchenImage, pngToEscposRaster } from "@pos/core";
+import { formatKitchenTicket, renderPool } from "@pos/core";
 import { eq, inArray, and, printers, orderItems, orderItemOptions, payments, orders, products, productionCenters, productionCenterCategories, productionCenterPrinters, kitchenTemplates, appSettings, terminals, paymentMethods, terminalPrinters } from "@pos/db";
 import { formatReceiptNumber } from "../repository/order.repository.js";
 import type { KitchenBlock } from "@pos/shared-types";
@@ -503,7 +503,7 @@ const order = await service.create({
         ...(i.notes ? { notes: i.notes } : {}),
       }));
 
-      for (const printer of targetPrinters) {
+      await Promise.allSettled(targetPrinters.map(async (printer) => {
         const connType = (printer as unknown as { connectionType: string }).connectionType;
         const vid = (printer as unknown as { usbVendorId: number | null }).usbVendorId;
         const pid = (printer as unknown as { usbProductId: number | null }).usbProductId;
@@ -516,7 +516,7 @@ const order = await service.create({
               : printer.host && printer.port
                 ? { connectionType: "network" as const, host: printer.host, port: printer.port }
                 : null;
-        if (!printerConfig) continue;
+        if (!printerConfig) return;
         try {
           if ((printer as unknown as { printMode: string }).printMode === "image") {
             const templateRows = await db.select().from(kitchenTemplates).where(eq(kitchenTemplates.active, true));
@@ -524,7 +524,7 @@ const order = await service.create({
             const template = (numCenterId !== null ? templateRows.find((t) => t.productionCenterId === numCenterId) : undefined) ?? templateRows[0];
             if (template?.blocks) {
               const blocks = typeof template.blocks === "string" ? JSON.parse(template.blocks) : template.blocks;
-              const pngBuffer = await renderKitchenImage({
+              const rasterBuffer = await renderPool.renderKitchen({
                 blocks: blocks as KitchenBlock[],
                 canvasWidth: template.canvasWidth ?? 576,
                 logoPath: template.logoPath ?? null,
@@ -536,9 +536,8 @@ const order = await service.create({
                 timestamp: now,
                 items: ticketItems,
               });
-              const rasterBuffer = await pngToEscposRaster(pngBuffer, template.canvasWidth ?? 576);
               await printerService.printDirect({ printerId: printer.id, contentBuffer: rasterBuffer, type: "kitchen", printerConfig });
-              continue;
+              return;
             }
           }
           const content = formatKitchenTicket({ orderId: numId2, receiptDisplay, tableId, customerName, centerName, timestamp: now, orderNotes: orderRow.notes, pax: orderRow.pax, items: ticketItems });
@@ -546,7 +545,7 @@ const order = await service.create({
         } catch (err) {
           logger.error({ err, printerId: printer.id, orderId: id }, "Reprint kitchen ticket failed");
         }
-      }
+      }));
     }
 
     return reply.send({ ok: true });
