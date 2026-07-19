@@ -498,7 +498,11 @@ export function HistoryScreen() {
       await apiClient.orders.reprint(id);
       showToast("Ristampa inviata alla stampante", "success");
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Errore ristampa", "error");
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("No completed payment")) showToast("Nessun pagamento trovato — impossibile ristampare", "error");
+      else if (msg.includes("No active receipt printer") || msg.includes("unavailable")) showToast("Nessuna stampante scontrini attiva", "error");
+      else if (msg.includes("404")) showToast("Ordine non trovato", "error");
+      else showToast("Errore durante la ristampa", "error");
     }
   }
 
@@ -507,7 +511,11 @@ export function HistoryScreen() {
       await apiClient.orders.reprintKitchen(id);
       showToast("Comanda inviata alla stampante cucina", "success");
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Errore ristampa comanda", "error");
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("No active kitchen")) showToast("Nessuna stampante cucina attiva", "error");
+      else if (msg.includes("unavailable")) showToast("Servizio stampa non disponibile", "error");
+      else if (msg.includes("404")) showToast("Ordine non trovato", "error");
+      else showToast("Errore durante la ristampa comanda", "error");
     }
   }
 
@@ -518,7 +526,9 @@ export function HistoryScreen() {
       showToast(refundPaymentId ? "Ordine annullato e rimborso effettuato" : "Ordine annullato", "success");
       load(0, false);
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Errore annullamento", "error");
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("404")) showToast("Ordine non trovato", "error");
+      else showToast("Errore durante l'annullamento", "error");
     }
   }
 
