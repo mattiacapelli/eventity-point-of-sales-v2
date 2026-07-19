@@ -283,6 +283,14 @@ function OrderRow({
     ? order.items.map((i) => `${i.quantity}× ${i.name}`).join(", ")
     : "—";
 
+  const chips: { label: string; value: string }[] = [];
+  if (order.tableId)      chips.push({ label: "Tavolo", value: order.tableId });
+  if (order.customerName) chips.push({ label: "Cliente", value: order.customerName });
+  if (order.pax)          chips.push({ label: "Coperti", value: String(order.pax) });
+  if (order.notes)        chips.push({ label: "Note", value: order.notes });
+  if (order.discountAmount > 0) chips.push({ label: "Sconto", value: `€${order.discountAmount.toFixed(2)}${order.discountType === "percent" ? ` (${((order.discountAmount / (order.totalAmount + order.discountAmount)) * 100).toFixed(0)}%)` : ""}` });
+  if (order.fiscalDocNumber) chips.push({ label: "Doc.", value: order.fiscalDocNumber });
+
   return (
     <div style={{
       background: "var(--color-white)",
@@ -305,6 +313,22 @@ function OrderRow({
         </div>
         <StatusBadge status={order.status} />
       </div>
+
+      {chips.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+          {chips.map((c) => (
+            <span key={c.label} style={{
+              display: "inline-flex", alignItems: "center", gap: "4px",
+              background: "var(--color-gray-50)", border: "1px solid var(--color-gray-200)",
+              borderRadius: "6px", padding: "2px 8px",
+              fontSize: "var(--text-xs)", color: "var(--color-gray-700)",
+            }}>
+              <span style={{ color: "var(--color-gray-400)", fontWeight: 600 }}>{c.label}</span>
+              {c.value}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-600)" }}>
         {itemSummary}
@@ -393,6 +417,8 @@ export function HistoryScreen() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [filterTerminalId, setFilterTerminalId] = useState("");
   const [terminals, setTerminals] = useState<Terminal[]>([]);
+
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Modals
   const [cancelOrder, setCancelOrder] = useState<Order | null>(null);
@@ -553,6 +579,22 @@ export function HistoryScreen() {
           </div>
         </div>
 
+        {/* Search */}
+        <input
+          type="search"
+          placeholder="Cerca per numero, cliente, tavolo, cassa, note…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{
+            width: "100%", boxSizing: "border-box",
+            height: "40px", padding: "0 12px",
+            borderRadius: "var(--radius-md)",
+            border: "2px solid var(--color-gray-200)",
+            fontFamily: "var(--font)", fontSize: "var(--text-sm)",
+            background: "var(--color-white)", color: "var(--color-gray-900)",
+          }}
+        />
+
         {/* Filters */}
         <div style={{ display: "flex", gap: "var(--sp-sm)", flexWrap: "wrap", alignItems: "center" }}>
           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={selectStyle}>
@@ -611,25 +653,55 @@ export function HistoryScreen() {
             Nessun ordine trovato
           </div>
         )}
-
-        {!loading && orders.map((order) => {
-          const terminalName = terminals.length > 1 ? terminals.find((t) => t.id === order.terminalId)?.name : undefined;
-          return (
-            <OrderRow
-              key={order.id}
-              order={order}
-              isAdmin={isAdmin}
-              onReprint={handleReprint}
-              onReprintKitchen={handleReprintKitchen}
-              onCancel={setCancelOrder}
-              onRefund={handleRefundClick}
-              onEdit={handleEditOrder}
-              receiptPrefix={receiptPrefix}
-              receiptPadding={receiptPadding}
-              {...(terminalName ? { terminalName } : {})}
-            />
+        {!loading && !error && orders.length > 0 && searchQuery.trim() !== "" && (() => {
+          const q = searchQuery.trim().toLowerCase();
+          const count = orders.filter((o) => {
+            const num = displayOrderNum(o, receiptPrefix, receiptPadding).toLowerCase();
+            const terminal = terminals.find((t) => t.id === o.terminalId)?.name?.toLowerCase() ?? "";
+            return num.includes(q) || (o.customerName?.toLowerCase().includes(q) ?? false) || (o.tableId?.toLowerCase().includes(q) ?? false) || terminal.includes(q) || (o.notes?.toLowerCase().includes(q) ?? false) || (o.fiscalDocNumber?.toLowerCase().includes(q) ?? false) || (o.fiscalRtSerial?.toLowerCase().includes(q) ?? false);
+          }).length;
+          if (count === 0) return (
+            <div style={{ textAlign: "center", padding: "var(--sp-xl)", color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>
+              Nessun risultato per "{searchQuery.trim()}"
+            </div>
           );
-        })}
+          return null;
+        })()}
+
+        {!loading && (() => {
+          const q = searchQuery.trim().toLowerCase();
+          const filtered = q === "" ? orders : orders.filter((o) => {
+            const num = displayOrderNum(o, receiptPrefix, receiptPadding).toLowerCase();
+            const terminal = terminals.find((t) => t.id === o.terminalId)?.name?.toLowerCase() ?? "";
+            return (
+              num.includes(q) ||
+              (o.customerName?.toLowerCase().includes(q) ?? false) ||
+              (o.tableId?.toLowerCase().includes(q) ?? false) ||
+              terminal.includes(q) ||
+              (o.notes?.toLowerCase().includes(q) ?? false) ||
+              (o.fiscalDocNumber?.toLowerCase().includes(q) ?? false) ||
+              (o.fiscalRtSerial?.toLowerCase().includes(q) ?? false)
+            );
+          });
+          return filtered.map((order) => {
+            const terminalName = terminals.length > 1 ? terminals.find((t) => t.id === order.terminalId)?.name : undefined;
+            return (
+              <OrderRow
+                key={order.id}
+                order={order}
+                isAdmin={isAdmin}
+                onReprint={handleReprint}
+                onReprintKitchen={handleReprintKitchen}
+                onCancel={setCancelOrder}
+                onRefund={handleRefundClick}
+                onEdit={handleEditOrder}
+                receiptPrefix={receiptPrefix}
+                receiptPadding={receiptPadding}
+                {...(terminalName ? { terminalName } : {})}
+              />
+            );
+          });
+        })()}
 
         {hasMore && !loading && (
           <div style={{ textAlign: "center", paddingBottom: "var(--sp-md)" }}>
