@@ -188,10 +188,8 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
   // ── PRINT_JOB_QUEUED → resolve printer + template + print receipt ────────
 
   eventBus.on("PRINT_JOB_QUEUED", (payload) => { void (async () => {
-    logger.info({ jobId: payload.jobId, type: payload.type }, "PRINT_JOB_QUEUED received");
     if (payload.type !== "receipt") return;
     const claimed = await claimEvent(db, "printer-trigger:print-job", payload.jobId);
-    logger.info({ jobId: payload.jobId, claimed }, "PRINT_JOB_QUEUED claimEvent result");
     if (!claimed) return;
 
     const multiTerminalEnabled = await loadMultiTerminalEnabled(db);
@@ -199,14 +197,12 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
     const terminalId: number | null = rawTerminalId !== undefined
       ? (typeof rawTerminalId === "string" ? parseInt(rawTerminalId, 10) : rawTerminalId)
       : null;
-    logger.info({ jobId: payload.jobId, multiTerminalEnabled, terminalId }, "Resolving receipt printer");
     const printer = await resolveReceiptPrinter(db, multiTerminalEnabled, terminalId);
 
     if (!printer) {
       logger.warn({ jobId: payload.jobId, multiTerminalEnabled, terminalId }, "No active receipt printer — skipping print");
       return;
     }
-    logger.info({ jobId: payload.jobId, printerId: printer.id, printerName: printer.name }, "Printer resolved, loading context");
 
     const rawPayload = payload.payload as { orderId: number | string; amount: number; currency: string; method: string; paidAt: Date | string; terminalId?: number | string };
     const p: ReceiptJobData = {
@@ -221,14 +217,13 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
     };
 
     const ctx = await loadReceiptContext(db, p, multiTerminalEnabled, fastify.ctx.config.dataDir);
-    logger.info({ jobId: payload.jobId, itemCount: ctx.items.length }, "Context loaded");
 
     const allActiveTemplates = await db.select().from(receiptTemplates).where(eq(receiptTemplates.active, true));
     const masterTemplate = allActiveTemplates.find((t) => t.role === "master") ?? allActiveTemplates[0];
     const subTemplate    = allActiveTemplates.find((t) => t.role === "sub");
     const copyTemplate   = allActiveTemplates.find((t) => t.role === "client_copy");
     const printMethod    = masterTemplate?.printMethod ?? "single";
-    logger.info({ jobId: payload.jobId, printMethod, templateId: masterTemplate?.id, templatePrintMode: masterTemplate?.printMode }, "Template loaded, starting print");
+    logger.debug({ jobId: payload.jobId, printMethod, printerId: printer.id }, "Receipt print starting");
 
     const printOpts = { ctx, p, printer, printerService, logger, eventBus, db, jobId: payload.jobId, printMethod, ...(terminalId !== null ? { terminalId } : {}) };
 
@@ -253,15 +248,12 @@ const printerTriggerPlugin: FastifyPluginAsync = async (fastify) => {
 
     if (printMethod === "by_category" || printMethod === "by_category_copy") {
       const grouped = groupItemsByCategory(ctx.items, ctx);
-      logger.info({ jobId: payload.jobId, groupCount: grouped.size }, "by_category groups built");
       for (const { name, items } of grouped.values()) {
-        logger.info({ jobId: payload.jobId, group: name, itemCount: items.length }, "Printing category group");
         try {
           const total = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
           await printOneReceipt({ ...printOpts, tmpl: subTemplate ?? masterTemplate, jobItems: items, jobTotal: total, groupName: name });
-          logger.info({ jobId: payload.jobId, group: name }, "Category group printed OK");
         } catch (err) {
-          logger.error({ err: err instanceof Error ? { message: err.message, stack: err.stack } : err, jobId: payload.jobId, group: name }, "Category slip print failed — continuing");
+          logger.error({ err, jobId: payload.jobId, group: name }, "Category slip print failed — continuing");
         }
       }
       if (printMethod === "by_category_copy") {

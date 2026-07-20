@@ -65,6 +65,21 @@ export async function buildServer(config: AppConfig) {
   });
   await fastify.register(swaggerPlugin);
 
+  // Global error handler — catches unhandled route errors, logs them and
+  // returns a safe JSON response without leaking stack traces to the client.
+  fastify.setErrorHandler((err, request, reply) => {
+    const status = err.statusCode ?? 500;
+    if (status >= 500) {
+      // Use pino logger if available (after coreContextPlugin), otherwise console
+      const log = (fastify as unknown as { ctx?: { logger?: { error: (...a: unknown[]) => void } } }).ctx?.logger;
+      if (log) log.error({ err, method: request.method, url: request.url }, "Unhandled route error");
+      else console.error("[server] Unhandled route error", err);
+    }
+    void reply.status(status).send({
+      error: status >= 500 ? "Internal server error" : (err.message || "Request failed"),
+    });
+  });
+
   // Core — must be first so ctx is available to everything below
   await fastify.register(coreContextPlugin, { config });
   await fastify.register(authPlugin);
