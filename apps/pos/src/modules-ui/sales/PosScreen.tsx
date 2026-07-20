@@ -110,7 +110,6 @@ function CheckoutModal() {
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [paid, setPaid] = useState(false);
   const [tableId, setTableId] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [tablesEnabled, setTablesEnabled] = useState(false);
@@ -182,38 +181,17 @@ function CheckoutModal() {
         });
       }
       await apiClient.payments.pay({ orderId: order.id, method: selectedMethod.id, amount: order.totalAmount });
-      setPaid(true);
-      setTimeout(() => {
-        setCheckoutOrder(null);
-        clearCart();
-        setPaid(false);
-        setSelectedMethodId(null);
-        setTriggerPreOrderModal(true);
-      }, 2000);
+      useToastStore.getState().show("Pagamento registrato", "success");
+      setCheckoutOrder(null);
+      clearCart();
+      setSelectedMethodId(null);
+      setTriggerPreOrderModal(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore pagamento");
     } finally {
       setLoading(false);
     }
   };
-
-  if (paid) {
-    return (
-      <Modal open onClose={() => {}} title="" width="360px">
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--sp-md)", padding: "var(--sp-xl) 0" }}>
-          <CheckCircleIcon style={{ width: "72px", height: "72px", color: "var(--color-success)" }} />
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-success)" }}>
-              Pagamento registrato
-            </div>
-            <div style={{ color: "var(--color-gray-500)", fontSize: "var(--text-sm)", marginTop: "4px" }}>
-              Stampa in corso...
-            </div>
-          </div>
-        </div>
-      </Modal>
-    );
-  }
 
   return (
     <Modal open onClose={() => setCheckoutOrder(null)} title="Pagamento" width={isCash ? "860px" : "560px"}>
