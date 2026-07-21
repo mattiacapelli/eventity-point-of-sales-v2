@@ -185,7 +185,7 @@ export async function listCategories(tenantId: string): Promise<CategoryRecord[]
   return res.json() as Promise<CategoryRecord[]>;
 }
 
-export async function reorderCategories(tenantId: string, order: string[]): Promise<void> {
+export async function reorderCategories(tenantId: string, order: number[]): Promise<void> {
   const res = await authedFetch(`/admin/tenants/${tenantId}/categories/reorder`, {
     method: "PATCH",
     body: JSON.stringify({ order }),
@@ -199,11 +199,35 @@ export async function listProducts(tenantId: string): Promise<ProductRecord[]> {
   return res.json() as Promise<ProductRecord[]>;
 }
 
-export async function renameProduct(tenantId: string, productId: string, name: string): Promise<ProductRecord> {
+export async function renameProduct(tenantId: string, productId: number, name: string): Promise<ProductRecord> {
   const res = await authedFetch(`/admin/tenants/${tenantId}/products/${productId}`, {
     method: "PATCH",
     body: JSON.stringify({ name }),
   });
   await throwIfNotOk(res, "Impossibile rinominare il prodotto");
+  return res.json() as Promise<ProductRecord>;
+}
+
+export async function updateTenantSettings(tenantId: string, data: Partial<{ requireTableId: boolean; requireCustomerName: boolean }>): Promise<{ requireTableId: boolean; requireCustomerName: boolean }> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/settings`, { method: "PATCH", body: JSON.stringify(data) });
+  await throwIfNotOk(res, "Impossibile aggiornare le impostazioni");
+  return res.json() as Promise<{ requireTableId: boolean; requireCustomerName: boolean }>;
+}
+
+export async function updateCategoryEmoji(tenantId: string, categoryId: number, emoji: string | null): Promise<CategoryRecord> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/categories/${categoryId}/emoji`, {
+    method: "PATCH",
+    body: JSON.stringify({ emoji }),
+  });
+  await throwIfNotOk(res, "Impossibile aggiornare l'emoji");
+  return res.json() as Promise<CategoryRecord>;
+}
+
+export async function updateProductAvailability(tenantId: string, productId: number, availableDates: string[] | null): Promise<ProductRecord> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/products/${productId}/availability`, {
+    method: "PATCH",
+    body: JSON.stringify({ availableDates }),
+  });
+  await throwIfNotOk(res, "Impossibile aggiornare la disponibilità");
   return res.json() as Promise<ProductRecord>;
 }

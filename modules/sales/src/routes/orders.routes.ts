@@ -88,20 +88,21 @@ export function registerOrderRoutes(
       querystring: {
         type: "object",
         properties: {
-          status:     { type: "string", enum: ["pending","confirmed","preparing","ready","completed","cancelled"] },
+          status:     { type: "string", enum: ["pending","confirmed","preparing","ready","completed","cancelled","refunded"] },
           shiftId:    { type: "string" },
           terminalId: { type: "string" },
           from:       { type: "number" },
           to:         { type: "number" },
           limit:      { type: "integer", minimum: 1, maximum: 500, default: 100 },
           offset:     { type: "integer", minimum: 0, default: 0 },
+          search:     { type: "string", description: "Full-text search su cliente, tavolo, note, doc. fiscale" },
         },
       },
       response: { 200: { type: "array", items: orderSchema } },
     },
   }, async (request, reply) => {
-    const q = request.query as { status?: string; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number };
-    const filters: { status?: OrderStatus; shiftId?: number; terminalId?: number; from?: number; to?: number; limit?: number; offset?: number } = {};
+    const q = request.query as { status?: string; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number; search?: string };
+    const filters: { status?: OrderStatus; shiftId?: number; terminalId?: number; from?: number; to?: number; limit?: number; offset?: number; search?: string } = {};
     if (q.status !== undefined) filters.status = q.status as OrderStatus;
     if (q.shiftId !== undefined) filters.shiftId = parseInt(q.shiftId, 10);
     if (q.terminalId !== undefined) filters.terminalId = parseInt(q.terminalId, 10);
@@ -109,6 +110,7 @@ export function registerOrderRoutes(
     if (q.to !== undefined) filters.to = q.to;
     if (q.limit !== undefined) filters.limit = q.limit;
     if (q.offset !== undefined) filters.offset = q.offset;
+    if (q.search !== undefined && q.search.trim() !== "") filters.search = q.search.trim();
     const list = await service.list(filters);
     return reply.send(list.map(serializeOrder));
   });
@@ -189,7 +191,7 @@ export function registerOrderRoutes(
         type: "object",
         required: ["status"],
         properties: {
-          status: { type: "string", enum: ["confirmed","preparing","ready","completed","cancelled"] },
+          status: { type: "string", enum: ["confirmed","preparing","ready","completed","cancelled","refunded"] },
         },
       },
       response: {

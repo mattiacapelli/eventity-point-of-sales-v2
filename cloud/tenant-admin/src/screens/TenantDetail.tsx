@@ -9,6 +9,7 @@ import {
   ArrowUpIcon,
   ArrowDownIcon,
   PencilSquareIcon,
+  CalendarDaysIcon,
 } from "@heroicons/react/24/outline";
 import type { AuditLogEntry, CategoryRecord, CurrentUser, Paginated, ProductRecord, Tenant, TenantStats, TenantUser, TenantUserRole } from "../core/types.js";
 import {
@@ -29,6 +30,9 @@ import {
   uploadTenantLogo,
   deleteTenantLogo,
   updateTenantBranding,
+  updateTenantSettings,
+  updateCategoryEmoji,
+  updateProductAvailability,
   API_BASE,
 } from "../core/api-client.js";
 import { Button } from "../components/Button.js";
@@ -36,6 +40,7 @@ import { Badge } from "../components/Badge.js";
 import { Input, Select } from "../components/Input.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { useToast } from "../components/Toast.js";
+import { AvailableDatesEditor } from "../components/AvailableDatesEditor.js";
 
 function formatEur(n: number): string {
   return `€${n.toFixed(2)}`;
@@ -79,6 +84,7 @@ export function TenantDetail({ tenant, currentUser, onUpdated, onDeleted, onClos
   const [colorAccent, setColorAccent] = useState(tenant.colorAccent ?? "#C2E812");
   const [savingBranding, setSavingBranding] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const [tenantUsers, setTenantUsers] = useState<TenantUser[]>([]);
   const [usersError, setUsersError] = useState<string | null>(null);
@@ -274,6 +280,18 @@ export function TenantDetail({ tenant, currentUser, onUpdated, onDeleted, onClos
     }
   }
 
+  async function handleToggleSetting(key: "requireTableId" | "requireCustomerName") {
+    setSavingSettings(true);
+    try {
+      const updated = await updateTenantSettings(tenant.id, { [key]: !tenant[key] });
+      onUpdated({ ...tenant, ...updated });
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Impossibile aggiornare le impostazioni", "error");
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
   const orderUrl = `${window.location.origin.replace(/:\d+$/, ":5174")}/?t=${tenant.slug}`;
   const logoUrl = tenant.logoPath ? `${API_BASE}/api/static/${tenant.logoPath}` : null;
 
@@ -423,6 +441,27 @@ export function TenantDetail({ tenant, currentUser, onUpdated, onDeleted, onClos
                   <Button variant="secondary" onClick={() => void handleSaveBranding()} loading={savingBranding}>
                     Salva colori
                   </Button>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", paddingTop: "var(--sp-sm)", borderTop: "1px solid var(--color-gray-100)" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "var(--text-sm)", fontWeight: 600 }}>
+                    <input
+                      type="checkbox"
+                      checked={tenant.requireTableId}
+                      disabled={savingSettings}
+                      onChange={() => void handleToggleSetting("requireTableId")}
+                    />
+                    Tavolo obbligatorio
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "var(--text-sm)", fontWeight: 600 }}>
+                    <input
+                      type="checkbox"
+                      checked={tenant.requireCustomerName}
+                      disabled={savingSettings}
+                      onChange={() => void handleToggleSetting("requireCustomerName")}
+                    />
+                    Nome cliente obbligatorio
+                  </label>
                 </div>
               </div>
             </div>
@@ -656,9 +695,10 @@ function CatalogTab({ tenantId }: { tenantId: string }) {
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [productsError, setProductsError] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
-  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
-  const [savingProductId, setSavingProductId] = useState<string | null>(null);
+  const [savingProductId, setSavingProductId] = useState<number | null>(null);
+  const [editingAvailabilityId, setEditingAvailabilityId] = useState<number | null>(null);
 
   function loadCategories() {
     setCategoriesError(null);
@@ -678,6 +718,27 @@ function CatalogTab({ tenantId }: { tenantId: string }) {
     loadCategories();
     loadProducts();
   }, [tenantId]);
+
+  const [editingEmojiId, setEditingEmojiId] = useState<number | null>(null);
+  const [editingEmojiValue, setEditingEmojiValue] = useState("");
+
+  function startEditingEmoji(category: CategoryRecord) {
+    setEditingEmojiId(category.id);
+    setEditingEmojiValue(category.emoji ?? "");
+  }
+
+  async function saveEmoji(category: CategoryRecord) {
+    const trimmed = editingEmojiValue.trim();
+    const nextEmoji = trimmed || null;
+    setEditingEmojiId(null);
+    if (nextEmoji === category.emoji) return;
+    try {
+      const updated = await updateCategoryEmoji(tenantId, category.id, nextEmoji);
+      setCategories((prev) => prev.map((c) => (c.id === category.id ? updated : c)));
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Impossibile aggiornare l'emoji", "error");
+    }
+  }
 
   async function moveCategory(index: number, direction: -1 | 1) {
     const targetIndex = index + direction;
@@ -722,6 +783,16 @@ function CatalogTab({ tenantId }: { tenantId: string }) {
     }
   }
 
+  async function handleAvailabilityChange(product: ProductRecord, dates: string[]) {
+    const nextDates = dates.length > 0 ? dates : null;
+    try {
+      const updated = await updateProductAvailability(tenantId, product.id, nextDates);
+      setProducts((prev) => prev.map((p) => (p.id === product.id ? updated : p)));
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Impossibile aggiornare la disponibilità", "error");
+    }
+  }
+
   const categoryNameById = Object.fromEntries(categories.map((c) => [c.id, c.name]));
 
   return (
@@ -741,7 +812,32 @@ function CatalogTab({ tenantId }: { tenantId: string }) {
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             {categories.map((c, index) => (
               <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)" }}>
-                <span style={{ fontSize: "var(--text-sm)", fontWeight: 600 }}>{c.name}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  {editingEmojiId === c.id ? (
+                    <input
+                      value={editingEmojiValue}
+                      onChange={(e) => setEditingEmojiValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void saveEmoji(c);
+                        if (e.key === "Escape") setEditingEmojiId(null);
+                      }}
+                      onBlur={() => void saveEmoji(c)}
+                      placeholder="🍕"
+                      maxLength={8}
+                      autoFocus
+                      style={{ width: "40px", textAlign: "center", padding: "4px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-gray-200)", fontSize: "var(--text-md)" }}
+                    />
+                  ) : (
+                    <button
+                      onClick={() => startEditingEmoji(c)}
+                      aria-label="Imposta emoji"
+                      style={{ width: "28px", height: "28px", borderRadius: "var(--radius-sm)", border: "1px dashed var(--color-gray-300)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "var(--text-md)" }}
+                    >
+                      {c.emoji ?? "＋"}
+                    </button>
+                  )}
+                  <span style={{ fontSize: "var(--text-sm)", fontWeight: 600 }}>{c.name}</span>
+                </div>
                 <div style={{ display: "flex", gap: "4px" }}>
                   <button
                     onClick={() => void moveCategory(index, -1)}
@@ -804,8 +900,32 @@ function CatalogTab({ tenantId }: { tenantId: string }) {
                     </button>
                   )}
                   <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
-                    {categoryNameById[p.categoryId] ?? "—"} · <code>{p.id.slice(0, 8)}…</code>
+                    {categoryNameById[p.categoryId] ?? "—"} · <code>#{p.id}</code>
                   </span>
+                </div>
+
+                <div style={{ position: "relative", flexShrink: 0 }}>
+                  <button
+                    onClick={() => setEditingAvailabilityId(editingAvailabilityId === p.id ? null : p.id)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "6px",
+                      padding: "6px 10px", borderRadius: "var(--radius-md)",
+                      border: `1px solid ${p.availableDates ? "var(--color-brand)" : "var(--color-gray-200)"}`,
+                      background: "var(--color-white)",
+                      color: p.availableDates ? "var(--color-brand)" : "var(--color-gray-500)",
+                      fontSize: "var(--text-xs)", fontWeight: 600,
+                    }}
+                  >
+                    <CalendarDaysIcon width={14} height={14} />
+                    {p.availableDates ? `${p.availableDates.length} giorni` : "Sempre visibile"}
+                  </button>
+                  {editingAvailabilityId === p.id && (
+                    <AvailableDatesEditor
+                      dates={p.availableDates ?? []}
+                      onChange={(dates) => void handleAvailabilityChange(p, dates)}
+                      onClose={() => setEditingAvailabilityId(null)}
+                    />
+                  )}
                 </div>
               </div>
             ))}

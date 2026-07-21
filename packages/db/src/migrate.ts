@@ -966,6 +966,65 @@ function migrateUuidToInt(sqlite: Database.Database): void {
   sqlite.pragma("foreign_keys = ON");
 }
 
+// orders.status CHECK didn't include 'refunded'. Widen it via table-rebuild if still missing.
+function addRefundedStatus(sqlite: Database.Database): void {
+  const row = sqlite.prepare(
+    "SELECT sql FROM sqlite_master WHERE type='table' AND name='orders'"
+  ).get() as { sql?: string } | undefined;
+  if (!row?.sql || row.sql.includes("'refunded'")) return;
+
+  sqlite.pragma("foreign_keys = OFF");
+  sqlite.pragma("legacy_alter_table = ON");
+  sqlite.exec("BEGIN");
+  try {
+    sqlite.exec(`ALTER TABLE orders RENAME TO _ord_refund_old`);
+    sqlite.exec(`
+      CREATE TABLE orders (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        table_id        TEXT,
+        customer_name   TEXT,
+        event_id        TEXT,
+        shift_id        INTEGER,
+        terminal_id     INTEGER REFERENCES terminals(id),
+        status          TEXT NOT NULL DEFAULT 'pending'
+                        CHECK(status IN ('pending','confirmed','preparing','ready','completed','cancelled','refunded')),
+        total_amount    REAL NOT NULL DEFAULT 0,
+        discount_amount REAL NOT NULL DEFAULT 0,
+        discount_type   TEXT,
+        notes           TEXT,
+        pax             INTEGER,
+        receipt_number  INTEGER,
+        fiscal_doc_number TEXT,
+        fiscal_doc_date TEXT,
+        fiscal_rt_serial TEXT,
+        created_at      INTEGER NOT NULL,
+        updated_at      INTEGER NOT NULL,
+        synced_at       INTEGER
+      )
+    `);
+    sqlite.exec(`
+      INSERT INTO orders(id, table_id, customer_name, event_id, shift_id, terminal_id, status,
+        total_amount, discount_amount, discount_type, notes, pax, receipt_number,
+        fiscal_doc_number, fiscal_doc_date, fiscal_rt_serial, created_at, updated_at, synced_at)
+      SELECT id, table_id, customer_name, event_id, shift_id, terminal_id, status,
+        total_amount, discount_amount, discount_type, notes, pax, receipt_number,
+        fiscal_doc_number, fiscal_doc_date, fiscal_rt_serial, created_at, updated_at, synced_at
+      FROM _ord_refund_old
+    `);
+    sqlite.exec(`DROP TABLE _ord_refund_old`);
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_orders_status     ON orders(status)`);
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_orders_shift_id   ON orders(shift_id)`);
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at)`);
+    sqlite.exec("COMMIT");
+  } catch (err) {
+    try { sqlite.exec("ROLLBACK"); } catch { /* ignore */ }
+    throw err;
+  } finally {
+    sqlite.pragma("legacy_alter_table = OFF");
+    sqlite.pragma("foreign_keys = ON");
+  }
+}
+
 export function runMigrations(dbPath: string): void {
   const sqlite = new Database(dbPath);
   sqlite.pragma("journal_mode = WAL");
@@ -977,5 +1036,6 @@ export function runMigrations(dbPath: string): void {
     try { sqlite.exec(stmt); } catch { /* column already exists */ }
   }
   migrateUuidToInt(sqlite);
+  addRefundedStatus(sqlite);
   sqlite.close();
 }

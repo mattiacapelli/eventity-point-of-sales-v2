@@ -1,40 +1,44 @@
 import { sqliteTable, text, real, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const tenants = sqliteTable("tenants", {
-  id:          text("id").primaryKey(),
-  slug:        text("slug").notNull(),
-  name:        text("name").notNull(),
-  apiKey:      text("api_key").notNull(),
-  active:      integer("active", { mode: "boolean" }).notNull().default(true),
-  createdAt:   integer("created_at").notNull(),
-  logoPath:    text("logo_path"),
-  colorBrand:  text("color_brand"),
-  colorAccent: text("color_accent"),
+  id:                  text("id").primaryKey(),
+  slug:                text("slug").notNull(),
+  name:                text("name").notNull(),
+  apiKey:              text("api_key").notNull(),
+  active:              integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt:           integer("created_at").notNull(),
+  logoPath:            text("logo_path"),
+  colorBrand:          text("color_brand"),
+  colorAccent:         text("color_accent"),
+  requireTableId:      integer("require_table_id", { mode: "boolean" }).notNull().default(true),
+  requireCustomerName: integer("require_customer_name", { mode: "boolean" }).notNull().default(false),
 }, (t) => ({
   slugUniq: uniqueIndex("tenants_slug_uniq").on(t.slug),
 }));
 
 export const categories = sqliteTable("categories", {
-  id:        text("id").primaryKey(),
+  id:        integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
   tenantId:  text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
   name:      text("name").notNull(),
+  emoji:     text("emoji"),
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
 export const products = sqliteTable("products", {
-  id:         text("id").primaryKey(),
-  tenantId:   text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-  categoryId: text("category_id").notNull().references(() => categories.id, { onDelete: "cascade" }),
-  name:       text("name").notNull(),
-  price:      real("price").notNull(),
-  active:     integer("active", { mode: "boolean" }).notNull().default(true),
-  sortOrder:  integer("sort_order").notNull().default(0),
+  id:             integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
+  tenantId:       text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  categoryId:     integer("category_id", { mode: "number" }).notNull().references(() => categories.id, { onDelete: "cascade" }),
+  name:           text("name").notNull(),
+  price:          real("price").notNull(),
+  active:         integer("active", { mode: "boolean" }).notNull().default(true),
+  sortOrder:      integer("sort_order").notNull().default(0),
+  availableDates: text("available_dates"), // JSON array of "YYYY-MM-DD"; null/empty = always visible. Cloud-only, never touched by menu-sync.
 });
 
 export const optionGroups = sqliteTable("option_groups", {
-  id:        text("id").primaryKey(),
+  id:        integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
   tenantId:  text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-  productId: text("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  productId: integer("product_id", { mode: "number" }).notNull().references(() => products.id, { onDelete: "cascade" }),
   name:      text("name").notNull(),
   type:      text("type").notNull(), // "single" | "multi" | "removal"
   required:  integer("required", { mode: "boolean" }).notNull().default(false),
@@ -44,9 +48,9 @@ export const optionGroups = sqliteTable("option_groups", {
 });
 
 export const options = sqliteTable("options", {
-  id:            text("id").primaryKey(),
+  id:            integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
   tenantId:      text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-  optionGroupId: text("option_group_id").notNull().references(() => optionGroups.id, { onDelete: "cascade" }),
+  optionGroupId: integer("option_group_id", { mode: "number" }).notNull().references(() => optionGroups.id, { onDelete: "cascade" }),
   name:          text("name").notNull(),
   priceDelta:    real("price_delta").notNull().default(0),
   prefix:        text("prefix").notNull().default("+"), // "+" | "-" | ">>"

@@ -192,3 +192,12 @@ img { max-width: 100%; display: block; }
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+.product-grid {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+@media (max-width: 480px) {
+  .product-grid {
+    grid-template-columns: 1fr;
+  }
+}

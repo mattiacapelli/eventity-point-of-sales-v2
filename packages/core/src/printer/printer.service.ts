@@ -60,6 +60,15 @@ function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T
   ]);
 }
 
+/** Resolves with true if the promise settled within ms, false if it timed out. */
+function raceTimeout(promise: Promise<unknown>, ms: number): Promise<boolean> {
+  let settled = false;
+  return Promise.race([
+    promise.then(() => { settled = true; return true; }, () => { settled = true; return true; }),
+    sleep(ms).then(() => settled),
+  ]);
+}
+
 export class PrinterService {
   private readonly fallbackAdapter: PrinterAdapter;
   private readonly adapterPool = new Map<string, PrinterAdapter>();
@@ -108,6 +117,18 @@ export class PrinterService {
     return adapter;
   }
 
+  /** Abort the adapter's current socket if the adapter supports it (TCP only). */
+  private abortAdapter(job: PrintJob): void {
+    const cfg = job.printerConfig;
+    if (!cfg || cfg.connectionType === "usb" || cfg.connectionType === "windows") return;
+    if (!cfg.host || !cfg.port) return;
+    const key = `tcp:${job.printerId}:${cfg.host}:${cfg.port}`;
+    const adapter = this.adapterPool.get(key);
+    if (adapter && "abortCurrentSocket" in adapter) {
+      (adapter as TcpPrinterAdapter).abortCurrentSocket();
+    }
+  }
+
   enqueue(job: PrintJob): void {
     // Route into the per-printer chain so jobs for different printers run in
     // parallel while jobs for the same printer remain serialized.
@@ -121,7 +142,10 @@ export class PrinterService {
     const next = new Promise<void>((r) => { resolve = r; });
     this.printChain.set(key, next);
     try {
-      await withTimeout(prev, PRINT_TIMEOUT_MS, undefined);
+      const prevSettled = await raceTimeout(prev, PRINT_TIMEOUT_MS);
+      if (!prevSettled) {
+        this.abortAdapter(job);
+      }
       const adapter = this.getAdapter(job);
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
@@ -148,7 +172,12 @@ export class PrinterService {
     try {
       // Await the previous job in the chain, but never block longer than the
       // print timeout — a permanently-hung job must not freeze all successors.
-      await withTimeout(prev, PRINT_TIMEOUT_MS, undefined);
+      const prevSettled = await raceTimeout(prev, PRINT_TIMEOUT_MS);
+      if (!prevSettled) {
+        // Previous job timed out while still writing. Destroy the socket so
+        // its in-flight bytes don't contaminate this job's stream.
+        this.abortAdapter(job);
+      }
       return await withTimeout(
         this.getAdapter(job).print(job),
         PRINT_TIMEOUT_MS,

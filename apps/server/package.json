@@ -28,10 +28,12 @@
     "@pos/module-sales": "workspace:*",
     "@pos/shared-types": "workspace:*",
     "fastify": "^4.27.0",
-    "fastify-plugin": "^4.5.0"
+    "fastify-plugin": "^4.5.0",
+    "pdfkit": "^0.19.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/pdfkit": "^0.17.6",
     "typescript": "^5.4.0"
   }
 }

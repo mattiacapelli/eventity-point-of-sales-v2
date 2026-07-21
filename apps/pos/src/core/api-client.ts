@@ -28,7 +28,7 @@ async function request<T>(
   return res.json() as Promise<T>;
 }
 
-type OrderFilters = { status?: string; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number };
+type OrderFilters = { status?: string; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number; search?: string };
 
 type ShiftStats = {
   totalSales: number;
@@ -60,12 +60,23 @@ export type ZReport = {
   topProducts: { name: string; quantity: number; amount: number }[];
 };
 
-type PeriodStats = {
-  totalSales: number;
-  totalOrders: number;
-  avgTicket: number;
-  byCategory: { categoryName: string; amount: number }[];
-  byDay: { date: string; sales: number }[];
+export type PeriodStats = {
+  summary: {
+    totalSales: number;
+    totalOrders: number;
+    cancelledOrders: number;
+    avgTicket: number;
+    refundTotal: number;
+    netSales: number;
+    totalSalesExcluded: number;
+  };
+  byPaymentMethod: { method: string; count: number; amount: number; excludeFromTotal: boolean }[];
+  byCategory: { categoryName: string; quantity: number; amount: number }[];
+  byProductionCenter: { centerName: string; quantity: number; amount: number }[];
+  byTerminal: { terminalName: string; count: number; amount: number; byMethod: { method: string; count: number; amount: number }[] }[];
+  byHour: { hour: number; orders: number; amount: number }[];
+  byDay: { date: string; sales: number; orders: number }[];
+  topProducts: { name: string; quantity: number; amount: number }[];
 };
 
 export type ShiftFullStats = {
@@ -105,6 +116,7 @@ export const apiClient = {
       if (filters?.to !== undefined) params.set("to", String(filters.to));
       if (filters?.limit !== undefined) params.set("limit", String(filters.limit));
       if (filters?.offset !== undefined) params.set("offset", String(filters.offset));
+      if (filters?.search !== undefined && filters.search.trim() !== "") params.set("search", filters.search.trim());
       const qs = params.toString();
       return request<Order[]>("GET", qs ? `/orders?${qs}` : "/orders");
     },
@@ -165,6 +177,16 @@ export const apiClient = {
       const terminalId = useTerminalStore.getState().terminalId;
       const extraHeaders = terminalId !== null ? { "X-Terminal-Id": String(terminalId) } : undefined;
       return request<{ ok: boolean; message?: string }>("POST", `/stats/shift/${shiftId}/print`, {}, extraHeaders);
+    },
+    pdfShift: (shiftId: number, terminalId?: number) => {
+      const url = `/stats/shift/${shiftId}/pdf${terminalId !== undefined ? `?terminalId=${terminalId}` : ""}`;
+      const token = useStore.getState().session?.token;
+      return fetch(`${BASE}${url}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    },
+    pdfPeriod: (from: number, to: number, terminalId?: number) => {
+      const url = `/stats/period/pdf?from=${from}&to=${to}${terminalId !== undefined ? `&terminalId=${terminalId}` : ""}`;
+      const token = useStore.getState().session?.token;
+      return fetch(`${BASE}${url}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
     },
   },
   auth: {

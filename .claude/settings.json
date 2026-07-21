@@ -33,7 +33,13 @@
       "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db \"SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;\")",
       "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db \"SELECT COUNT\\(*\\) as sessions FROM sessions; SELECT username, role FROM users;\")",
       "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db \"SELECT username, role, pin FROM users;\")",
-      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db 'UPDATE users SET pin = '\\\\''$argon2id$v=19$m=65536,t=3,p=4$/BsYDv/9r+mbbJT/CHsVEA$HSv8c/1MWRv1SS+wYnNLBhgMG6Aq7/zZQsmtzAlEBHY'\\\\'' WHERE username = '\\\\''festivalmen_admin'\\\\''; SELECT username, substr\\(pin,1,20\\) FROM users;')"
+      "Bash(sqlite3 /Users/mattiacapelli/Sviluppo/eventity-point-of-sales-v2/apps/server/pos.db 'UPDATE users SET pin = '\\\\''$argon2id$v=19$m=65536,t=3,p=4$/BsYDv/9r+mbbJT/CHsVEA$HSv8c/1MWRv1SS+wYnNLBhgMG6Aq7/zZQsmtzAlEBHY'\\\\'' WHERE username = '\\\\''festivalmen_admin'\\\\''; SELECT username, substr\\(pin,1,20\\) FROM users;')",
+      "Bash(sqlite3 pos.db \".tables\")",
+      "Bash(sqlite3 pos.db \"SELECT typeof\\(id\\), id FROM users LIMIT 3\")",
+      "Bash(sqlite3 pos.db \"SELECT typeof\\(id\\), id FROM categories LIMIT 3\")",
+      "Bash(sqlite3 pos.db \"SELECT typeof\\(id\\), id FROM products LIMIT 3\")",
+      "Bash(sqlite3 pos.db \"SELECT name, category_id, production_center_id FROM products LIMIT 5\")",
+      "Bash(sqlite3 pos.db \"SELECT COUNT\\(*\\) FROM users; SELECT COUNT\\(*\\) FROM categories; SELECT COUNT\\(*\\) FROM products; SELECT COUNT\\(*\\) FROM production_centers; SELECT COUNT\\(*\\) FROM printers;\")"
     ]
   }
 }

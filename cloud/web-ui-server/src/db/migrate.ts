@@ -2,35 +2,39 @@ import Database from "better-sqlite3";
 
 const DDL = `
 CREATE TABLE IF NOT EXISTS tenants (
-  id         TEXT PRIMARY KEY,
-  slug       TEXT NOT NULL UNIQUE,
-  name       TEXT NOT NULL,
-  api_key    TEXT NOT NULL,
-  active     INTEGER NOT NULL DEFAULT 1,
-  created_at INTEGER NOT NULL
+  id                    TEXT PRIMARY KEY,
+  slug                  TEXT NOT NULL UNIQUE,
+  name                  TEXT NOT NULL,
+  api_key               TEXT NOT NULL,
+  active                INTEGER NOT NULL DEFAULT 1,
+  created_at            INTEGER NOT NULL,
+  require_table_id      INTEGER NOT NULL DEFAULT 1,
+  require_customer_name INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS categories (
-  id         TEXT PRIMARY KEY,
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
   tenant_id  TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name       TEXT NOT NULL,
+  emoji      TEXT,
   sort_order INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS products (
-  id          TEXT PRIMARY KEY,
-  tenant_id   TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
-  name        TEXT NOT NULL,
-  price       REAL NOT NULL,
-  active      INTEGER NOT NULL DEFAULT 1,
-  sort_order  INTEGER NOT NULL DEFAULT 0
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id       TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  category_id     INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  name            TEXT NOT NULL,
+  price           REAL NOT NULL,
+  active          INTEGER NOT NULL DEFAULT 1,
+  sort_order      INTEGER NOT NULL DEFAULT 0,
+  available_dates TEXT
 );
 
 CREATE TABLE IF NOT EXISTS option_groups (
-  id         TEXT PRIMARY KEY,
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
   tenant_id  TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
   name       TEXT NOT NULL,
   type       TEXT NOT NULL,
   required   INTEGER NOT NULL DEFAULT 0,
@@ -40,9 +44,9 @@ CREATE TABLE IF NOT EXISTS option_groups (
 );
 
 CREATE TABLE IF NOT EXISTS options (
-  id              TEXT PRIMARY KEY,
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
   tenant_id       TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  option_group_id TEXT NOT NULL REFERENCES option_groups(id) ON DELETE CASCADE,
+  option_group_id INTEGER NOT NULL REFERENCES option_groups(id) ON DELETE CASCADE,
   name            TEXT NOT NULL,
   price_delta     REAL NOT NULL DEFAULT 0,
   prefix          TEXT NOT NULL DEFAULT '+',
@@ -106,10 +110,34 @@ function addColumnIfMissing(sqlite: Database.Database, table: string, column: st
   }
 }
 
+// categories/products/option_groups/options originally had TEXT (UUID) primary keys; they were
+// switched to INTEGER AUTOINCREMENT to match the till's catalogue id format (see menu-sync.ts).
+// No production tenant had real catalogue data yet, so on an old-schema DB we just drop and let the
+// DDL below recreate them with the new column types — children first to respect foreign keys.
+function dropLegacyCatalogTablesIfNeeded(sqlite: Database.Database): void {
+  const tableExists = sqlite.prepare(
+    `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'categories'`,
+  ).get();
+  if (!tableExists) return;
+
+  const columns = sqlite.prepare(`PRAGMA table_info(categories)`).all() as { name: string; type: string }[];
+  const idColumn = columns.find((c) => c.name === "id");
+  if (idColumn?.type.toUpperCase() === "TEXT") {
+    sqlite.exec(`
+      DROP TABLE IF EXISTS options;
+      DROP TABLE IF EXISTS option_groups;
+      DROP TABLE IF EXISTS products;
+      DROP TABLE IF EXISTS categories;
+    `);
+  }
+}
+
 export function runMigrations(dbPath: string): void {
   const sqlite = new Database(dbPath);
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
+
+  dropLegacyCatalogTablesIfNeeded(sqlite);
   sqlite.exec(DDL);
 
   // tenants.logo_path/color_brand/color_accent were added after the initial DDL above;
@@ -117,6 +145,10 @@ export function runMigrations(dbPath: string): void {
   addColumnIfMissing(sqlite, "tenants", "logo_path", "logo_path TEXT");
   addColumnIfMissing(sqlite, "tenants", "color_brand", "color_brand TEXT");
   addColumnIfMissing(sqlite, "tenants", "color_accent", "color_accent TEXT");
+  addColumnIfMissing(sqlite, "tenants", "require_table_id", "require_table_id INTEGER NOT NULL DEFAULT 1");
+  addColumnIfMissing(sqlite, "tenants", "require_customer_name", "require_customer_name INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing(sqlite, "categories", "emoji", "emoji TEXT");
+  addColumnIfMissing(sqlite, "products", "available_dates", "available_dates TEXT");
 
   sqlite.close();
 }

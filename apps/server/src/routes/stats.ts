@@ -194,8 +194,7 @@ async function getShiftFullStats(db: DbClient, shiftId: number, terminalId?: num
   }
 
   const topProducts = Object.values(byProduct)
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 10);
+    .sort((a, b) => b.amount - a.amount);
 
   return {
     shift: shiftMeta,
@@ -389,55 +388,155 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     const { from, to, terminalId } = request.query as { from: number; to: number; terminalId?: number };
     const db = fastify.ctx.db;
 
-    const completedOrders = await db
-      .select()
-      .from(orders)
-      .where(
-        and(
-          inArray(orders.status, [...PAID_STATUSES]),
-          gte(orders.createdAt, new Date(from)),
-          lte(orders.createdAt, new Date(to)),
-          terminalId !== undefined ? eq(orders.terminalId, terminalId) : undefined,
-        )
-      );
+    // Tutti gli ordini nel range per conteggio annullati
+    const allOrders = await db.select().from(orders).where(
+      and(
+        gte(orders.createdAt, new Date(from)),
+        lte(orders.createdAt, new Date(to)),
+        terminalId !== undefined ? eq(orders.terminalId, terminalId) : undefined,
+      )
+    );
+    const completedOrders = allOrders.filter((o) => PAID_STATUSES.includes(o.status as typeof PAID_STATUSES[number]));
+    const cancelledOrders = allOrders.filter((o) => o.status === "cancelled").length;
 
     const orderIds = completedOrders.map((o) => o.id);
-    const totalSales = completedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+    const totalSalesRaw = completedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
     const totalOrders = completedOrders.length;
-    const avgTicket = totalOrders > 0 ? totalSales / totalOrders : 0;
 
-    const byCategory: Record<string, number> = {};
-    const byDay: Record<string, number> = {};
+    // Metodi di pagamento
+    const allMethodRows = await db.select({ id: paymentMethods.id, name: paymentMethods.name, excludeFromTotal: paymentMethods.excludeFromTotal }).from(paymentMethods);
+    const methodIdToName = Object.fromEntries(allMethodRows.map((m) => [m.id, m.name]));
+    const excludedMethodIds = new Set(allMethodRows.filter((m) => m.excludeFromTotal).map((m) => m.id));
 
-    if (orderIds.length > 0) {
-      const itemRows = await db
-        .select({
+    const pmtRows = orderIds.length > 0
+      ? await db.select().from(payments).where(and(inArray(payments.orderId, orderIds), eq(payments.status, "completed")))
+      : [];
+
+    const orderMethodMap: Record<number, string> = {};
+    for (const p of pmtRows) orderMethodMap[p.orderId] = p.method;
+    const isExcluded = (orderId: number) => { const m = orderMethodMap[orderId]; return m !== undefined && excludedMethodIds.has(m); };
+
+    const totalSalesExcluded = completedOrders.filter((o) => isExcluded(o.id)).reduce((s, o) => s + o.totalAmount, 0);
+    const totalSales = totalSalesRaw - totalSalesExcluded;
+
+    const refundRows = orderIds.length > 0
+      ? await db.select().from(payments).where(and(inArray(payments.orderId, orderIds), eq(payments.status, "refunded")))
+      : [];
+    const refundTotal = refundRows.reduce((s, p) => s + p.amount, 0);
+
+    const pmtAgg: Record<string, { count: number; amount: number; excludeFromTotal: boolean }> = {};
+    for (const p of pmtRows) {
+      const name = methodIdToName[p.method] ?? p.method;
+      const ex = excludedMethodIds.has(p.method);
+      const e = pmtAgg[name] ?? { count: 0, amount: 0, excludeFromTotal: ex };
+      e.count++; e.amount += p.amount;
+      pmtAgg[name] = e;
+    }
+
+    // Articoli
+    const itemRows = orderIds.length > 0
+      ? await db.select({
+          productId: orderItems.productId,
+          itemName: orderItems.name,
+          categoryId: products.categoryId,
           categoryName: categories.name,
+          productionCenterId: products.productionCenterId,
           unitPrice: orderItems.unitPrice,
           quantity: orderItems.quantity,
         })
         .from(orderItems)
         .leftJoin(products, eq(orderItems.productId, products.id))
         .leftJoin(categories, eq(products.categoryId, categories.id))
-        .where(inArray(orderItems.orderId, orderIds));
+        .where(inArray(orderItems.orderId, orderIds))
+      : [];
 
-      for (const item of itemRows) {
-        const cat = item.categoryName ?? "Senza categoria";
-        byCategory[cat] = (byCategory[cat] ?? 0) + item.unitPrice * item.quantity;
-      }
+    // Centro di produzione per categoria
+    const categoryIds = [...new Set(itemRows.map((i) => i.categoryId).filter((id): id is number => id !== null))];
+    const categoryCenterMap: Record<number, number> = {};
+    if (categoryIds.length > 0) {
+      const pcRows = await db.select({ categoryId: productionCenterCategories.categoryId, productionCenterId: productionCenterCategories.productionCenterId })
+        .from(productionCenterCategories).where(inArray(productionCenterCategories.categoryId, categoryIds));
+      for (const r of pcRows) { if (!categoryCenterMap[r.categoryId]) categoryCenterMap[r.categoryId] = r.productionCenterId; }
+    }
+    const centerIds = [...new Set([...itemRows.map((i) => i.productionCenterId), ...Object.values(categoryCenterMap)].filter((id): id is number => id !== null))];
+    let centerNameMap: Record<number, string> = {};
+    if (centerIds.length > 0) {
+      const cRows = await db.select().from(productionCenters).where(inArray(productionCenters.id, centerIds));
+      centerNameMap = Object.fromEntries(cRows.map((c) => [c.id, c.name]));
     }
 
-    for (const order of completedOrders) {
-      const day = order.createdAt.toISOString().slice(0, 10);
-      byDay[day] = (byDay[day] ?? 0) + order.totalAmount;
+    const catAgg: Record<string, { quantity: number; amount: number }> = {};
+    const prodAgg: Record<string, { name: string; quantity: number; amount: number }> = {};
+    const centerAgg: Record<string, { quantity: number; amount: number }> = {};
+    const byDay: Record<string, number> = {};
+    const byDayOrders: Record<string, number> = {};
+
+    for (const item of itemRows) {
+      const cat = item.categoryName ?? "Senza categoria";
+      const ca = catAgg[cat] ?? { quantity: 0, amount: 0 };
+      ca.quantity += item.quantity; ca.amount += item.unitPrice * item.quantity;
+      catAgg[cat] = ca;
+
+      const pid = String(item.productId);
+      const pa = prodAgg[pid] ?? { name: item.itemName, quantity: 0, amount: 0 };
+      pa.quantity += item.quantity; pa.amount += item.unitPrice * item.quantity;
+      prodAgg[pid] = pa;
+
+      const centerId = item.productionCenterId ?? (item.categoryId !== null && item.categoryId !== undefined ? categoryCenterMap[item.categoryId] : undefined);
+      const centerName = centerId !== undefined ? (centerNameMap[centerId] ?? "Senza centro") : "Senza centro";
+      const ce = centerAgg[centerName] ?? { quantity: 0, amount: 0 };
+      ce.quantity += item.quantity; ce.amount += item.unitPrice * item.quantity;
+      centerAgg[centerName] = ce;
     }
+
+    for (const o of completedOrders) {
+      const day = o.createdAt.toISOString().slice(0, 10);
+      byDay[day] = (byDay[day] ?? 0) + o.totalAmount;
+      byDayOrders[day] = (byDayOrders[day] ?? 0) + 1;
+    }
+
+    // byHour
+    const byHourAgg = Array.from({ length: 24 }, (_, h) => ({ hour: h, orders: 0, amount: 0 }));
+    for (const o of completedOrders) {
+      const b = byHourAgg[o.createdAt.getHours()]!;
+      b.orders++; b.amount += o.totalAmount;
+    }
+
+    // byTerminal
+    const terminalIds = [...new Set(completedOrders.map((o) => o.terminalId).filter((id): id is number => id !== null))];
+    let terminalNameMap: Record<number, string> = {};
+    if (terminalIds.length > 0) {
+      const tRows = await db.select().from(terminals).where(inArray(terminals.id, terminalIds));
+      terminalNameMap = Object.fromEntries(tRows.map((t) => [t.id, t.name]));
+    }
+    const orderPmtMap = new Map(pmtRows.map((p) => [p.orderId, { method: methodIdToName[p.method] ?? p.method, amount: p.amount }]));
+    const termAgg: Record<string, { count: number; amount: number; byMethod: Record<string, { count: number; amount: number }> }> = {};
+    for (const o of completedOrders) {
+      const name = o.terminalId !== null && o.terminalId !== undefined ? (terminalNameMap[o.terminalId] ?? "Senza cassa") : "Senza cassa";
+      const e = termAgg[name] ?? { count: 0, amount: 0, byMethod: {} };
+      e.count++; e.amount += o.totalAmount;
+      const pmt = orderPmtMap.get(o.id);
+      if (pmt) { const me = e.byMethod[pmt.method] ?? { count: 0, amount: 0 }; me.count++; me.amount += pmt.amount; e.byMethod[pmt.method] = me; }
+      termAgg[name] = e;
+    }
+    const byTerminal = Object.entries(termAgg).map(([terminalName, v]) => ({
+      terminalName, count: v.count, amount: v.amount,
+      byMethod: Object.entries(v.byMethod).map(([method, m]) => ({ method, ...m })).sort((a, b) => b.amount - a.amount),
+    })).sort((a, b) => b.amount - a.amount);
 
     return reply.send({
-      totalSales,
-      totalOrders,
-      avgTicket,
-      byCategory: Object.entries(byCategory).map(([categoryName, amount]) => ({ categoryName, amount })),
-      byDay: Object.entries(byDay).sort().map(([date, sales]) => ({ date, sales })),
+      summary: {
+        totalSales, totalOrders, cancelledOrders,
+        avgTicket: totalOrders > 0 ? totalSales / totalOrders : 0,
+        refundTotal, netSales: totalSales - refundTotal, totalSalesExcluded,
+      },
+      byPaymentMethod: Object.entries(pmtAgg).map(([method, v]) => ({ method, ...v })).sort((a, b) => b.amount - a.amount),
+      byCategory: Object.entries(catAgg).map(([categoryName, v]) => ({ categoryName, ...v })).sort((a, b) => b.amount - a.amount),
+      byProductionCenter: Object.entries(centerAgg).map(([centerName, v]) => ({ centerName, ...v })).sort((a, b) => b.amount - a.amount),
+      byTerminal,
+      byHour: byHourAgg,
+      byDay: Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([date, sales]) => ({ date, sales, orders: byDayOrders[date] ?? 0 })),
+      topProducts: Object.values(prodAgg).sort((a, b) => b.amount - a.amount),
     });
   });
 

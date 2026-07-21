@@ -19,6 +19,7 @@ export class OrderService {
   subscribeToStatusRequests(): void {
     this._subscribeStatusRequested();
     this._subscribePaymentCompleted();
+    this._subscribePaymentRefunded();
   }
 
   private _subscribeStatusRequested(): void {
@@ -42,6 +43,34 @@ export class OrderService {
   private async _isExpressMode(): Promise<boolean> {
     const rows = await this.db.select().from(appSettings).where(eq(appSettings.key, "express_mode"));
     return rows[0]?.value === "true";
+  }
+
+  /** When a payment is refunded, move the order from completed → refunded. */
+  private _subscribePaymentRefunded(): void {
+    this.eventBus.on("PAYMENT_REFUNDED", async (payload) => {
+      const claimed = await claimEvent(this.db, "order-service:payment-refunded", payload.traceId);
+      if (!claimed) return;
+
+      try {
+        const order = await this.repo.findById(payload.orderId);
+        if (!order || order.status !== "completed") return;
+        const updated = await this.repo.updateStatus(order.id, "refunded");
+        if (!updated) return;
+        this.eventBus.emit("ORDER_UPDATED", {
+          traceId: payload.traceId,
+          order: updated,
+          input: { id: order.id },
+          previousStatus: "completed",
+          timestamp: new Date(),
+        });
+      } catch (err) {
+        this.eventBus.emit("MODULE_ERROR", {
+          moduleName: "sales",
+          error: err instanceof Error ? err.message : String(err),
+          timestamp: new Date(),
+        });
+      }
+    });
   }
 
   /** When payment completes, transition the order based on express_mode setting. */
@@ -70,7 +99,7 @@ export class OrderService {
     return order;
   }
 
-  async list(filters?: { status?: OrderStatus; shiftId?: number; terminalId?: number; from?: number; to?: number; limit?: number; offset?: number }): Promise<Order[]> {
+  async list(filters?: { status?: OrderStatus; shiftId?: number; terminalId?: number; from?: number; to?: number; limit?: number; offset?: number; search?: string }): Promise<Order[]> {
     return this.repo.findAll(filters);
   }
 

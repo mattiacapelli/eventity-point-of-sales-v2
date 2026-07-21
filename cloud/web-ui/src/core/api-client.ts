@@ -14,6 +14,8 @@ export interface MenuResponse {
     logoUrl: string | null;
     colorBrand: string | null;
     colorAccent: string | null;
+    requireTableId: boolean;
+    requireCustomerName: boolean;
   };
   categories: Category[];
   products: Product[];
@@ -28,7 +30,7 @@ export async function fetchMenu(slug: string): Promise<MenuResponse> {
 export interface CreateOrderInput {
   tableId: string;
   customerName?: string;
-  items: { productId: string; quantity: number; selectedOptionIds?: string[] }[];
+  items: { productId: number; quantity: number; selectedOptionIds?: number[] }[];
 }
 
 export interface CreateOrderResponse {

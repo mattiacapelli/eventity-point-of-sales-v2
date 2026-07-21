@@ -113,6 +113,19 @@ export class TcpPrinterAdapter implements PrinterAdapter {
     });
   }
 
+  /**
+   * Forcibly destroy the current socket so the next print() call starts on a
+   * fresh connection. Call this when the printChain chain-wait times out —
+   * the in-flight bytes on the old socket must not contaminate the next job.
+   */
+  abortCurrentSocket(): void {
+    if (this.socket) {
+      this.logger.warn({ host: this.host, port: this.port }, "[printer] aborting socket due to chain timeout — reconnecting");
+      this.socket.destroy();
+      // 'close' event handler will trigger scheduleReconnect automatically.
+    }
+  }
+
   async print(job: PrintJob): Promise<PrintResult> {
     // Fast-fail: if we know the printer has been offline for less than
     // OFFLINE_FAST_FAIL_MS, skip the reconnect wait entirely. Once the grace
@@ -138,15 +151,29 @@ export class TcpPrinterAdapter implements PrinterAdapter {
     const buf = job.contentBuffer ?? buildEscPosBuffer(job.content ?? "");
 
     return new Promise<PrintResult>((resolve) => {
-      this.socket!.write(buf, (err) => {
+      const socket = this.socket!;
+      const flushed = socket.write(buf, (err) => {
         if (err) {
           this.logger.error({ host: this.host, port: this.port, err: err.message }, "[printer] write error");
           resolve({ success: false, message: err.message });
-        } else {
+        } else if (flushed) {
+          // Buffer was flushed immediately — no drain needed.
           this.logger.info({ host: this.host, port: this.port, bytes: buf.length }, "[printer] TCP print OK");
           resolve({ success: true, message: "OK" });
         }
+        // If !flushed, we wait for the 'drain' event below.
       });
+
+      if (!flushed) {
+        // Kernel TCP buffer is full — wait until it drains before resolving.
+        // This ensures the next job's write() only starts after all bytes of
+        // this job have left the OS send buffer, preventing interleaving on
+        // the shared persistent socket.
+        socket.once("drain", () => {
+          this.logger.info({ host: this.host, port: this.port, bytes: buf.length }, "[printer] TCP print OK (after drain)");
+          resolve({ success: true, message: "OK" });
+        });
+      }
     });
   }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { PosLayout } from "../../layout/PosLayout.js";
 import { Button } from "../../components/ui/Button.js";
@@ -19,6 +19,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }>
   ready:      { bg: "#d1fae5", text: "#065f46", label: "Pronto" },
   completed:  { bg: "#d1fae5", text: "#065f46", label: "Completato" },
   cancelled:  { bg: "#fee2e2", text: "#991b1b", label: "Annullato" },
+  refunded:   { bg: "#ede9fe", text: "#5b21b6", label: "Rimborsato" },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -419,6 +420,15 @@ export function HistoryScreen() {
   const [terminals, setTerminals] = useState<Terminal[]>([]);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounce search — aspetta 400ms dopo l'ultimo tasto prima di caricare
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 400);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [searchQuery]);
 
   // Modals
   const [cancelOrder, setCancelOrder] = useState<Order | null>(null);
@@ -456,7 +466,7 @@ export function HistoryScreen() {
   const load = useCallback((currentOffset = 0, append = false) => {
     setLoading(true);
     setError(null);
-    const filters: { status?: string; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number } = {
+    const filters: { status?: string; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number; search?: string } = {
       limit: PAGE_SIZE,
       offset: currentOffset,
     };
@@ -465,6 +475,7 @@ export function HistoryScreen() {
     if (filterTerminalId) filters.terminalId = filterTerminalId;
     if (filterFrom) filters.from = new Date(filterFrom).getTime();
     if (filterTo) filters.to = new Date(filterTo + "T23:59:59").getTime();
+    if (debouncedSearch) filters.search = debouncedSearch;
     apiClient.orders.list(filters)
       .then((data) => {
         setOrders((prev) => append ? [...prev, ...data] : data);
@@ -473,7 +484,7 @@ export function HistoryScreen() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [filterStatus, filterShiftId, filterTerminalId, filterFrom, filterTo]);
+  }, [filterStatus, filterShiftId, filterTerminalId, filterFrom, filterTo, debouncedSearch]);
 
   useEffect(() => { load(0, false); }, [load]);
 
@@ -636,9 +647,9 @@ export function HistoryScreen() {
           <input type="date" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)} style={dateInputStyle} placeholder="Da" />
           <input type="date" value={filterTo} onChange={(e) => setFilterTo(e.target.value)} style={dateInputStyle} placeholder="A" />
 
-          {(filterStatus || filterShiftId || filterTerminalId || filterFrom || filterTo) && (
+          {(filterStatus || filterShiftId || filterTerminalId || filterFrom || filterTo || searchQuery) && (
             <Button size="sm" variant="ghost" onClick={() => {
-              setFilterStatus(""); setFilterShiftId(""); setFilterTerminalId(""); setFilterFrom(""); setFilterTo("");
+              setFilterStatus(""); setFilterShiftId(""); setFilterTerminalId(""); setFilterFrom(""); setFilterTo(""); setSearchQuery("");
             }}>
               Cancella filtri
             </Button>
@@ -660,58 +671,28 @@ export function HistoryScreen() {
 
         {!loading && !error && orders.length === 0 && (
           <div style={{ textAlign: "center", padding: "var(--sp-xl)", color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>
-            Nessun ordine trovato
+            {debouncedSearch ? `Nessun risultato per "${debouncedSearch}"` : "Nessun ordine trovato"}
           </div>
         )}
-        {!loading && !error && orders.length > 0 && searchQuery.trim() !== "" && (() => {
-          const q = searchQuery.trim().toLowerCase();
-          const count = orders.filter((o) => {
-            const num = displayOrderNum(o, receiptPrefix, receiptPadding).toLowerCase();
-            const terminal = terminals.find((t) => t.id === o.terminalId)?.name?.toLowerCase() ?? "";
-            return num.includes(q) || (o.customerName?.toLowerCase().includes(q) ?? false) || (o.tableId?.toLowerCase().includes(q) ?? false) || terminal.includes(q) || (o.notes?.toLowerCase().includes(q) ?? false) || (o.fiscalDocNumber?.toLowerCase().includes(q) ?? false) || (o.fiscalRtSerial?.toLowerCase().includes(q) ?? false);
-          }).length;
-          if (count === 0) return (
-            <div style={{ textAlign: "center", padding: "var(--sp-xl)", color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>
-              Nessun risultato per "{searchQuery.trim()}"
-            </div>
-          );
-          return null;
-        })()}
 
-        {!loading && (() => {
-          const q = searchQuery.trim().toLowerCase();
-          const filtered = q === "" ? orders : orders.filter((o) => {
-            const num = displayOrderNum(o, receiptPrefix, receiptPadding).toLowerCase();
-            const terminal = terminals.find((t) => t.id === o.terminalId)?.name?.toLowerCase() ?? "";
-            return (
-              num.includes(q) ||
-              (o.customerName?.toLowerCase().includes(q) ?? false) ||
-              (o.tableId?.toLowerCase().includes(q) ?? false) ||
-              terminal.includes(q) ||
-              (o.notes?.toLowerCase().includes(q) ?? false) ||
-              (o.fiscalDocNumber?.toLowerCase().includes(q) ?? false) ||
-              (o.fiscalRtSerial?.toLowerCase().includes(q) ?? false)
-            );
-          });
-          return filtered.map((order) => {
-            const terminalName = terminals.length > 1 ? terminals.find((t) => t.id === order.terminalId)?.name : undefined;
-            return (
-              <OrderRow
-                key={order.id}
-                order={order}
-                isAdmin={isAdmin}
-                onReprint={handleReprint}
-                onReprintKitchen={handleReprintKitchen}
-                onCancel={setCancelOrder}
-                onRefund={handleRefundClick}
-                onEdit={handleEditOrder}
-                receiptPrefix={receiptPrefix}
-                receiptPadding={receiptPadding}
-                {...(terminalName ? { terminalName } : {})}
-              />
-            );
-          });
-        })()}
+        {!loading && orders.map((order) => {
+          const terminalName = terminals.length > 1 ? terminals.find((t) => t.id === order.terminalId)?.name : undefined;
+          return (
+            <OrderRow
+              key={order.id}
+              order={order}
+              isAdmin={isAdmin}
+              onReprint={handleReprint}
+              onReprintKitchen={handleReprintKitchen}
+              onCancel={setCancelOrder}
+              onRefund={handleRefundClick}
+              onEdit={handleEditOrder}
+              receiptPrefix={receiptPrefix}
+              receiptPadding={receiptPadding}
+              {...(terminalName ? { terminalName } : {})}
+            />
+          );
+        })}
 
         {hasMore && !loading && (
           <div style={{ textAlign: "center", paddingBottom: "var(--sp-md)" }}>

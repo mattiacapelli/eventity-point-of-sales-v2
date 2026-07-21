@@ -6,12 +6,32 @@ import { tenants, categories, products } from "../db/client.js";
 import { requireAuth, requireTenantRole, writeAuditLog } from "../auth/authorize.js";
 
 const reorderBodySchema = z.object({
-  order: z.array(z.string().min(1)).min(1),
+  order: z.array(z.number().int().positive()).min(1),
 });
 
 const renameBodySchema = z.object({
   name: z.string().trim().min(1).max(200),
 });
+
+const emojiBodySchema = z.object({
+  emoji: z.string().trim().max(8).nullable(),
+});
+
+const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD");
+const availabilityBodySchema = z.object({
+  availableDates: z.array(isoDateSchema).nullable(),
+});
+
+function serializeProduct<T extends { availableDates: string | null }>(p: T) {
+  let availableDates: string[] | null = null;
+  if (p.availableDates) {
+    try {
+      const parsed = JSON.parse(p.availableDates) as unknown;
+      if (Array.isArray(parsed) && parsed.length > 0) availableDates = parsed as string[];
+    } catch { /* malformed, treat as always-visible */ }
+  }
+  return { ...p, availableDates };
+}
 
 const adminCatalogRoutes: FastifyPluginAsync<{ db: DbClient }> = async (fastify, opts) => {
   const { db } = opts;
@@ -72,6 +92,46 @@ const adminCatalogRoutes: FastifyPluginAsync<{ db: DbClient }> = async (fastify,
     },
   );
 
+  fastify.patch(
+    "/admin/tenants/:id/categories/:categoryId/emoji",
+    { onRequest: [requireTenantRole(db, "owner")] },
+    async (request, reply) => {
+      const { id: tenantId, categoryId: categoryIdParam } = request.params as { id: string; categoryId: string };
+      const categoryId = Number(categoryIdParam);
+      if (!Number.isInteger(categoryId) || categoryId <= 0) {
+        return reply.status(400).send({ error: "Invalid category id" });
+      }
+
+      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+      if (!tenant) return reply.status(404).send({ error: "Tenant not found" });
+
+      const parsed = emojiBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid payload", details: parsed.error.flatten() });
+      }
+
+      const [category] = await db.select().from(categories).where(
+        and(eq(categories.id, categoryId), eq(categories.tenantId, tenantId)),
+      );
+      if (!category) return reply.status(404).send({ error: "Category not found" });
+
+      const emoji = parsed.data.emoji?.trim() || null;
+      await db.update(categories)
+        .set({ emoji })
+        .where(and(eq(categories.id, categoryId), eq(categories.tenantId, tenantId)));
+
+      await writeAuditLog(db, {
+        userId: request.currentUser!.id,
+        tenantId,
+        action: "category.emoji_update",
+        metadata: { categoryId, emoji },
+      });
+
+      const [updated] = await db.select().from(categories).where(eq(categories.id, categoryId));
+      return reply.send(updated);
+    },
+  );
+
   fastify.get(
     "/admin/tenants/:id/products",
     { onRequest: [requireTenantRole(db, "operator")] },
@@ -81,7 +141,48 @@ const adminCatalogRoutes: FastifyPluginAsync<{ db: DbClient }> = async (fastify,
       if (!tenant) return reply.status(404).send({ error: "Tenant not found" });
 
       const rows = await db.select().from(products).where(eq(products.tenantId, tenantId));
-      return reply.send(rows.sort((a, b) => a.sortOrder - b.sortOrder));
+      return reply.send(rows.sort((a, b) => a.sortOrder - b.sortOrder).map(serializeProduct));
+    },
+  );
+
+  fastify.patch(
+    "/admin/tenants/:id/products/:productId/availability",
+    { onRequest: [requireTenantRole(db, "owner")] },
+    async (request, reply) => {
+      const { id: tenantId, productId: productIdParam } = request.params as { id: string; productId: string };
+      const productId = Number(productIdParam);
+      if (!Number.isInteger(productId) || productId <= 0) {
+        return reply.status(400).send({ error: "Invalid product id" });
+      }
+
+      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+      if (!tenant) return reply.status(404).send({ error: "Tenant not found" });
+
+      const parsed = availabilityBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid payload", details: parsed.error.flatten() });
+      }
+
+      const [product] = await db.select().from(products).where(
+        and(eq(products.id, productId), eq(products.tenantId, tenantId)),
+      );
+      if (!product) return reply.status(404).send({ error: "Product not found" });
+
+      const dates = parsed.data.availableDates;
+      const availableDates = dates && dates.length > 0 ? JSON.stringify(dates) : null;
+      await db.update(products)
+        .set({ availableDates })
+        .where(and(eq(products.id, productId), eq(products.tenantId, tenantId)));
+
+      await writeAuditLog(db, {
+        userId: request.currentUser!.id,
+        tenantId,
+        action: "product.availability_update",
+        metadata: { productId, availableDates: dates },
+      });
+
+      const [updated] = await db.select().from(products).where(eq(products.id, productId));
+      return reply.send(serializeProduct(updated!));
     },
   );
 
@@ -89,7 +190,12 @@ const adminCatalogRoutes: FastifyPluginAsync<{ db: DbClient }> = async (fastify,
     "/admin/tenants/:id/products/:productId",
     { onRequest: [requireTenantRole(db, "owner")] },
     async (request, reply) => {
-      const { id: tenantId, productId } = request.params as { id: string; productId: string };
+      const { id: tenantId, productId: productIdParam } = request.params as { id: string; productId: string };
+      const productId = Number(productIdParam);
+      if (!Number.isInteger(productId) || productId <= 0) {
+        return reply.status(400).send({ error: "Invalid product id" });
+      }
+
       const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
       if (!tenant) return reply.status(404).send({ error: "Tenant not found" });
 
@@ -115,7 +221,7 @@ const adminCatalogRoutes: FastifyPluginAsync<{ db: DbClient }> = async (fastify,
       });
 
       const [updated] = await db.select().from(products).where(eq(products.id, productId));
-      return reply.send(updated);
+      return reply.send(serializeProduct(updated!));
     },
   );
 };

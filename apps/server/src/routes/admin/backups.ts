@@ -2,9 +2,9 @@ import "@fastify/swagger";
 import { createHash } from "node:crypto";
 import {
   mkdirSync, readdirSync, statSync, createReadStream,
-  unlinkSync, existsSync, readFileSync, writeFileSync,
+  unlinkSync, existsSync, readFileSync, writeFileSync, copyFileSync, renameSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
 import { requireRole, AuthError } from "@pos/core";
@@ -61,6 +61,38 @@ function computeSha256(filePath: string): Promise<string> {
     stream.on("end", () => resolve(hash.digest("hex")));
     stream.on("error", reject);
   });
+}
+
+/** Check the first 16 bytes for the SQLite magic string. */
+function isSqliteFile(filePath: string): boolean {
+  try {
+    const fd = require("node:fs").openSync(filePath, "r");
+    const buf = Buffer.alloc(16);
+    require("node:fs").readSync(fd, buf, 0, 16, 0);
+    require("node:fs").closeSync(fd);
+    return buf.toString("ascii", 0, 16) === "SQLite format 3\x00";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Replace the live database file with a backup, then schedule a clean exit so
+ * the process manager (electron / PM2) restarts the server with the new DB.
+ * We give the reply 200ms to flush before exiting.
+ */
+function scheduleRestart(dbPath: string, backupPath: string, logger: { info: (...a: unknown[]) => void }) {
+  const pre = dbPath + ".pre-restore";
+  try { copyFileSync(dbPath, pre); } catch { /* db may not exist yet */ }
+  try {
+    copyFileSync(backupPath, dbPath);
+    logger.info({ dbPath, backupPath }, "Database replaced — restarting");
+  } catch (err) {
+    // Roll back if copy failed
+    try { if (existsSync(pre)) copyFileSync(pre, dbPath); } catch { /* ignore */ }
+    throw err;
+  }
+  setTimeout(() => process.exit(0), 300);
 }
 
 const backupsRoutes: FastifyPluginAsync = async (fastify) => {
@@ -129,6 +161,76 @@ const backupsRoutes: FastifyPluginAsync = async (fastify) => {
     void reply.header("Content-Type", "application/octet-stream");
     void reply.header("Content-Length", String(meta.size));
     return reply.send(createReadStream(filePath));
+  });
+
+  // POST /api/admin/backups/:id/restore  — restore a server-side backup
+  fastify.post("/admin/backups/:id/restore", {
+    schema: { tags: ["backups"], summary: "Restore the database from a server-side backup and restart" },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const meta = registry.find((b) => b.id === id);
+    if (!meta) return reply.status(404).send({ error: "Backup not found" });
+
+    const backupPath = join(backupsDir, meta.filename);
+    if (!existsSync(backupPath)) return reply.status(404).send({ error: "Backup file missing on disk" });
+
+    const dbPath = resolve(fastify.ctx.config.databaseUrl);
+    fastify.ctx.logger.info({ id, filename: meta.filename }, "Restore requested — replacing database");
+
+    await reply.status(200).send({ message: "Restore in corso — il server si riavvierà a breve" });
+
+    scheduleRestart(dbPath, backupPath, fastify.ctx.logger);
+  });
+
+  // POST /api/admin/backups/restore-upload  — upload an external .db and restore it
+  fastify.post("/admin/backups/restore-upload", {
+    schema: { tags: ["backups"], summary: "Upload an external backup .db file, register it, and restore" },
+  }, async (request, reply) => {
+    const data = await request.file();
+    if (!data) return reply.status(400).send({ error: "Nessun file caricato" });
+
+    if (!data.filename.endsWith(".db")) {
+      return reply.status(400).send({ error: "Il file deve avere estensione .db" });
+    }
+
+    ensureDir(backupsDir);
+
+    // Stream to a temp path first so we can validate before replacing anything
+    const tempPath = join(backupsDir, `upload-${randomUUID()}.tmp`);
+    const chunks: Buffer[] = [];
+    for await (const chunk of data.file) chunks.push(chunk as Buffer);
+    const buf = Buffer.concat(chunks);
+    writeFileSync(tempPath, buf);
+
+    // Validate SQLite magic bytes
+    if (!isSqliteFile(tempPath)) {
+      try { unlinkSync(tempPath); } catch { /* ignore */ }
+      return reply.status(400).send({ error: "Il file non è un database SQLite valido" });
+    }
+
+    // Register as a proper backup entry
+    const id = randomUUID();
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const filename = `backup-imported-${timestamp}.db`;
+    const filePath = join(backupsDir, filename);
+    const metaPath = filePath + ".meta.json";
+    const shaPath  = filePath + ".sha256";
+
+    renameSync(tempPath, filePath);
+    const sha256 = await computeSha256(filePath);
+    const size = statSync(filePath).size;
+
+    writeFileSync(shaPath, sha256);
+    const meta: BackupMeta = { id, filename, size, sha256, createdAt: Date.now() };
+    writeFileSync(metaPath, JSON.stringify(meta));
+    registry.unshift(meta);
+
+    const dbPath = resolve(fastify.ctx.config.databaseUrl);
+    fastify.ctx.logger.info({ filename, size, sha256 }, "Backup imported and restore requested");
+
+    await reply.status(200).send({ message: "Restore in corso — il server si riavvierà a breve", meta });
+
+    scheduleRestart(dbPath, filePath, fastify.ctx.logger);
   });
 
   // DELETE /api/admin/backups/:id

@@ -1,4 +1,4 @@
-import { eq, desc, and, gte, lte, inArray, orders, orderItems, orderItemOptions, orderCenterNumbers, products, options, sql, appSettings, receiptCounters } from "@pos/db";
+import { eq, desc, and, or, like, gte, lte, inArray, orders, orderItems, orderItemOptions, orderCenterNumbers, products, options, sql, appSettings, receiptCounters } from "@pos/db";
 import type { DbClient } from "@pos/db";
 import type { Order, OrderItem, OrderItemOption, VatBreakdown, CreateOrderInput, OrderStatus, UpdateOrderInput } from "@pos/shared-types";
 
@@ -137,13 +137,23 @@ export class OrderRepository {
     return (await this._collapseRowsWithOptions(rows as unknown as JoinRow[]))[0] ?? null;
   }
 
-  async findAll(filters?: { status?: OrderStatus; shiftId?: number; terminalId?: number; from?: number; to?: number; limit?: number; offset?: number }): Promise<Order[]> {
+  async findAll(filters?: { status?: OrderStatus; shiftId?: number; terminalId?: number; from?: number; to?: number; limit?: number; offset?: number; search?: string }): Promise<Order[]> {
     const conditions = [];
     if (filters?.status !== undefined) conditions.push(eq(orders.status, filters.status));
     if (filters?.shiftId !== undefined) conditions.push(eq(orders.shiftId, filters.shiftId));
     if (filters?.terminalId !== undefined) conditions.push(eq(orders.terminalId, filters.terminalId));
     if (filters?.from !== undefined) conditions.push(gte(orders.createdAt, new Date(filters.from)));
     if (filters?.to !== undefined) conditions.push(lte(orders.createdAt, new Date(filters.to)));
+    if (filters?.search !== undefined && filters.search.trim() !== "") {
+      const s = `%${filters.search.trim()}%`;
+      conditions.push(or(
+        like(orders.customerName, s),
+        like(orders.tableId, s),
+        like(orders.notes, s),
+        like(orders.fiscalDocNumber, s),
+        like(orders.fiscalRtSerial, s),
+      ) as ReturnType<typeof eq>);
+    }
 
     // Subquery: get matching order IDs with pagination, then JOIN items
     const idQuery = this.db

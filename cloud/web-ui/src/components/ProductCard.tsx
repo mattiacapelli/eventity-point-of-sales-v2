@@ -5,9 +5,10 @@ function formatEur(n: number): string {
   return `€${n.toFixed(2)}`;
 }
 
-export function ProductCard({ product, categoryLabel, quantity, onChange, onOpenOptions }: {
+export function ProductCard({ product, categoryLabel, categoryEmoji, quantity, onChange, onOpenOptions }: {
   product: Product;
   categoryLabel?: string | undefined;
+  categoryEmoji?: string | null | undefined;
   quantity: number;
   onChange: (q: number) => void;
   onOpenOptions: () => void;
@@ -43,7 +44,11 @@ export function ProductCard({ product, categoryLabel, quantity, onChange, onOpen
             justifyContent: "center",
           }}
         >
-          <CakeIcon width={20} height={20} color="var(--color-brand)" />
+          {categoryEmoji ? (
+            <span style={{ fontSize: "20px", lineHeight: 1 }}>{categoryEmoji}</span>
+          ) : (
+            <CakeIcon width={20} height={20} color="var(--color-brand)" />
+          )}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           {categoryLabel && (
@@ -51,7 +56,7 @@ export function ProductCard({ product, categoryLabel, quantity, onChange, onOpen
               {categoryLabel}
             </div>
           )}
-          <div className="line-clamp-2" style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-900)", lineHeight: 1.3 }}>
+          <div style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-900)", lineHeight: 1.3 }}>
             {product.name}
           </div>
           <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-brand)", marginTop: "4px" }}>

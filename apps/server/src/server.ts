@@ -33,6 +33,7 @@ import appSettingsRoutes from "./routes/admin/app-settings.js";
 import modulesRoutes from "./routes/admin/modules.js";
 import restaurantRoutes from "./routes/admin/restaurant.js";
 import statsRoutes from "./routes/stats.js";
+import statsPdfRoutes from "./routes/stats-pdf.js";
 import kitchenTemplatesRoutes from "./routes/admin/kitchen-templates.js";
 import shiftReportTemplatesRoutes from "./routes/admin/shift-report-templates.js";
 import gridLayoutsRoutes from "./routes/admin/grid-layouts.js";
@@ -57,7 +58,7 @@ export async function buildServer(config: AppConfig) {
         : false;
   await fastify.register(cors, { origin: corsOrigin, credentials: true });
   await fastify.register(websocket);
-  await fastify.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB max
+  await fastify.register(multipart, { limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB (covers DB backups)
   await fastify.register(fastifyStatic, {
     root: resolve(config.dataDir),
     prefix: "/api/static/",
@@ -107,6 +108,7 @@ export async function buildServer(config: AppConfig) {
   await fastify.register(modulesRoutes, { prefix: "/api" });
   await fastify.register(restaurantRoutes, { prefix: "/api" });
   await fastify.register(statsRoutes, { prefix: "/api" });
+  await fastify.register(statsPdfRoutes, { prefix: "/api" });
   await fastify.register(kitchenTemplatesRoutes, { prefix: "/api" });
   await fastify.register(shiftReportTemplatesRoutes, { prefix: "/api" });
   await fastify.register(gridLayoutsRoutes, { prefix: "/api" });

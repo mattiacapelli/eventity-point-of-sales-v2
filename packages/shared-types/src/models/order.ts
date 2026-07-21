@@ -4,7 +4,8 @@ export type OrderStatus =
   | "preparing"
   | "ready"
   | "completed"
-  | "cancelled";
+  | "cancelled"
+  | "refunded";
 
 export interface OrderItemOption {
   readonly optionId: number;
@@ -60,8 +61,9 @@ export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, ReadonlyArray<OrderSt
   confirmed: ["preparing", "completed", "cancelled"],
   preparing: ["ready",     "completed", "cancelled"],
   ready:     ["completed", "cancelled"],
-  completed: [],
+  completed: ["cancelled", "refunded"],
   cancelled: [],
+  refunded:  [],
 };
 
 export interface CreateOrderItemInput {

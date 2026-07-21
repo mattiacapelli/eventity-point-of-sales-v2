@@ -1,9 +1,9 @@
 import { deflate, inflate } from "pako";
 
 export interface QrOrderItem {
-  productId: string;
+  productId: number;
   quantity: number;
-  selectedOptionIds?: string[];
+  selectedOptionIds?: number[];
 }
 
 export interface QrOrderPayload {

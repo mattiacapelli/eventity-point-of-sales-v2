@@ -8,6 +8,8 @@ export interface Tenant {
   logoPath: string | null;
   colorBrand: string | null;
   colorAccent: string | null;
+  requireTableId: boolean;
+  requireCustomerName: boolean;
 }
 
 export interface TenantStats {
@@ -58,18 +60,20 @@ export interface AuditLogEntry {
 }
 
 export interface CategoryRecord {
-  id: string;
+  id: number;
   tenantId: string;
   name: string;
+  emoji: string | null;
   sortOrder: number;
 }
 
 export interface ProductRecord {
-  id: string;
+  id: number;
   tenantId: string;
-  categoryId: string;
+  categoryId: number;
   name: string;
   price: number;
   active: boolean;
   sortOrder: number;
+  availableDates: string[] | null;
 }

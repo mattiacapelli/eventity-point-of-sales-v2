@@ -6,9 +6,9 @@ import { tenants, products, optionGroups, options, orders } from "../db/client.j
 import { encodeQrPayload } from "../core/qr-payload.js";
 
 interface OrderItemInput {
-  productId: string;
+  productId: number;
   quantity: number;
-  selectedOptionIds?: string[];
+  selectedOptionIds?: number[];
 }
 
 function generateOrderCode(): string {
@@ -46,7 +46,7 @@ const tenantOrdersRoutes: FastifyPluginAsync<{ db: DbClient }> = async (fastify,
     const groupRows = await db.select().from(optionGroups).where(
       and(eq(optionGroups.tenantId, tenant.id), inArray(optionGroups.productId, productIds))
     );
-    const groupsByProduct = new Map<string, typeof groupRows>();
+    const groupsByProduct = new Map<number, typeof groupRows>();
     for (const g of groupRows) {
       const arr = groupsByProduct.get(g.productId) ?? [];
       arr.push(g);

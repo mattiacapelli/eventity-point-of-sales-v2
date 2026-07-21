@@ -17,6 +17,23 @@ function timingSafeEqualStrings(a: string, b: string): boolean {
   return timingSafeEqual(bufA, bufB);
 }
 
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// availableDates is a JSON array of "YYYY-MM-DD" strings, cloud-only (see menu-sync.ts).
+// null/empty means "always visible".
+function isAvailableToday(availableDates: string | null, today: string): boolean {
+  if (!availableDates) return true;
+  try {
+    const dates = JSON.parse(availableDates) as unknown;
+    if (!Array.isArray(dates) || dates.length === 0) return true;
+    return dates.includes(today);
+  } catch {
+    return true;
+  }
+}
+
 const tenantMenuRoutes: FastifyPluginAsync<{ db: DbClient }> = async (fastify, opts) => {
   const { db } = opts;
 
@@ -27,17 +44,19 @@ const tenantMenuRoutes: FastifyPluginAsync<{ db: DbClient }> = async (fastify, o
     if (!tenant || !tenant.active) return reply.status(404).send({ error: "Tenant not found or inactive" });
 
     const categoryRows = await db.select().from(categories).where(eq(categories.tenantId, tenant.id));
-    const productRows = await db.select().from(products).where(and(eq(products.tenantId, tenant.id), eq(products.active, true)));
+    const today = todayIso();
+    const productRows = (await db.select().from(products).where(and(eq(products.tenantId, tenant.id), eq(products.active, true))))
+      .filter((p) => isAvailableToday(p.availableDates, today));
     const groupRows = await db.select().from(optionGroups).where(eq(optionGroups.tenantId, tenant.id));
     const optionRows = await db.select().from(options).where(and(eq(options.tenantId, tenant.id), eq(options.active, true)));
 
-    const optionsByGroup = new Map<string, typeof optionRows>();
+    const optionsByGroup = new Map<number, typeof optionRows>();
     for (const o of optionRows) {
       const arr = optionsByGroup.get(o.optionGroupId) ?? [];
       arr.push(o);
       optionsByGroup.set(o.optionGroupId, arr);
     }
-    const groupsByProduct = new Map<string, (typeof groupRows[number] & { options: typeof optionRows })[]>();
+    const groupsByProduct = new Map<number, (typeof groupRows[number] & { options: typeof optionRows })[]>();
     for (const g of groupRows.sort((a, b) => a.sortOrder - b.sortOrder)) {
       const arr = groupsByProduct.get(g.productId) ?? [];
       arr.push({ ...g, options: (optionsByGroup.get(g.id) ?? []).sort((a, b) => a.sortOrder - b.sortOrder) });
@@ -51,10 +70,12 @@ const tenantMenuRoutes: FastifyPluginAsync<{ db: DbClient }> = async (fastify, o
         logoUrl: tenant.logoPath ? `/api/static/${tenant.logoPath}` : null,
         colorBrand: tenant.colorBrand,
         colorAccent: tenant.colorAccent,
+        requireTableId: tenant.requireTableId,
+        requireCustomerName: tenant.requireCustomerName,
       },
       categories: categoryRows
         .sort((a, b) => a.sortOrder - b.sortOrder)
-        .map((c) => ({ id: c.id, name: c.name })),
+        .map((c) => ({ id: c.id, name: c.name, emoji: c.emoji })),
       products: productRows
         .sort((a, b) => a.sortOrder - b.sortOrder)
         .map((p) => ({

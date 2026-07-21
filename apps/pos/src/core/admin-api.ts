@@ -82,7 +82,7 @@ export interface RestaurantInfo {
 }
 
 export interface BackupMeta {
-  id: number;
+  id: string;
   filename: string;
   size: number;
   sha256: string;
@@ -238,8 +238,24 @@ export const adminApi = {
   backups: {
     list: () => req<BackupMeta[]>("GET", "/admin/backups/list"),
     create: () => req<BackupMeta>("POST", "/admin/backups/create"),
-    delete: (id: number) => req<void>("DELETE", `/admin/backups/${id}`),
-    downloadUrl: (id: number) => `/api/admin/backups/download/${id}`,
+    delete: (id: string) => req<void>("DELETE", `/admin/backups/${id}`),
+    restore: (id: string) => req<{ message: string }>("POST", `/admin/backups/${id}/restore`),
+    downloadUrl: (id: string) => `/api/admin/backups/download/${id}`,
+    restoreUpload: async (file: File): Promise<{ message: string; meta: BackupMeta }> => {
+      const token = useStore.getState().session?.token;
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`${BASE}/admin/backups/restore-upload`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText })) as { error?: string };
+        throw new Error(err.error ?? res.statusText);
+      }
+      return res.json() as Promise<{ message: string; meta: BackupMeta }>;
+    },
   },
   settings: {
     get: () => req<{

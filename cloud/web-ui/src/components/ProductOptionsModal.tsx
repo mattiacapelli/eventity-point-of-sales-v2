@@ -10,12 +10,12 @@ function formatEur(n: number): string {
 export function ProductOptionsModal({ product, onClose, onConfirm }: {
   product: Product;
   onClose: () => void;
-  onConfirm: (selectedOptionIds: string[], quantity: number) => void;
+  onConfirm: (selectedOptionIds: number[], quantity: number) => void;
 }) {
-  const [selected, setSelected] = useState<Record<string, Set<string>>>({});
+  const [selected, setSelected] = useState<Record<number, Set<number>>>({});
   const [quantity, setQuantity] = useState(1);
 
-  function toggleOption(groupId: string, optionId: string) {
+  function toggleOption(groupId: number, optionId: number) {
     const group = product.optionGroups.find((g) => g.id === groupId);
     if (!group) return;
     setSelected((prev) => {
@@ -36,7 +36,7 @@ export function ProductOptionsModal({ product, onClose, onConfirm }: {
   }
 
   const priceDelta = product.optionGroups.reduce((sum, g) => {
-    const sel = selected[g.id] ?? new Set<string>();
+    const sel = selected[g.id] ?? new Set<number>();
     return sum + g.options.filter((o) => sel.has(o.id)).reduce((s, o) => s + o.priceDelta, 0);
   }, 0);
   const unitTotal = product.price + priceDelta;

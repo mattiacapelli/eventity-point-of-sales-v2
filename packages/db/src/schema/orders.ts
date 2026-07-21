@@ -9,7 +9,7 @@ export const orders = sqliteTable("orders", {
   shiftId:       integer("shift_id", { mode: "number" }),
   terminalId:    integer("terminal_id", { mode: "number" }).references(() => terminals.id),
   status: text("status", {
-    enum: ["pending", "confirmed", "preparing", "ready", "completed", "cancelled"],
+    enum: ["pending", "confirmed", "preparing", "ready", "completed", "cancelled", "refunded"],
   }).notNull().default("pending"),
   totalAmount:    real("total_amount").notNull().default(0),
   discountAmount: real("discount_amount").notNull().default(0),

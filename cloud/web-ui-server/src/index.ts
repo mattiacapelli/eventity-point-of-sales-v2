@@ -18,6 +18,7 @@ import adminExportRoutes from "./routes/admin-export.routes.js";
 import adminMenuImportRoutes from "./routes/admin-menu-import.routes.js";
 import adminCatalogRoutes from "./routes/admin-catalog.routes.js";
 import adminBrandingRoutes from "./routes/admin-branding.routes.js";
+import adminSettingsRoutes from "./routes/admin-settings.routes.js";
 import tenantMenuRoutes from "./routes/tenant-menu.routes.js";
 import tenantOrdersRoutes from "./routes/tenant-orders.routes.js";
 
@@ -57,6 +58,7 @@ async function main() {
   await fastify.register(adminMenuImportRoutes, { db });
   await fastify.register(adminCatalogRoutes, { db });
   await fastify.register(adminBrandingRoutes, { db, dataDir: config.dataDir });
+  await fastify.register(adminSettingsRoutes, { db });
   await fastify.register(tenantMenuRoutes, { db });
   await fastify.register(tenantOrdersRoutes, { db });
 

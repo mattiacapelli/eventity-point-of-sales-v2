@@ -6,12 +6,16 @@ import { MenuScreen } from "./screens/MenuScreen.js";
 import { ReviewScreen } from "./screens/ReviewScreen.js";
 import { ConfirmedScreen } from "./screens/ConfirmedScreen.js";
 import { Button } from "./components/Button.js";
+import { OnboardingOverlay } from "./components/OnboardingOverlay.js";
+
+const ONBOARDING_SEEN_KEY = "epos-web-ui-onboarding-seen";
 
 export function App() {
   const { screen, info, cart, orderCode, qrPayload, setInfo, goTo, setQuantity, addItemWithOptions, setOrderResult, resetOrder, pruneCart } = useOrderStore();
   const [menu, setMenu] = useState<MenuResponse | null>(null);
   const [menuError, setMenuError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const slug = getTenantSlug();
 
   const loadMenu = useCallback(() => {
@@ -27,12 +31,18 @@ export function App() {
         const root = document.documentElement.style;
         if (m.tenant.colorBrand) root.setProperty("--color-brand", m.tenant.colorBrand);
         if (m.tenant.colorAccent) root.setProperty("--color-accent", m.tenant.colorAccent);
+        if (!localStorage.getItem(ONBOARDING_SEEN_KEY)) setShowOnboarding(true);
       })
       .catch((err) => setMenuError(err instanceof Error ? err.message : "Errore nel caricamento del menu"))
       .finally(() => setRetrying(false));
   }, [slug]);
 
   useEffect(() => { loadMenu(); }, [loadMenu]);
+
+  function closeOnboarding() {
+    setShowOnboarding(false);
+    try { localStorage.setItem(ONBOARDING_SEEN_KEY, "1"); } catch { /* storage unavailable */ }
+  }
 
   if (menuError) {
     return (
@@ -62,11 +72,16 @@ export function App() {
 
   if (screen === "info") {
     return (
-      <InfoScreen
-        initial={info}
-        logoUrl={menu.tenant.logoUrl ? `${API_BASE}${menu.tenant.logoUrl}` : null}
-        onSubmit={(nextInfo) => { setInfo(nextInfo); goTo("menu"); }}
-      />
+      <>
+        <InfoScreen
+          initial={info}
+          logoUrl={menu.tenant.logoUrl ? `${API_BASE}${menu.tenant.logoUrl}` : null}
+          requireTableId={menu.tenant.requireTableId}
+          requireCustomerName={menu.tenant.requireCustomerName}
+          onSubmit={(nextInfo) => { setInfo(nextInfo); goTo("menu"); }}
+        />
+        {showOnboarding && <OnboardingOverlay onClose={closeOnboarding} />}
+      </>
     );
   }
 

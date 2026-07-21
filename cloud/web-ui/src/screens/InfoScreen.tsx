@@ -23,11 +23,17 @@ const labelStyle: React.CSSProperties = {
   display: "block",
 };
 
-export function InfoScreen({ initial, logoUrl, onSubmit }: { initial: OrderInfo; logoUrl?: string | null; onSubmit: (info: OrderInfo) => void }) {
+export function InfoScreen({ initial, logoUrl, requireTableId = true, requireCustomerName = false, onSubmit }: {
+  initial: OrderInfo;
+  logoUrl?: string | null;
+  requireTableId?: boolean;
+  requireCustomerName?: boolean;
+  onSubmit: (info: OrderInfo) => void;
+}) {
   const [tableId, setTableId] = useState(initial.tableId);
   const [customerName, setCustomerName] = useState(initial.customerName);
 
-  const canProceed = tableId.trim().length > 0;
+  const canProceed = (!requireTableId || tableId.trim().length > 0) && (!requireCustomerName || customerName.trim().length > 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
@@ -56,28 +62,31 @@ export function InfoScreen({ initial, logoUrl, onSubmit }: { initial: OrderInfo;
 
         <div style={{ width: "100%", maxWidth: "360px", display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
           <div>
-            <label style={labelStyle} htmlFor="tableId">Tavolo</label>
+            <label style={labelStyle} htmlFor="tableId">
+              Tavolo{requireTableId && <span style={{ color: "var(--color-danger)" }}> *</span>}
+            </label>
             <input
               id="tableId"
               className="input-field"
               style={inputStyle}
               value={tableId}
               onChange={(e) => setTableId(e.target.value)}
-              placeholder="Es. 12"
-              inputMode="numeric"
+              placeholder="Es. 12 o A3"
               maxLength={20}
               autoFocus
             />
           </div>
           <div>
-            <label style={labelStyle} htmlFor="customerName">Nome e Cognome</label>
+            <label style={labelStyle} htmlFor="customerName">
+              Nome e Cognome{requireCustomerName && <span style={{ color: "var(--color-danger)" }}> *</span>}
+            </label>
             <input
               id="customerName"
               className="input-field"
               style={inputStyle}
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="Facoltativo"
+              placeholder={requireCustomerName ? "Es. Mario Rossi" : "Facoltativo"}
               maxLength={100}
             />
           </div>

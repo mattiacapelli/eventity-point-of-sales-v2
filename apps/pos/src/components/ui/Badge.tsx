@@ -10,6 +10,7 @@ const variantMap: Record<BadgeVariant, { bg: string; color: string; label?: stri
   ready:      { bg: "rgba(34,197,94,0.15)",   color: "var(--status-ready)",     label: "Pronto" },
   completed:  { bg: "rgba(107,114,128,0.15)", color: "var(--status-completed)", label: "Completato" },
   cancelled:  { bg: "rgba(239,68,68,0.15)",   color: "var(--status-cancelled)", label: "Annullato" },
+  refunded:   { bg: "rgba(139,92,246,0.15)",  color: "#5b21b6",                 label: "Rimborsato" },
   "ws-online":  { bg: "rgba(34,197,94,0.15)",  color: "var(--color-success)" },
   "ws-offline": { bg: "rgba(239,68,68,0.15)",  color: "var(--color-danger)" },
   offline:    { bg: "rgba(245,158,11,0.15)",  color: "var(--color-warning)" },
