@@ -3,10 +3,13 @@ import { clearToken, getMe, getToken, setOnSessionExpired } from "./core/api-cli
 import type { CurrentUser } from "./core/types.js";
 import { LoginScreen } from "./screens/LoginScreen.js";
 import { TenantsScreen } from "./screens/TenantsScreen.js";
+import { ProfileScreen } from "./screens/ProfileScreen.js";
+import { Sidebar, type Section } from "./components/Sidebar.js";
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(() => getToken() !== null);
+  const [activeSection, setActiveSection] = useState<Section>("tenants");
 
   useEffect(() => {
     setOnSessionExpired(() => setCurrentUser(null));
@@ -43,5 +46,13 @@ export function App() {
     return <LoginScreen onLoggedIn={(user) => setCurrentUser(user)} />;
   }
 
-  return <TenantsScreen currentUser={currentUser} onLogout={handleLogout} />;
+  return (
+    <div style={{ flex: 1, display: "flex" }}>
+      <Sidebar currentUser={currentUser} active={activeSection} onSelect={setActiveSection} />
+      <div style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
+        {activeSection === "tenants" && <TenantsScreen currentUser={currentUser} />}
+        {activeSection === "profile" && <ProfileScreen currentUser={currentUser} onLogout={handleLogout} />}
+      </div>
+    </div>
+  );
 }

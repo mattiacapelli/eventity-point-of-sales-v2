@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import type { Order } from "@pos/shared-types";
 import { KitchenLayout } from "../../layout/KitchenLayout.js";
 import { KitchenOrderCard } from "./KitchenOrderCard.js";
@@ -37,6 +38,7 @@ export function KitchenScreen() {
   const [productCenterMap, setProductCenterMap] = useState<Record<string, string>>({});
   const [centerIdNameMap, setCenterIdNameMap] = useState<Record<number, string>>({});
   const [, forceTick] = useState(0);
+  const location = useLocation();
 
   function toggleMute() {
     setMuted((prev) => {
@@ -59,8 +61,15 @@ export function KitchenScreen() {
     }
   }, [upsertOrder]);
 
+  // Reload when navigating to this screen and when the tab regains focus
   useEffect(() => {
     void loadQueue();
+  }, [loadQueue, location.pathname]);
+
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") void loadQueue(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [loadQueue]);
 
   // Load product → production center map for grouping the board by station

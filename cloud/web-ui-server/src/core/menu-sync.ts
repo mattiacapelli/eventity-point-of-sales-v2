@@ -68,9 +68,10 @@ export function applyMenuSync(db: DbClient, tenantId: string, body: MenuSyncBody
     const existingCategories = tx.select().from(categories).where(eq(categories.tenantId, tenantId)).all();
     const emojiByCategoryId = new Map(existingCategories.map((c) => [c.id, c.emoji]));
 
-    // Same reasoning for products.availableDates — a cloud-only date filter the till knows nothing about.
+    // Same reasoning for products.availableDates and imagePath — cloud-only fields the till knows nothing about.
     const existingProducts = tx.select().from(products).where(eq(products.tenantId, tenantId)).all();
     const availableDatesByProductId = new Map(existingProducts.map((p) => [p.id, p.availableDates]));
+    const imagePathByProductId = new Map(existingProducts.map((p) => [p.id, p.imagePath]));
 
     tx.delete(options).where(eq(options.tenantId, tenantId)).run();
     tx.delete(optionGroups).where(eq(optionGroups.tenantId, tenantId)).run();
@@ -97,6 +98,7 @@ export function applyMenuSync(db: DbClient, tenantId: string, body: MenuSyncBody
         active: p.active ?? true,
         sortOrder: p.sortOrder ?? i,
         availableDates: p.id !== undefined ? (availableDatesByProductId.get(p.id) ?? null) : null,
+        imagePath: p.id !== undefined ? (imagePathByProductId.get(p.id) ?? null) : null,
       }).run();
     }
 

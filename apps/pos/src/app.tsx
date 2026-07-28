@@ -27,6 +27,7 @@ const StatsScreen     = lazy(() => import("./modules-ui/stats/StatsScreen.js").t
 const AdminScreen     = lazy(() => import("./modules-ui/admin/AdminScreen.js").then((m) => ({ default: m.AdminScreen })));
 const AuditLogScreen  = lazy(() => import("./modules-ui/audit/AuditLogScreen.js").then((m) => ({ default: m.AuditLogScreen })));
 const PrintLogScreen  = lazy(() => import("./modules-ui/print-log/PrintLogScreen.js").then((m) => ({ default: m.PrintLogScreen })));
+const KitchenScreen   = lazy(() => import("./modules-ui/kitchen/KitchenScreen.js").then((m) => ({ default: m.KitchenScreen })));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -159,6 +160,7 @@ function AppInner() {
         <Route path="/pos"       element={<PosScreen />} />
         <Route path="/history"   element={<HistoryScreen />} />
         <Route path="/stats"     element={<StatsScreen />} />
+        <Route path="/kitchen"   element={<KitchenScreen />} />
         <Route path="/admin"     element={<RequireRole role="admin"><AdminScreen /></RequireRole>} />
         <Route path="/audit"     element={<RequireRole role="admin"><AuditLogScreen /></RequireRole>} />
         <Route path="/print-log" element={<RequireRole role="admin"><PrintLogScreen /></RequireRole>} />

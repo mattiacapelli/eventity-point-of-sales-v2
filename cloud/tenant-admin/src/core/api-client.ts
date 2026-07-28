@@ -231,3 +231,21 @@ export async function updateProductAvailability(tenantId: string, productId: num
   await throwIfNotOk(res, "Impossibile aggiornare la disponibilità");
   return res.json() as Promise<ProductRecord>;
 }
+
+export async function uploadProductImage(tenantId: string, productId: number, file: File): Promise<ProductRecord> {
+  const token = getToken();
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_BASE}/admin/tenants/${tenantId}/products/${productId}/image`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  await throwIfNotOk(res, "Impossibile caricare l'immagine");
+  return res.json() as Promise<ProductRecord>;
+}
+
+export async function deleteProductImage(tenantId: string, productId: number): Promise<void> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/products/${productId}/image`, { method: "DELETE" });
+  await throwIfNotOk(res, "Impossibile rimuovere l'immagine");
+}

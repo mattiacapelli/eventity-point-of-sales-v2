@@ -76,4 +76,5 @@ export interface ProductRecord {
   active: boolean;
   sortOrder: number;
   availableDates: string[] | null;
+  imagePath: string | null;
 }

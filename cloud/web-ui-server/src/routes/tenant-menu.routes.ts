@@ -83,6 +83,7 @@ const tenantMenuRoutes: FastifyPluginAsync<{ db: DbClient }> = async (fastify, o
           categoryId: p.categoryId,
           name: p.name,
           price: p.price,
+          imageUrl: p.imagePath ? `/api/static/${p.imagePath}` : null,
           optionGroups: (groupsByProduct.get(p.id) ?? []).map((g) => ({
             id: g.id,
             name: g.name,

@@ -108,7 +108,12 @@ export function ReviewScreen({
               }}
             >
               <span style={{ fontSize: "var(--text-md)", fontWeight: 700, color: "var(--color-gray-700)" }}>Totale</span>
-              <span style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-brand)" }}>{formatEur(total)}</span>
+              <span
+                key={total}
+                style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-brand)", animation: "fade-in 0.2s ease" }}
+              >
+                {formatEur(total)}
+              </span>
             </div>
           </div>
         )}

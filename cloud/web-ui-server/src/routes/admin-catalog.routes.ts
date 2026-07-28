@@ -1,9 +1,20 @@
 import type { FastifyPluginAsync } from "fastify";
+import { existsSync, unlinkSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { writeFile } from "node:fs/promises";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import type { DbClient } from "../db/client.js";
 import { tenants, categories, products } from "../db/client.js";
 import { requireAuth, requireTenantRole, writeAuditLog } from "../auth/authorize.js";
+
+const IMAGE_MIME_TO_EXT: Record<string, string> = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/jpg": ".jpg",
+  "image/webp": ".webp",
+};
+const IMAGE_EXTS = [".png", ".jpg", ".webp"];
 
 const reorderBodySchema = z.object({
   order: z.array(z.number().int().positive()).min(1),
@@ -33,8 +44,8 @@ function serializeProduct<T extends { availableDates: string | null }>(p: T) {
   return { ...p, availableDates };
 }
 
-const adminCatalogRoutes: FastifyPluginAsync<{ db: DbClient }> = async (fastify, opts) => {
-  const { db } = opts;
+const adminCatalogRoutes: FastifyPluginAsync<{ db: DbClient; dataDir: string }> = async (fastify, opts) => {
+  const { db, dataDir } = opts;
 
   fastify.addHook("onRequest", requireAuth(db));
 
@@ -183,6 +194,94 @@ const adminCatalogRoutes: FastifyPluginAsync<{ db: DbClient }> = async (fastify,
 
       const [updated] = await db.select().from(products).where(eq(products.id, productId));
       return reply.send(serializeProduct(updated!));
+    },
+  );
+
+  fastify.post(
+    "/admin/tenants/:id/products/:productId/image",
+    { onRequest: [requireTenantRole(db, "owner")] },
+    async (request, reply) => {
+      const { id: tenantId, productId: productIdParam } = request.params as { id: string; productId: string };
+      const productId = Number(productIdParam);
+      if (!Number.isInteger(productId) || productId <= 0) {
+        return reply.status(400).send({ error: "Invalid product id" });
+      }
+
+      const [product] = await db.select().from(products).where(
+        and(eq(products.id, productId), eq(products.tenantId, tenantId)),
+      );
+      if (!product) return reply.status(404).send({ error: "Product not found" });
+
+      const data = await request.file();
+      if (!data) return reply.status(400).send({ error: "No file uploaded" });
+
+      const ext = IMAGE_MIME_TO_EXT[data.mimetype];
+      if (!ext) return reply.status(400).send({ error: "Only PNG/JPG/WEBP allowed" });
+
+      const imagesDir = resolve(dataDir, "images/products");
+      const safeFilename = `${productId}${ext}`;
+      const relPath = `images/products/${safeFilename}`;
+      const absPath = join(imagesDir, safeFilename);
+
+      for (const oldExt of IMAGE_EXTS) {
+        const old = join(imagesDir, `${productId}${oldExt}`);
+        if (old !== absPath && existsSync(old)) {
+          try { unlinkSync(old); } catch { /* ok */ }
+        }
+      }
+
+      const chunks: Buffer[] = [];
+      for await (const chunk of data.file) chunks.push(chunk as Buffer);
+      await writeFile(absPath, Buffer.concat(chunks));
+
+      await db.update(products).set({ imagePath: relPath }).where(
+        and(eq(products.id, productId), eq(products.tenantId, tenantId)),
+      );
+      await writeAuditLog(db, {
+        userId: request.currentUser!.id,
+        tenantId,
+        action: "product.image_upload",
+        metadata: { productId, imagePath: relPath },
+      });
+
+      const [updated] = await db.select().from(products).where(eq(products.id, productId));
+      return reply.send(serializeProduct(updated!));
+    },
+  );
+
+  fastify.delete(
+    "/admin/tenants/:id/products/:productId/image",
+    { onRequest: [requireTenantRole(db, "owner")] },
+    async (request, reply) => {
+      const { id: tenantId, productId: productIdParam } = request.params as { id: string; productId: string };
+      const productId = Number(productIdParam);
+      if (!Number.isInteger(productId) || productId <= 0) {
+        return reply.status(400).send({ error: "Invalid product id" });
+      }
+
+      const [product] = await db.select().from(products).where(
+        and(eq(products.id, productId), eq(products.tenantId, tenantId)),
+      );
+      if (!product) return reply.status(404).send({ error: "Product not found" });
+
+      if (product.imagePath) {
+        const absPath = resolve(join(dataDir, product.imagePath));
+        if (existsSync(absPath)) {
+          try { unlinkSync(absPath); } catch { /* ok */ }
+        }
+      }
+
+      await db.update(products).set({ imagePath: null }).where(
+        and(eq(products.id, productId), eq(products.tenantId, tenantId)),
+      );
+      await writeAuditLog(db, {
+        userId: request.currentUser!.id,
+        tenantId,
+        action: "product.image_delete",
+        metadata: { productId },
+      });
+
+      return reply.status(204).send();
     },
   );
 

@@ -1,6 +1,7 @@
 import React from "react";
 import { useStore } from "../state/global-store.js";
 import { Badge } from "../components/ui/Badge.js";
+import { NavMenuFab } from "../components/NavMenu.js";
 
 interface KitchenLayoutProps {
   children: React.ReactNode;
@@ -66,6 +67,8 @@ export function KitchenLayout({ children }: KitchenLayoutProps) {
       >
         {children}
       </div>
+
+      <NavMenuFab />
     </div>
   );
 }

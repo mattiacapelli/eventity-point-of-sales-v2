@@ -30,6 +30,7 @@ async function main() {
 
   try { mkdirSync(dirname(config.dbPath), { recursive: true }); } catch { /* already exists */ }
   try { mkdirSync(resolve(config.dataDir, "images/tenants"), { recursive: true }); } catch { /* already exists */ }
+  try { mkdirSync(resolve(config.dataDir, "images/products"), { recursive: true }); } catch { /* already exists */ }
   const db = createDb(config.dbPath);
   await seedSuperAdmin(db, config);
 
@@ -56,7 +57,7 @@ async function main() {
   await fastify.register(adminAuditRoutes, { db });
   await fastify.register(adminExportRoutes, { db });
   await fastify.register(adminMenuImportRoutes, { db });
-  await fastify.register(adminCatalogRoutes, { db });
+  await fastify.register(adminCatalogRoutes, { db, dataDir: config.dataDir });
   await fastify.register(adminBrandingRoutes, { db, dataDir: config.dataDir });
   await fastify.register(adminSettingsRoutes, { db });
   await fastify.register(tenantMenuRoutes, { db });

@@ -26,7 +26,13 @@ export function App() {
     setMenuError(null);
     fetchMenu(slug)
       .then((m) => {
-        setMenu(m);
+        setMenu({
+          ...m,
+          products: m.products.map((p) => ({
+            ...p,
+            imageUrl: p.imageUrl ? `${API_BASE}${p.imageUrl}` : null,
+          })),
+        });
         pruneCart(new Set(m.products.map((p) => p.id)));
         const root = document.documentElement.style;
         if (m.tenant.colorBrand) root.setProperty("--color-brand", m.tenant.colorBrand);

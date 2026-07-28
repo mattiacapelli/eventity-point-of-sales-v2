@@ -33,6 +33,7 @@ export const products = sqliteTable("products", {
   active:         integer("active", { mode: "boolean" }).notNull().default(true),
   sortOrder:      integer("sort_order").notNull().default(0),
   availableDates: text("available_dates"), // JSON array of "YYYY-MM-DD"; null/empty = always visible. Cloud-only, never touched by menu-sync.
+  imagePath:      text("image_path"), // Cloud-only, never touched by menu-sync.
 });
 
 export const optionGroups = sqliteTable("option_groups", {

@@ -33,6 +33,8 @@ import {
   updateTenantSettings,
   updateCategoryEmoji,
   updateProductAvailability,
+  uploadProductImage,
+  deleteProductImage,
   API_BASE,
 } from "../core/api-client.js";
 import { Button } from "../components/Button.js";
@@ -495,34 +497,49 @@ export function TenantDetail({ tenant, currentUser, onUpdated, onDeleted, onClos
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "var(--sp-sm)" }}>
-              <StatCard label="Categorie" value={stats ? String(stats.categoriesCount) : "—"} Icon={TagIcon} />
-              <StatCard label="Prodotti" value={stats ? String(stats.productsCount) : "—"} Icon={CubeIcon} />
+              <StatCard label="Valore ordini richiesti" value={stats ? formatEur(stats.totalRevenue) : "—"} Icon={BanknotesIcon} accent />
               <StatCard label="Ordini totali" value={stats ? String(stats.ordersCount) : "—"} Icon={ClipboardDocumentListIcon} />
-              <StatCard label="Fatturato totale" value={stats ? formatEur(stats.totalRevenue) : "—"} Icon={BanknotesIcon} />
+              <StatCard label="Prodotti" value={stats ? String(stats.productsCount) : "—"} Icon={CubeIcon} />
+              <StatCard label="Categorie" value={stats ? String(stats.categoriesCount) : "—"} Icon={TagIcon} />
             </div>
           )}
 
-          {stats && stats.recentOrders.length > 0 && (
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-gray-400)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  Ultimi {stats.recentOrders.length} ordini
-                </div>
-                <Button variant="secondary" onClick={() => void handleExportCsv()} loading={exporting}>
-                  Esporta CSV
-                </Button>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {stats.recentOrders.map((o) => (
-                  <div key={o.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)" }}>
-                    <span>
-                      <strong>{o.orderCode}</strong> · Tavolo {o.tableId}{o.customerName ? ` · ${o.customerName}` : ""}
-                    </span>
-                    <span style={{ color: "var(--color-gray-500)" }}>
-                      {formatEur(o.totalAmount)} · {formatDate(o.createdAt)}
-                    </span>
+          {stats && (
+            <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "var(--sp-md)", alignItems: "start" }}>
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                  <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-gray-400)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Ultimi {stats.recentOrders.length} ordini
                   </div>
-                ))}
+                  <Button variant="secondary" onClick={() => void handleExportCsv()} loading={exporting}>
+                    Esporta CSV
+                  </Button>
+                </div>
+                {stats.recentOrders.length === 0 ? (
+                  <div style={{ textAlign: "center", color: "var(--color-gray-400)", padding: "var(--sp-lg) 0", fontSize: "var(--text-sm)" }}>Nessun ordine ancora</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {stats.recentOrders.map((o) => (
+                      <div key={o.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)" }}>
+                        <span>
+                          <strong>{o.orderCode}</strong> · Tavolo {o.tableId}{o.customerName ? ` · ${o.customerName}` : ""}
+                        </span>
+                        <span style={{ color: "var(--color-gray-500)", fontVariantNumeric: "tabular-nums" }}>
+                          {formatEur(o.totalAmount)} · {formatDate(o.createdAt)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ background: "var(--color-gray-50)", border: "1px solid var(--color-gray-100)", borderRadius: "var(--radius-lg)", padding: "var(--sp-md)" }}>
+                <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-gray-400)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "10px" }}>
+                  Stato del locale
+                </div>
+                <StatusRow ok={stats.categoriesCount > 0} label={stats.categoriesCount > 0 ? "Categorie configurate" : "Nessuna categoria configurata"} />
+                <StatusRow ok={stats.productsCount > 0} label={stats.productsCount > 0 ? "Menu configurato" : "Nessun prodotto nel menu"} />
+                <StatusRow ok={tenant.active} label={tenant.active ? "Tenant attivo" : "Tenant disattivato"} />
               </div>
             </div>
           )}
@@ -676,14 +693,41 @@ export function TenantDetail({ tenant, currentUser, onUpdated, onDeleted, onClos
   );
 }
 
-function StatCard({ label, value, Icon }: { label: string; value: string; Icon: ComponentType<SVGProps<SVGSVGElement>> }) {
+function StatCard({ label, value, Icon, accent }: { label: string; value: string; Icon: ComponentType<SVGProps<SVGSVGElement>>; accent?: boolean }) {
+  if (accent) {
+    return (
+      <div
+        style={{
+          background: "linear-gradient(135deg, var(--color-brand) 0%, var(--color-brand-dark) 100%)",
+          borderRadius: "var(--radius-md)", padding: "var(--sp-md)",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", textAlign: "center",
+        }}
+      >
+        <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon width={16} height={16} color="var(--color-white)" />
+        </div>
+        <div style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-white)", fontVariantNumeric: "tabular-nums" }}>{value}</div>
+        <div style={{ fontSize: "var(--text-xs)", color: "rgba(255,255,255,0.85)" }}>{label}</div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", padding: "var(--sp-md)", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", textAlign: "center" }}>
       <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(48,107,52,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <Icon width={16} height={16} color="var(--color-brand)" />
       </div>
-      <div style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-brand)" }}>{value}</div>
+      <div style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-brand)", fontVariantNumeric: "tabular-nums" }}>{value}</div>
       <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)" }}>{label}</div>
+    </div>
+  );
+}
+
+function StatusRow({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 0", fontSize: "var(--text-sm)", color: "var(--color-gray-700)" }}>
+      <span style={{ width: "8px", height: "8px", borderRadius: "50%", flexShrink: 0, background: ok ? "#16a34a" : "var(--color-danger)" }} />
+      {label}
     </div>
   );
 }
@@ -699,6 +743,9 @@ function CatalogTab({ tenantId }: { tenantId: string }) {
   const [editingName, setEditingName] = useState("");
   const [savingProductId, setSavingProductId] = useState<number | null>(null);
   const [editingAvailabilityId, setEditingAvailabilityId] = useState<number | null>(null);
+  const [uploadingImageId, setUploadingImageId] = useState<number | null>(null);
+  const productImageInputRef = useRef<HTMLInputElement>(null);
+  const [imageTargetProductId, setImageTargetProductId] = useState<number | null>(null);
 
   function loadCategories() {
     setCategoriesError(null);
@@ -793,6 +840,40 @@ function CatalogTab({ tenantId }: { tenantId: string }) {
     }
   }
 
+  function openImagePicker(productId: number) {
+    setImageTargetProductId(productId);
+    productImageInputRef.current?.click();
+  }
+
+  async function handleImageSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    e.target.value = "";
+    const productId = imageTargetProductId;
+    if (!file || productId === null) return;
+    setUploadingImageId(productId);
+    try {
+      const updated = await uploadProductImage(tenantId, productId, file);
+      setProducts((prev) => prev.map((p) => (p.id === productId ? updated : p)));
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Impossibile caricare l'immagine", "error");
+    } finally {
+      setUploadingImageId(null);
+      setImageTargetProductId(null);
+    }
+  }
+
+  async function handleRemoveImage(product: ProductRecord) {
+    setUploadingImageId(product.id);
+    try {
+      await deleteProductImage(tenantId, product.id);
+      setProducts((prev) => prev.map((p) => (p.id === product.id ? { ...p, imagePath: null } : p)));
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Impossibile rimuovere l'immagine", "error");
+    } finally {
+      setUploadingImageId(null);
+    }
+  }
+
   const categoryNameById = Object.fromEntries(categories.map((c) => [c.id, c.name]));
 
   return (
@@ -875,9 +956,53 @@ function CatalogTab({ tenantId }: { tenantId: string }) {
           <div style={{ textAlign: "center", color: "var(--color-gray-400)", padding: "var(--sp-lg) 0" }}>Nessun prodotto</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <input
+              ref={productImageInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => void handleImageSelected(e)}
+              style={{ display: "none" }}
+            />
             {products.map((p) => (
               <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: 0 }}>
+                  <div style={{ position: "relative", flexShrink: 0 }}>
+                    <button
+                      onClick={() => openImagePicker(p.id)}
+                      disabled={uploadingImageId === p.id}
+                      style={{
+                        width: "40px", height: "40px", borderRadius: "var(--radius-md)",
+                        overflow: "hidden", border: "1px solid var(--color-gray-200)",
+                        background: "var(--color-white)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        opacity: uploadingImageId === p.id ? 0.5 : 1,
+                      }}
+                      aria-label="Carica immagine"
+                    >
+                      {p.imagePath ? (
+                        <img src={`${API_BASE}/api/static/${p.imagePath}`} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : (
+                        <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>＋</span>
+                      )}
+                    </button>
+                    {p.imagePath && (
+                      <button
+                        onClick={() => void handleRemoveImage(p)}
+                        disabled={uploadingImageId === p.id}
+                        aria-label="Rimuovi immagine"
+                        style={{
+                          position: "absolute", top: "-6px", right: "-6px",
+                          width: "18px", height: "18px", borderRadius: "50%",
+                          background: "var(--color-danger)", color: "var(--color-white)",
+                          fontSize: "10px", fontWeight: 700, lineHeight: "18px", textAlign: "center",
+                          border: "2px solid var(--color-gray-50)",
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1, minWidth: 0 }}>
                   {editingProductId === p.id ? (
                     <Input
                       value={editingName}
@@ -902,6 +1027,7 @@ function CatalogTab({ tenantId }: { tenantId: string }) {
                   <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
                     {categoryNameById[p.categoryId] ?? "—"} · <code>#{p.id}</code>
                   </span>
+                  </div>
                 </div>
 
                 <div style={{ position: "relative", flexShrink: 0 }}>

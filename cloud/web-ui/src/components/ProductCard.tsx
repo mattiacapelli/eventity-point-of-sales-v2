@@ -15,6 +15,7 @@ export function ProductCard({ product, categoryLabel, categoryEmoji, quantity, o
 }) {
   const hasOptions = product.optionGroups.length > 0;
   const selected = quantity > 0;
+  const hasImage = Boolean(product.imageUrl);
 
   return (
     <div
@@ -24,32 +25,42 @@ export function ProductCard({ product, categoryLabel, categoryEmoji, quantity, o
         borderRadius: "var(--radius-lg)",
         border: `1.5px solid ${selected ? "var(--color-brand)" : "var(--color-gray-200)"}`,
         boxShadow: selected ? "var(--shadow-sm)" : "none",
-        padding: "var(--sp-md)",
+        overflow: "hidden",
         display: "flex",
         flexDirection: "column",
         gap: "var(--sp-sm)",
         minHeight: "116px",
       }}
     >
-      <div style={{ flex: 1, display: "flex", gap: "10px" }}>
-        <div
-          style={{
-            flexShrink: 0,
-            width: "40px",
-            height: "40px",
-            borderRadius: "var(--radius-md)",
-            background: "rgba(48,107,52,0.08)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {categoryEmoji ? (
-            <span style={{ fontSize: "20px", lineHeight: 1 }}>{categoryEmoji}</span>
-          ) : (
-            <CakeIcon width={20} height={20} color="var(--color-brand)" />
-          )}
-        </div>
+      {hasImage ? (
+        <img
+          src={product.imageUrl!}
+          alt=""
+          style={{ width: "100%", height: "96px", objectFit: "cover", display: "block" }}
+        />
+      ) : null}
+
+      <div style={{ flex: 1, display: "flex", gap: "10px", padding: hasImage ? "0 var(--sp-md)" : "var(--sp-md) var(--sp-md) 0" }}>
+        {!hasImage && (
+          <div
+            style={{
+              flexShrink: 0,
+              width: "40px",
+              height: "40px",
+              borderRadius: "var(--radius-md)",
+              background: "rgba(48,107,52,0.08)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {categoryEmoji ? (
+              <span style={{ fontSize: "20px", lineHeight: 1 }}>{categoryEmoji}</span>
+            ) : (
+              <CakeIcon width={20} height={20} color="var(--color-brand)" />
+            )}
+          </div>
+        )}
         <div style={{ flex: 1, minWidth: 0 }}>
           {categoryLabel && (
             <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-gray-400)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "2px" }}>
@@ -65,6 +76,7 @@ export function ProductCard({ product, categoryLabel, categoryEmoji, quantity, o
         </div>
       </div>
 
+      <div style={{ padding: "0 var(--sp-md) var(--sp-md)" }}>
       {hasOptions ? (
         <button
           onClick={onOpenOptions}
@@ -116,6 +128,7 @@ export function ProductCard({ product, categoryLabel, categoryEmoji, quantity, o
           Aggiungi
         </button>
       )}
+      </div>
     </div>
   );
 }

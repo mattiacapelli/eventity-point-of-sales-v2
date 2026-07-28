@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS products (
   price           REAL NOT NULL,
   active          INTEGER NOT NULL DEFAULT 1,
   sort_order      INTEGER NOT NULL DEFAULT 0,
-  available_dates TEXT
+  available_dates TEXT,
+  image_path      TEXT
 );
 
 CREATE TABLE IF NOT EXISTS option_groups (
@@ -149,6 +150,7 @@ export function runMigrations(dbPath: string): void {
   addColumnIfMissing(sqlite, "tenants", "require_customer_name", "require_customer_name INTEGER NOT NULL DEFAULT 0");
   addColumnIfMissing(sqlite, "categories", "emoji", "emoji TEXT");
   addColumnIfMissing(sqlite, "products", "available_dates", "available_dates TEXT");
+  addColumnIfMissing(sqlite, "products", "image_path", "image_path TEXT");
 
   sqlite.close();
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { BuildingStorefrontIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, BuildingStorefrontIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import type { CurrentUser, Tenant } from "../core/types.js";
-import { listTenants, createTenant, clearToken } from "../core/api-client.js";
+import { listTenants, createTenant } from "../core/api-client.js";
 import { TenantDetail } from "./TenantDetail.js";
 import { Input } from "../components/Input.js";
 import { Button } from "../components/Button.js";
@@ -10,7 +10,7 @@ import { useToast } from "../components/Toast.js";
 
 const PAGE_SIZE = 20;
 
-export function TenantsScreen({ currentUser, onLogout }: { currentUser: CurrentUser; onLogout: () => void }) {
+export function TenantsScreen({ currentUser }: { currentUser: CurrentUser }) {
   const { showToast } = useToast();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [total, setTotal] = useState(0);
@@ -67,39 +67,34 @@ export function TenantsScreen({ currentUser, onLogout }: { currentUser: CurrentU
     setTotal((t) => Math.max(0, t - 1));
   }
 
-  function handleLogout() {
-    clearToken();
-    onLogout();
-  }
-
   const selected = tenants.find((t) => t.id === selectedId) ?? null;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  if (selected) {
+    return (
+      <div style={{ maxWidth: "960px", width: "100%", margin: "0 auto", padding: "var(--sp-lg)", display: "flex", flexDirection: "column", gap: "var(--sp-md)" }}>
+        <button
+          onClick={() => setSelectedId(null)}
+          style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-500)", alignSelf: "flex-start" }}
+        >
+          <ArrowLeftIcon width={16} height={16} />
+          Tutti i locali
+        </button>
+        <TenantDetail
+          tenant={selected}
+          currentUser={currentUser}
+          onUpdated={handleUpdated}
+          onDeleted={handleDeleted}
+          onClose={() => setSelectedId(null)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-      <header
-        style={{
-          background: "linear-gradient(160deg, var(--color-brand) 0%, var(--color-brand-dark) 100%)",
-          color: "var(--color-white)",
-          padding: "var(--sp-lg)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <img src="/logo.svg" alt="epos" style={{ height: "26px" }} />
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-md)" }}>
-          <span style={{ fontSize: "var(--text-sm)", opacity: 0.85 }}>
-            {currentUser.email}{currentUser.isSuperAdmin ? " · super-admin" : ""}
-          </span>
-          <button onClick={handleLogout} style={{ color: "var(--color-white)", fontSize: "var(--text-sm)", fontWeight: 600, opacity: 0.85 }}>
-            Esci
-          </button>
-        </div>
-      </header>
-
-      <div style={{ flex: 1, maxWidth: "1280px", width: "100%", margin: "0 auto", padding: "var(--sp-lg)", display: "grid", gridTemplateColumns: selected ? "1fr 1.2fr" : "1fr", gap: "var(--sp-lg)", alignItems: "start" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-md)" }}>
+      <div style={{ maxWidth: "760px", width: "100%", margin: "0 auto", padding: "var(--sp-lg)", display: "flex", flexDirection: "column", gap: "var(--sp-md)" }}>
+        <div style={{ fontSize: "var(--text-xl)", fontWeight: 700 }}>Locali</div>
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -173,17 +168,6 @@ export function TenantsScreen({ currentUser, onLogout }: { currentUser: CurrentU
               )}
             </>
           )}
-        </div>
-
-        {selected && (
-          <TenantDetail
-            tenant={selected}
-            currentUser={currentUser}
-            onUpdated={handleUpdated}
-            onDeleted={handleDeleted}
-            onClose={() => setSelectedId(null)}
-          />
-        )}
       </div>
     </div>
   );
