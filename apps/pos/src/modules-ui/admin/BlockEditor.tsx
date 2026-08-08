@@ -17,6 +17,7 @@ interface BaseBlock {
   content?: string;
   logoWidth?: number;
   invertColors?: boolean;
+  showItemPrice?: boolean;
 }
 
 const labelStyle: React.CSSProperties = {
@@ -174,6 +175,12 @@ export function GenericBlockEditor<T extends BaseBlock>({
                   onChange={(e) => update(idx, { paddingTop: Number(e.target.value) } as Partial<T>)}
                   style={{ ...inputStyle, width: "70px", height: "30px", fontSize: "var(--text-xs)", padding: "0 6px" }} />
               </div>
+            </div>
+          )}
+          {block.type === "items" && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-gray-400)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Mostra prezzi</span>
+              <Toggle value={block.showItemPrice !== false} onChange={(v) => update(idx, { showItemPrice: v } as Partial<T>)} />
             </div>
           )}
           {supportsLogo && block.type === "logo" && (

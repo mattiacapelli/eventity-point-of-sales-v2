@@ -15,7 +15,9 @@ export type BlockType =
   | "category-name"
   | "terminal-name"
   | "table-name"
-  | "customer-name";
+  | "customer-name"
+  | "item-label"
+  | "item-price";
 
 export interface ReceiptBlock {
   id: string;
@@ -29,6 +31,7 @@ export interface ReceiptBlock {
   content?: string;
   logoWidth?: number;  // percentage of canvas width for logo blocks (10–100)
   invertColors?: boolean; // image-mode only: black background, white text for this block's row
+  showItemPrice?: boolean; // items block only: whether to show price column (default true)
 }
 
 export interface ReceiptTemplate {

@@ -29,6 +29,17 @@ const DEFAULT_RECEIPT_BLOCKS: ReceiptBlock[] = [
   { id: "d14", type: "footer", align: "center", fontSize: 12, fontFamily: "DejaVu Sans", bold: false, paddingTop: 4, visible: true, content: "Grazie e arrivederci!" },
 ];
 
+// Blocks preset for per_item / per_item_copy mode — one slip per product
+const PER_ITEM_RECEIPT_BLOCKS: ReceiptBlock[] = [
+  { id: "p1", type: "logo", align: "center", fontSize: 14, fontFamily: "DejaVu Sans", bold: false, paddingTop: 0, visible: true, logoWidth: 50 },
+  { id: "p2", type: "restaurant-name", align: "center", fontSize: 14, fontFamily: "DejaVu Sans", bold: false, paddingTop: 6, visible: true },
+  { id: "p3", type: "divider", align: "left", fontSize: 12, fontFamily: "DejaVu Sans", bold: false, paddingTop: 8, visible: true },
+  { id: "p4", type: "order-number", align: "center", fontSize: 18, fontFamily: "DejaVu Sans", bold: true, paddingTop: 12, visible: true },
+  { id: "p5", type: "item-label", align: "center", fontSize: 28, fontFamily: "Oswald Bold", bold: true, paddingTop: 8, visible: true },
+  { id: "p7", type: "divider", align: "left", fontSize: 12, fontFamily: "DejaVu Sans", bold: false, paddingTop: 12, visible: true },
+  { id: "p8", type: "footer", align: "center", fontSize: 11, fontFamily: "DejaVu Sans", bold: false, paddingTop: 4, visible: true, content: "Eventity Pos · www.eventity.app" },
+];
+
 function makeLogoBlock(): ReceiptBlock {
   return { id: Math.random().toString(36).slice(2), type: "logo", align: "center", fontSize: 14, fontFamily: "DejaVu Sans", bold: false, paddingTop: 0, visible: true };
 }
@@ -44,6 +55,8 @@ const BLOCK_TYPE_LABELS: Record<string, string> = {
   "terminal-name": "Cassa (terminale)",
   "table-name": "Tavolo",
   "customer-name": "Nome cliente",
+  "item-label": "Prodotto singolo (qtà + nome)",
+  "item-price": "Prezzo prodotto (singolo)",
 };
 function BlockEditor({ blocks, onChange, availableFonts }: {
   blocks: ReceiptBlock[];
@@ -85,7 +98,7 @@ type ImageTemplateForm = {
 
 function ImageTemplateEditor({
   form, setForm, template, saving, onSave,
-  availableFonts, fontUploading, onFontUpload, setReceiptTemplates,
+  availableFonts, fontUploading, onFontUpload, setReceiptTemplates, receiptTemplates,
 }: {
   form: ImageTemplateForm;
   setForm: React.Dispatch<React.SetStateAction<ImageTemplateForm>>;
@@ -96,6 +109,7 @@ function ImageTemplateEditor({
   fontUploading: boolean;
   onFontUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   setReceiptTemplates: (ts: ReceiptTemplate[]) => void;
+  receiptTemplates: ReceiptTemplate[];
 }) {
   const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -112,7 +126,7 @@ function ImageTemplateEditor({
         const res = await fetch(adminApi.receiptTemplates.previewUrl(), {
           method: "POST",
           headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: JSON.stringify({ blocks: form.blocks, canvasWidth: form.canvasWidth, showItemCategory: form.showItemCategory }),
+          body: JSON.stringify({ blocks: form.blocks, canvasWidth: form.canvasWidth, showItemCategory: form.showItemCategory, printMethod: form.printMethod }),
         });
         if (!res.ok) return;
         const blob = await res.blob();
@@ -181,7 +195,7 @@ function ImageTemplateEditor({
               const res = await fetch(adminApi.receiptTemplates.previewUrl(), {
                 method: "POST",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                body: JSON.stringify({ blocks: form.blocks, canvasWidth: form.canvasWidth, showItemCategory: form.showItemCategory }),
+                body: JSON.stringify({ blocks: form.blocks, canvasWidth: form.canvasWidth, showItemCategory: form.showItemCategory, printMethod: form.printMethod }),
               });
               if (!res.ok) return;
               const blob = await res.blob();
@@ -348,8 +362,9 @@ export function ReceiptTemplateTab() {
         : (template.blocks ?? []);
       // Always ensure a logo block exists so the user can toggle its visibility
       const hasLogo = rawBlocks.some((b) => b.type === "logo");
+      const isPerItem = (template.printMethod === "per_item" || template.printMethod === "per_item_copy");
       const blocks = rawBlocks.length === 0
-        ? DEFAULT_RECEIPT_BLOCKS
+        ? (isPerItem ? PER_ITEM_RECEIPT_BLOCKS : DEFAULT_RECEIPT_BLOCKS)
         : hasLogo ? rawBlocks : [makeLogoBlock(), ...rawBlocks];
       setForm({
         headerText: template.headerText ?? "",
@@ -385,7 +400,6 @@ export function ReceiptTemplateTab() {
         printMode: form.printMode,
         canvasWidth: form.canvasWidth,
         blocks: form.printMode === "image" ? form.blocks : null,
-        active: true,
         printMethod: form.printMethod,
         role: form.role,
       };
@@ -402,7 +416,7 @@ export function ReceiptTemplateTab() {
           showItemCategory: form.showItemCategory,
           printMode: form.printMode,
           canvasWidth: form.canvasWidth,
-          active: true,
+          active: false,
           printMethod: form.printMethod,
           role: form.role,
         };
@@ -519,6 +533,20 @@ export function ReceiptTemplateTab() {
               </button>
             ))}
           </div>
+          {/* Active toggle — saves immediately, deactivates siblings with same role server-side */}
+          {template && (
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", padding: "6px 12px", borderRadius: "var(--radius-lg)", border: `1.5px solid ${template.active ? "var(--color-brand)" : "var(--color-gray-200)"}`, background: template.active ? "#f0fdf4" : "var(--color-white)" }}>
+              <Toggle value={template.active} onChange={async (v) => {
+                const updated = await adminApi.receiptTemplates.update(template.id, { active: v });
+                setReceiptTemplates(receiptTemplates.map((t) =>
+                  t.role === template.role ? { ...t, active: t.id === template.id ? updated.active : (v ? false : t.active) } : t
+                ));
+              }} />
+              <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: template.active ? "var(--color-brand)" : "var(--color-gray-500)" }}>
+                {template.active ? "Attivo" : "Non attivo"}
+              </span>
+            </label>
+          )}
           {template && (
             <button type="button" disabled={previewLoading} onClick={async () => {
               if (!template) return;
@@ -528,7 +556,7 @@ export function ReceiptTemplateTab() {
                 const res = await fetch(adminApi.receiptTemplates.previewUrl(), {
                   method: "POST",
                   headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                  body: JSON.stringify({ blocks: form.blocks, canvasWidth: form.canvasWidth, showItemCategory: form.showItemCategory }),
+                  body: JSON.stringify({ blocks: form.blocks, canvasWidth: form.canvasWidth, showItemCategory: form.showItemCategory, printMethod: form.printMethod }),
                 });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const blob = await res.blob();
@@ -592,6 +620,7 @@ export function ReceiptTemplateTab() {
           fontUploading={fontUploading}
           onFontUpload={(e) => void handleFontUpload(e)}
           setReceiptTemplates={setReceiptTemplates}
+          receiptTemplates={receiptTemplates}
         />
       )}
 

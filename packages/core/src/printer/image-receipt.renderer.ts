@@ -151,6 +151,12 @@ export async function renderReceiptImage(data: ReceiptRenderData): Promise<Buffe
       case "customer-name":
         h += data.customerName ? lineH : 0;
         break;
+      case "item-label":
+        h += data.items[0] ? lineH : 0;
+        break;
+      case "item-price":
+        h += data.items[0] ? lineH : 0;
+        break;
     }
     heights.push(h);
   }
@@ -240,18 +246,26 @@ export async function renderReceiptImage(data: ReceiptRenderData): Promise<Buffe
         y += lineH;
         break;
       case "items": {
-        const rightX = width - PADDING;
+        const showPrice = block.showItemPrice !== false;
+        const sym = data.currency === "EUR" ? "€" : data.currency;
         for (const item of data.items) {
           const label = `${item.quantity}x ${item.name}`;
-          const price = `${data.currency === "EUR" ? "€" : data.currency}${(item.unitPrice * item.quantity).toFixed(2)}`;
-          ctx.textAlign = "left";
-          ctx.fillText(label, PADDING, y);
-          ctx.textAlign = "right";
-          ctx.fillText(price, rightX, y);
+          if (block.align === "center") {
+            ctx.textAlign = "center";
+            const text = showPrice ? `${label}  ${sym}${(item.unitPrice * item.quantity).toFixed(2)}` : label;
+            ctx.fillText(text, x, y);
+          } else {
+            ctx.textAlign = "left";
+            ctx.fillText(label, PADDING, y);
+            if (showPrice) {
+              ctx.textAlign = "right";
+              ctx.fillText(`${sym}${(item.unitPrice * item.quantity).toFixed(2)}`, width - PADDING, y);
+            }
+          }
           y += lineH;
           if (data.showItemCategory && item.category) {
-            ctx.textAlign = "left";
-            ctx.fillText(`  ${item.category}`, PADDING, y);
+            ctx.textAlign = ctxAlign(block.align);
+            ctx.fillText(`  ${item.category}`, x, y);
             y += lineH;
           }
         }
@@ -301,6 +315,23 @@ export async function renderReceiptImage(data: ReceiptRenderData): Promise<Buffe
           y += lineH;
         }
         break;
+      case "item-label": {
+        const item0 = data.items[0];
+        if (item0) {
+          ctx.fillText(`${item0.quantity}x ${item0.name}`, x, y);
+          y += lineH;
+        }
+        break;
+      }
+      case "item-price": {
+        const item0 = data.items[0];
+        if (item0) {
+          const sym = data.currency === "EUR" ? "€" : data.currency;
+          ctx.fillText(`${sym}${(item0.unitPrice * item0.quantity).toFixed(2)}`, x, y);
+          y += lineH;
+        }
+        break;
+      }
     }
   }
 
