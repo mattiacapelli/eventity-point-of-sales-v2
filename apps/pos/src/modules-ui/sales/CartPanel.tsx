@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import type { OptionGroupWithOptions } from "@pos/shared-types";
 import { useStore } from "../../state/global-store.js";
 import { useShiftStore } from "../../state/shift-store.js";
+import { useTerminalStore } from "../../state/terminal-store.js";
 import { apiClient } from "../../core/api-client.js";
 import { adminApi } from "../../core/admin-api.js";
 import { Button } from "../../components/ui/Button.js";
@@ -14,6 +15,10 @@ interface CartFeatures {
   notes: boolean;
   pax: boolean;
   discount: boolean;
+  tableInputMode: "checkout" | "sidebar";
+  tableEnabled: boolean;
+  tableRequired: boolean;
+  customerRequired: boolean;
 }
 
 // ─── Shared toggle styles ─────────────────────────────────────────────────────
@@ -181,7 +186,7 @@ function ExtrasPopover(props: ExtrasPopoverProps) {
 
 interface VariantDialogProps {
   cartKey: string;
-  productId: string;
+  productId: number;
   productName: string;
   unitPrice: number;
   existingNotes?: string;
@@ -191,15 +196,23 @@ interface VariantDialogProps {
 function VariantDialog({ cartKey, productId, productName, unitPrice, existingNotes, onClose }: VariantDialogProps) {
   const addToCart = useStore((s) => s.addToCart);
   const updateItemNotes = useStore((s) => s.updateItemNotes);
+  const updateCartQty = useStore((s) => s.updateCartQty);
+  const originalQuantity = useStore((s) => s.cart.find((c) => c.cartKey === cartKey)?.quantity ?? 1);
   const [groups, setGroups] = useState<OptionGroupWithOptions[] | null>(null);
   const [loadErr, setLoadErr] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const [freeNote, setFreeNote] = useState(existingNotes ?? "");
+  const [freeNotePrefix, setFreeNotePrefix] = useState<"+" | "-">("+");
+  const [defaultAddPrice, setDefaultAddPrice] = useState(0);
+  const [defaultRemovePrice, setDefaultRemovePrice] = useState(0);
 
   useEffect(() => {
     adminApi.optionGroups.list(productId)
       .then((g) => setGroups(g))
       .catch(() => setLoadErr(true));
+    adminApi.settings.get()
+      .then((s) => { setDefaultAddPrice(s.customNoteAddPrice ?? 0); setDefaultRemovePrice(s.customNoteRemovePrice ?? 0); })
+      .catch(() => {});
   }, [productId]);
 
   // Close on backdrop click or Escape
@@ -209,7 +222,7 @@ function VariantDialog({ cartKey, productId, productName, unitPrice, existingNot
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  function toggle(optId: string, groupType: string, maxSel: number) {
+  function toggle(optId: number, groupType: string, maxSel: number) {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(optId)) {
@@ -232,10 +245,15 @@ function VariantDialog({ cartKey, productId, productName, unitPrice, existingNot
       .filter((o) => selected.has(o.id))
       .map((o) => ({ optionId: o.id, optionGroupId: o.optionGroupId, name: o.name, priceDelta: o.priceDelta, prefix: o.prefix ?? (o.groupType === "removal" ? "-" : "+"), isRemoval: o.prefix === "-" || o.groupType === "removal" }));
     const trimmedNote = freeNote.trim();
+    if (trimmedNote) {
+      const notePriceDelta = freeNotePrefix === "+" ? defaultAddPrice : -(defaultRemovePrice);
+      opts.push({ optionId: 0, optionGroupId: 0, name: trimmedNote, priceDelta: notePriceDelta, prefix: freeNotePrefix, isRemoval: freeNotePrefix === "-" });
+    }
     if (opts.length > 0) {
-      addToCart({ productId, name: productName, unitPrice, selectedOptions: opts, ...(trimmedNote ? { notes: trimmedNote } : {}) });
+      updateCartQty(cartKey, 0);
+      addToCart({ productId, name: productName, unitPrice, selectedOptions: opts, quantity: originalQuantity });
     } else {
-      updateItemNotes(cartKey, trimmedNote);
+      updateItemNotes(cartKey, "");
     }
     onClose();
   }
@@ -361,22 +379,48 @@ function VariantDialog({ cartKey, productId, productName, unitPrice, existingNot
               <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--color-gray-800)", marginBottom: "8px" }}>
                 Nota libera
               </div>
-              <textarea
-                rows={3}
-                autoFocus={groups.length === 0}
-                placeholder="Es. senza cipolla, ben cotto, allergie…"
-                value={freeNote}
-                onChange={(e) => setFreeNote(e.target.value)}
-                style={{
-                  width: "100%", padding: "10px 12px",
-                  border: "2px solid var(--color-gray-200)", borderRadius: "var(--radius-md)",
-                  fontFamily: "var(--font)", fontSize: "var(--text-sm)",
-                  resize: "none", boxSizing: "border-box", outline: "none",
-                  transition: "border-color 0.1s",
-                }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-brand)"; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-gray-200)"; }}
-              />
+              <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
+                {/* +/- toggle */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px", flexShrink: 0 }}>
+                  {(["+", "-"] as const).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setFreeNotePrefix(p)}
+                      style={{
+                        width: "36px", height: "36px",
+                        borderRadius: "var(--radius-md)",
+                        border: `2px solid ${freeNotePrefix === p ? (p === "+" ? "var(--color-brand)" : "var(--color-danger)") : "var(--color-gray-200)"}`,
+                        background: freeNotePrefix === p ? (p === "+" ? "rgba(48,107,52,0.08)" : "rgba(239,68,68,0.08)") : "var(--color-white)",
+                        color: freeNotePrefix === p ? (p === "+" ? "var(--color-brand)" : "var(--color-danger)") : "var(--color-gray-400)",
+                        fontFamily: "var(--font)", fontSize: "18px", fontWeight: 800,
+                        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                        transition: "all 0.12s",
+                      }}
+                    >{p}</button>
+                  ))}
+                  {(freeNotePrefix === "+" ? defaultAddPrice : defaultRemovePrice) !== 0 && (
+                    <div style={{ fontSize: "10px", color: "var(--color-gray-400)", textAlign: "center", fontWeight: 600 }}>
+                      {freeNotePrefix === "+" ? `+€${defaultAddPrice.toFixed(2)}` : `-€${defaultRemovePrice.toFixed(2)}`}
+                    </div>
+                  )}
+                </div>
+                <textarea
+                  rows={3}
+                  autoFocus={groups.length === 0}
+                  placeholder="Es. senza cipolla, ben cotto, allergie…"
+                  value={freeNote}
+                  onChange={(e) => setFreeNote(e.target.value)}
+                  style={{
+                    flex: 1, padding: "10px 12px",
+                    border: "2px solid var(--color-gray-200)", borderRadius: "var(--radius-md)",
+                    fontFamily: "var(--font)", fontSize: "var(--text-sm)",
+                    resize: "none", boxSizing: "border-box", outline: "none",
+                    transition: "border-color 0.1s",
+                  }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-brand)"; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-gray-200)"; }}
+                />
+              </div>
             </div>
           )}
         </div>
@@ -429,21 +473,55 @@ export function CartPanel() {
   const editingOrderId = useStore((s) => s.editingOrderId);
   const setEditingOrderId = useStore((s) => s.setEditingOrderId);
   const { currentShift } = useShiftStore();
+  const { terminalId } = useTerminalStore();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Feature flags + text size (loaded once)
-  const [features, setFeatures] = useState<CartFeatures>({ notes: true, pax: true, discount: true });
+  const [features, setFeatures] = useState<CartFeatures>({ notes: true, pax: true, discount: true, tableInputMode: "checkout", tableEnabled: false, tableRequired: false, customerRequired: false });
   const [cartTextSize, setCartTextSize] = useState(14);
+  const [disableTableInput, setDisableTableInput] = useState(false);
+  const [tableInputOptional, setTableInputOptional] = useState(false);
   useEffect(() => {
     adminApi.settings.get()
       .then((s) => {
-        setFeatures({ notes: s.cartNotesEnabled, pax: s.cartPaxEnabled, discount: s.cartDiscountEnabled });
+        setFeatures({
+          notes: s.cartNotesEnabled,
+          pax: s.cartPaxEnabled,
+          discount: s.cartDiscountEnabled,
+          tableInputMode: s.tableInputMode ?? "checkout",
+          tableEnabled: s.tablesEnabled,
+          tableRequired: s.tableRequired ?? false,
+          customerRequired: s.customerRequired ?? false,
+        });
         setCartTextSize(s.cartTextSize ?? 14);
       })
       .catch(() => { /* keep defaults */ });
-  }, []);
+    if (terminalId) {
+      adminApi.terminals.list()
+        .then((ts) => {
+          const mine = ts.find((t) => t.id === terminalId);
+          if (mine) {
+            setDisableTableInput(mine.disableTableInput ?? false);
+            setTableInputOptional(mine.tableInputOptional ?? false);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [terminalId]);
+
+  // Table / customer (sidebar mode) — pre-filled from store when ProductGrid sets them via pre-order modal
+  const pendingTableId = useStore((s) => s.pendingTableId);
+  const pendingCustomerName = useStore((s) => s.pendingCustomerName);
+  const setPendingOrderInfo = useStore((s) => s.setPendingOrderInfo);
+  const [sidebarTableId, setSidebarTableId] = useState(pendingTableId ?? "");
+  const [sidebarCustomerName, setSidebarCustomerName] = useState(pendingCustomerName ?? "");
+
+  useEffect(() => {
+    setSidebarTableId(pendingTableId ?? "");
+    setSidebarCustomerName(pendingCustomerName ?? "");
+  }, [pendingTableId, pendingCustomerName]);
 
   // Order-level extras
   const [orderNotes, setOrderNotes] = useState("");
@@ -454,7 +532,7 @@ export function CartPanel() {
   const extrasRef = useRef<HTMLDivElement>(null);
 
   // Variant popover
-  const [variantTarget, setVariantTarget] = useState<{ cartKey: string; productId: string; name: string; unitPrice: number } | null>(null);
+  const [variantTarget, setVariantTarget] = useState<{ cartKey: string; productId: number; name: string; unitPrice: number } | null>(null);
 
   const subtotal = cartTotal();
   const discountNum = parseFloat(discountInput) || 0;
@@ -470,7 +548,7 @@ export function CartPanel() {
     setOpenExtras((prev) => (prev === kind ? null : kind));
   }, []);
 
-  function openVariant(item: { cartKey: string; productId: string; name: string; unitPrice: number }) {
+  function openVariant(item: { cartKey: string; productId: number; name: string; unitPrice: number }) {
     setOpenExtras(null);
     setVariantTarget((prev) => prev?.cartKey === item.cartKey ? null : item);
   }
@@ -480,22 +558,26 @@ export function CartPanel() {
     setLoading(true);
     setError(null);
     try {
-      await apiClient.orders.updateItems(editingOrderId, cart.map((c) => ({
-        productId: c.productId,
-        name: c.name,
-        quantity: c.quantity,
-        ...(c.selectedOptions.length > 0
-          ? {
-              selectedOptionIds: c.selectedOptions.map((o) => o.optionId),
-              notes: c.selectedOptions.map((o) => {
-                const p = o.prefix ?? (o.isRemoval ? "-" : "+");
-                if (p === "-") return `senza ${o.name}`;
-                if (p === ">>") return `>> ${o.name}`;
-                return o.name;
-              }).join(", "),
-            }
-          : c.notes !== undefined ? { notes: c.notes } : {}),
-      })));
+      await apiClient.orders.updateItems(editingOrderId, cart.map((c) => {
+        const customDelta = c.selectedOptions.filter((o) => o.optionId === 0).reduce((s, o) => s + o.priceDelta, 0);
+        return {
+          productId: c.productId,
+          name: c.name,
+          quantity: c.quantity,
+          ...(c.selectedOptions.length > 0
+            ? {
+                selectedOptionIds: c.selectedOptions.map((o) => o.optionId).filter((id) => id !== 0),
+                ...(customDelta !== 0 ? { customPriceDelta: customDelta } : {}),
+                notes: c.selectedOptions.map((o) => {
+                  const p = o.prefix ?? (o.isRemoval ? "-" : "+");
+                  if (p === "-") return `senza ${o.name}`;
+                  if (p === ">>") return `>> ${o.name}`;
+                  return o.name;
+                }).join(", "),
+              }
+            : c.notes !== undefined ? { notes: c.notes } : {}),
+        };
+      }));
       setEditingOrderId(null);
       clearCart();
       setOrderNotes(""); setPax(null); setDiscountInput(""); setOpenExtras(null); setVariantTarget(null);
@@ -506,8 +588,15 @@ export function CartPanel() {
     }
   };
 
+  const isSidebarMode = features.tableEnabled && features.tableInputMode === "sidebar" && !disableTableInput;
+  const effectiveTableRequired = isSidebarMode && features.tableRequired && !tableInputOptional;
+  const effectiveCustomerRequired = isSidebarMode && features.customerRequired && !tableInputOptional;
+  const sidebarTableMissing = effectiveTableRequired && sidebarTableId.trim() === "";
+  const sidebarCustomerMissing = effectiveCustomerRequired && sidebarCustomerName.trim() === "";
+  const sidebarBlocked = sidebarTableMissing || sidebarCustomerMissing;
+
   const handleCheckout = async () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || sidebarBlocked) return;
     setLoading(true);
     setError(null);
     try {
@@ -518,25 +607,33 @@ export function CartPanel() {
         ...(discountAmount > 0
           ? { discountAmount, discountType: discountMode === "pct" ? `${discountNum}%` : "fixed" }
           : {}),
-        items: cart.map((c) => ({
-          productId: c.productId,
-          name: c.name,
-          quantity: c.quantity,
-          ...(c.selectedOptions.length > 0
-            ? {
-                selectedOptionIds: c.selectedOptions.map((o) => o.optionId),
-                notes: c.selectedOptions.map((o) => {
-                  const p = o.prefix ?? (o.isRemoval ? "-" : "+");
-                  if (p === "-") return `senza ${o.name}`;
-                  if (p === ">>") return `>> ${o.name}`;
-                  return o.name;
-                }).join(", "),
-              }
-            : c.notes !== undefined ? { notes: c.notes } : {}),
-        })),
+        ...(isSidebarMode && sidebarTableId.trim() ? { tableId: sidebarTableId.trim() } : {}),
+        ...(isSidebarMode && sidebarCustomerName.trim() ? { customerName: sidebarCustomerName.trim() } : {}),
+        items: cart.map((c) => {
+          const customDelta = c.selectedOptions.filter((o) => o.optionId === 0).reduce((s, o) => s + o.priceDelta, 0);
+          return {
+            productId: c.productId,
+            name: c.name,
+            quantity: c.quantity,
+            ...(c.selectedOptions.length > 0
+              ? {
+                  selectedOptionIds: c.selectedOptions.map((o) => o.optionId).filter((id) => id !== 0),
+                  ...(customDelta !== 0 ? { customPriceDelta: customDelta } : {}),
+                  notes: c.selectedOptions.map((o) => {
+                    const p = o.prefix ?? (o.isRemoval ? "-" : "+");
+                    if (p === "-") return `senza ${o.name}`;
+                    if (p === ">>") return `>> ${o.name}`;
+                    return o.name;
+                  }).join(", "),
+                }
+              : c.notes !== undefined ? { notes: c.notes } : {}),
+          };
+        }),
       });
       setCheckoutOrder(order);
       setOrderNotes(""); setPax(null); setDiscountInput(""); setOpenExtras(null); setVariantTarget(null);
+      setSidebarTableId(""); setSidebarCustomerName("");
+      setPendingOrderInfo({ tableId: null, customerName: null });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore creazione ordine");
     } finally {
@@ -560,7 +657,7 @@ export function CartPanel() {
           flexShrink: 0,
         }}>
           <span style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "#92400e" }}>
-            ✏️ Modifica ordine #{editingOrderId.slice(-6).toUpperCase()}
+            ✏️ Modifica ordine #{editingOrderId}
           </span>
           <button
             onClick={() => { setEditingOrderId(null); clearCart(); }}
@@ -776,6 +873,50 @@ export function CartPanel() {
         </div>
       )}
 
+      {/* Tavolo / Cliente — sidebar mode */}
+      {isSidebarMode && hasItems && (
+        <div style={{
+          padding: "10px var(--sp-md)",
+          borderTop: "1px solid var(--color-gray-100)",
+          display: "flex", flexDirection: "column", gap: "8px", flexShrink: 0,
+        }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+            <div>
+              <label style={{ fontSize: "11px", fontWeight: 700, color: "var(--color-gray-500)", display: "block", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                Tavolo{effectiveTableRequired ? " *" : ""}
+              </label>
+              <input
+                value={sidebarTableId}
+                onChange={(e) => setSidebarTableId(e.target.value)}
+                placeholder="Es. 12"
+                style={{
+                  width: "100%", height: "36px", padding: "0 10px",
+                  borderRadius: "var(--radius-md)",
+                  border: `2px solid ${sidebarTableMissing ? "var(--color-danger)" : "var(--color-gray-200)"}`,
+                  fontFamily: "var(--font)", fontSize: "var(--text-sm)", boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: "11px", fontWeight: 700, color: "var(--color-gray-500)", display: "block", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                Cliente{effectiveCustomerRequired ? " *" : ""}
+              </label>
+              <input
+                value={sidebarCustomerName}
+                onChange={(e) => setSidebarCustomerName(e.target.value)}
+                placeholder="Es. Mario"
+                style={{
+                  width: "100%", height: "36px", padding: "0 10px",
+                  borderRadius: "var(--radius-md)",
+                  border: `2px solid ${sidebarCustomerMissing ? "var(--color-danger)" : "var(--color-gray-200)"}`,
+                  fontFamily: "var(--font)", fontSize: "var(--text-sm)", boxSizing: "border-box",
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <div style={{
         padding: "var(--sp-md)",
@@ -822,11 +963,11 @@ export function CartPanel() {
         ) : (
           <Button
             fullWidth size="xl"
-            disabled={!hasItems || loading || !currentShift}
+            disabled={!hasItems || loading || !currentShift || sidebarBlocked}
             loading={loading}
             onClick={() => void handleCheckout()}
           >
-            {!currentShift ? "Apri un turno per iniziare" : !hasItems ? "Carrello vuoto" : " Paga"}
+            {!currentShift ? "Apri un turno per iniziare" : !hasItems ? "Carrello vuoto" : "Paga"}
           </Button>
         )}
       </div>

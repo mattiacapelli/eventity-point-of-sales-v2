@@ -18,7 +18,7 @@ export function ProductConfigurator({ product, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   // selected: optionGroupId → Set of optionIds
-  const [selected, setSelected] = useState<Record<string, Set<string>>>({});
+  const [selected, setSelected] = useState<Record<number, Set<number>>>({});
 
   function fetchGroups() {
     setLoading(true);
@@ -47,7 +47,7 @@ export function ProductConfigurator({ product, onClose }: Props) {
     return () => { document.body.style.overflow = ""; };
   }, []);
 
-  function toggleOption(group: OptionGroupWithOptions, optionId: string) {
+  function toggleOption(group: OptionGroupWithOptions, optionId: number) {
     setSelected((prev) => {
       const cur = new Set(prev[group.id] ?? []);
       if (group.type === "single") {
@@ -79,7 +79,7 @@ export function ProductConfigurator({ product, onClose }: Props) {
 
   // Compute live total
   const priceDelta = groups.reduce((sum, g) => {
-    const sel = selected[g.id] ?? new Set<string>();
+    const sel = selected[g.id] ?? new Set<number>();
     return sum + g.options
       .filter((o) => sel.has(o.id))
       .reduce((s, o) => s + o.priceDelta, 0);
@@ -89,7 +89,7 @@ export function ProductConfigurator({ product, onClose }: Props) {
   function handleAdd() {
     if (!isValid) return;
     const selectedOptions: SelectedOption[] = groups.flatMap((g) => {
-      const sel = selected[g.id] ?? new Set<string>();
+      const sel = selected[g.id] ?? new Set<number>();
       return g.options
         .filter((o) => sel.has(o.id))
         .map((o) => ({

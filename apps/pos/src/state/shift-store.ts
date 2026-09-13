@@ -3,11 +3,11 @@ import type { Shift } from "@pos/shared-types";
 
 // Key is scoped to the terminal so multiple terminals on the same browser origin
 // (same device, different tabs) do not overwrite each other's shift data.
-function shiftStorageKey(terminalId: string): string {
+function shiftStorageKey(terminalId: number): string {
   return `pos_current_shift_v1_${terminalId}`;
 }
 
-function loadPersistedShift(terminalId: string): Shift | null {
+function loadPersistedShift(terminalId: number): Shift | null {
   try {
     const raw = localStorage.getItem(shiftStorageKey(terminalId));
     if (!raw) return null;
@@ -17,8 +17,8 @@ function loadPersistedShift(terminalId: string): Shift | null {
   }
 }
 
-function persistShift(shift: Shift | null, terminalId: string | null): void {
-  if (!terminalId) return;
+function persistShift(shift: Shift | null, terminalId: number | null): void {
+  if (terminalId === null) return;
   try {
     if (shift === null) localStorage.removeItem(shiftStorageKey(terminalId));
     else localStorage.setItem(shiftStorageKey(terminalId), JSON.stringify(shift));
@@ -28,10 +28,10 @@ function persistShift(shift: Shift | null, terminalId: string | null): void {
 interface ShiftState {
   currentShift: Shift | null;
   shiftModalOpen: "open" | "close" | null;
-  setCurrentShift: (shift: Shift | null, terminalId?: string | null) => void;
+  setCurrentShift: (shift: Shift | null, terminalId?: number | null) => void;
   setShiftModalOpen: (v: "open" | "close" | null) => void;
-  updateShiftTotals: (totalSales: number, totalOrders: number, terminalId?: string | null) => void;
-  loadForTerminal: (terminalId: string) => void;
+  updateShiftTotals: (totalSales: number, totalOrders: number, terminalId?: number | null) => void;
+  loadForTerminal: (terminalId: number) => void;
 }
 
 export const useShiftStore = create<ShiftState>((set) => ({

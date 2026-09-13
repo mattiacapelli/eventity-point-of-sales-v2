@@ -40,7 +40,7 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
         },
       },
       response: {
-        201: { type: "object", properties: { userId: { type: "string" } } },
+        201: { type: "object", properties: { userId: { type: "number" } } },
         409: { type: "object", properties: { error: { type: "string" } } },
       },
     },
@@ -69,9 +69,10 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
     },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const body = request.body as Partial<{ name: string; username: string; role: UserRole; active: boolean }>;
     try {
-      await fastify.authService.updateUser(id, body);
+      await fastify.authService.updateUser(numId, body);
       return reply.send({ ok: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Update failed";
@@ -97,8 +98,9 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
     },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const { newPin } = request.body as { newPin: string };
-    await fastify.authService.resetPin(id, newPin);
+    await fastify.authService.resetPin(numId, newPin);
     return reply.send({ ok: true });
   });
 };

@@ -19,8 +19,10 @@ import {
   UserGroupIcon,
   ShieldCheckIcon,
   ChevronDownIcon,
+  CloudArrowUpIcon,
 } from "../../components/ui/icons.js";
 import { BackupTab } from "./BackupTab.js";
+import { CloudSyncTab } from "./CloudSyncTab.js";
 import { RestaurantTab } from "./RestaurantTab.js";
 import { ProductsTab } from "./ProductsTab.js";
 import { CategoriesTab } from "./CategoriesTab.js";
@@ -42,7 +44,7 @@ import { NavMenuFab } from "../../components/NavMenu.js";
 
 // ─── Tab types ───────────────────────────────────────────────────────────────
 
-type Tab = "restaurant" | "products" | "categories" | "production-centers" | "payment-methods" | "printers" | "receipt-template" | "kitchen-template" | "shift-report-template" | "shifts" | "backup" | "advanced" | "interface" | "inventory" | "movements" | "terminals" | "users" | "license";
+type Tab = "restaurant" | "products" | "categories" | "production-centers" | "cloud-sync" | "payment-methods" | "printers" | "receipt-template" | "kitchen-template" | "shift-report-template" | "shifts" | "backup" | "advanced" | "interface" | "inventory" | "movements" | "terminals" | "users" | "license";
 
 type TabDef = { key: Tab; label: string; Icon: React.ComponentType<React.SVGProps<SVGSVGElement>> };
 
@@ -62,6 +64,7 @@ const GROUPS: Group[] = [
       { key: "categories", label: "Categorie", Icon: TagIcon },
       { key: "products", label: "Prodotti", Icon: CubeIcon },
       { key: "production-centers", label: "Centri di produzione", Icon: BuildingStorefrontIcon },
+      { key: "cloud-sync", label: "Cloud", Icon: CloudArrowUpIcon },
     ],
   },
   {
@@ -400,6 +403,7 @@ export function AdminScreen() {
             {resolvedActiveTab === "products" && <ProductsTab />}
             {resolvedActiveTab === "categories" && <CategoriesTab />}
             {resolvedActiveTab === "production-centers" && <ProductionCentersTab />}
+            {resolvedActiveTab === "cloud-sync" && <CloudSyncTab />}
             {resolvedActiveTab === "payment-methods" && <PaymentMethodsTab />}
             {resolvedActiveTab === "printers" && <PrintersTab />}
             {resolvedActiveTab === "receipt-template" && <ReceiptTemplateTab />}

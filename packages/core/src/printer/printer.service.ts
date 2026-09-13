@@ -1,8 +1,10 @@
 import type { Logger } from "pino";
 import { TcpPrinterAdapter } from "./tcp-printer.adapter.js";
+import { UsbPrinterAdapter } from "./usb-printer.adapter.js";
+import { WindowsPrinterAdapter } from "./windows-printer.adapter.js";
 
 export interface PrintJob {
-  printerId: string;
+  printerId: number;
   /** Plain text content (text mode). Mutually exclusive with contentBuffer. */
   content?: string;
   /** Raw bytes to write directly (image/raster mode). Mutually exclusive with content. */
@@ -22,8 +24,15 @@ export interface PrinterAdapter {
 }
 
 export interface PrinterConfig {
-  host: string;
-  port: number;
+  connectionType?: "network" | "usb" | "windows";
+  // network
+  host?: string;
+  port?: number;
+  // usb
+  usbVendorId?: number;
+  usbProductId?: number;
+  // windows
+  winPrinterName?: string;
 }
 
 class MockPrinterAdapter implements PrinterAdapter {
@@ -38,28 +47,68 @@ class MockPrinterAdapter implements PrinterAdapter {
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
+const PRINT_TIMEOUT_MS = 10_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    sleep(ms).then(() => fallback),
+  ]);
+}
+
+/** Resolves with true if the promise settled within ms, false if it timed out. */
+function raceTimeout(promise: Promise<unknown>, ms: number): Promise<boolean> {
+  let settled = false;
+  return Promise.race([
+    promise.then(() => { settled = true; return true; }, () => { settled = true; return true; }),
+    sleep(ms).then(() => settled),
+  ]);
+}
+
 export class PrinterService {
   private readonly fallbackAdapter: PrinterAdapter;
-  private readonly adapterPool = new Map<string, TcpPrinterAdapter>();
-  private readonly queue: PrintJob[] = [];
+  private readonly adapterPool = new Map<string, PrinterAdapter>();
   private readonly deadLetterQueue: PrintJob[] = [];
-  private processing = false;
+  /** Per-printer serialization chain — prevents concurrent writes to the same device. */
+  private readonly printChain = new Map<string, Promise<void>>();
 
   constructor(private readonly logger: Logger) {
     this.fallbackAdapter = new MockPrinterAdapter(logger);
   }
 
-  /** Get or create a TCP adapter for a given printerId + config. */
+  /** Get or create an adapter for a given printerId + config (TCP or USB). */
   private getAdapter(job: PrintJob): PrinterAdapter {
     const cfg = job.printerConfig;
     if (!cfg) return this.fallbackAdapter;
 
-    const key = `${job.printerId}:${cfg.host}:${cfg.port}`;
+    if (cfg.connectionType === "usb") {
+      if (!cfg.usbVendorId || !cfg.usbProductId) return this.fallbackAdapter;
+      const key = `usb:${job.printerId}:${cfg.usbVendorId}:${cfg.usbProductId}`;
+      let adapter = this.adapterPool.get(key);
+      if (!adapter) {
+        adapter = new UsbPrinterAdapter(cfg.usbVendorId, cfg.usbProductId, this.logger);
+        this.adapterPool.set(key, adapter);
+      }
+      return adapter;
+    }
+
+    if (cfg.connectionType === "windows") {
+      if (!cfg.winPrinterName) return this.fallbackAdapter;
+      const key = `win:${job.printerId}:${cfg.winPrinterName}`;
+      let adapter = this.adapterPool.get(key);
+      if (!adapter) {
+        adapter = new WindowsPrinterAdapter(cfg.winPrinterName, this.logger);
+        this.adapterPool.set(key, adapter);
+      }
+      return adapter;
+    }
+
+    if (!cfg.host || !cfg.port) return this.fallbackAdapter;
+    const key = `tcp:${job.printerId}:${cfg.host}:${cfg.port}`;
     let adapter = this.adapterPool.get(key);
     if (!adapter) {
       adapter = new TcpPrinterAdapter(cfg.host, cfg.port, this.logger);
@@ -68,37 +117,84 @@ export class PrinterService {
     return adapter;
   }
 
-  enqueue(job: PrintJob): void {
-    this.queue.push(job);
-    void this.flush();
+  /** Abort the adapter's current socket if the adapter supports it (TCP only). */
+  private abortAdapter(job: PrintJob): void {
+    const cfg = job.printerConfig;
+    if (!cfg || cfg.connectionType === "usb" || cfg.connectionType === "windows") return;
+    if (!cfg.host || !cfg.port) return;
+    const key = `tcp:${job.printerId}:${cfg.host}:${cfg.port}`;
+    const adapter = this.adapterPool.get(key);
+    if (adapter && "abortCurrentSocket" in adapter) {
+      (adapter as TcpPrinterAdapter).abortCurrentSocket();
+    }
   }
 
-  async flush(): Promise<void> {
-    if (this.processing) return;
-    this.processing = true;
-    while (this.queue.length > 0) {
-      const job = this.queue.shift()!;
-      await this.printWithRetry(job);
-    }
-    this.processing = false;
+  enqueue(job: PrintJob): void {
+    // Route into the per-printer chain so jobs for different printers run in
+    // parallel while jobs for the same printer remain serialized.
+    void this.printWithRetry(job);
   }
 
   private async printWithRetry(job: PrintJob): Promise<void> {
-    const adapter = this.getAdapter(job);
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        const result = await adapter.print(job);
-        if (result.success) return;
-        if (attempt < MAX_RETRIES) await sleep(RETRY_DELAY_MS);
-      } catch {
-        if (attempt < MAX_RETRIES) await sleep(RETRY_DELAY_MS);
+    const key = this.adapterKey(job);
+    const prev = this.printChain.get(key) ?? Promise.resolve();
+    let resolve!: () => void;
+    const next = new Promise<void>((r) => { resolve = r; });
+    this.printChain.set(key, next);
+    try {
+      const prevSettled = await raceTimeout(prev, PRINT_TIMEOUT_MS);
+      if (!prevSettled) {
+        this.abortAdapter(job);
       }
+      const adapter = this.getAdapter(job);
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const result = await withTimeout(adapter.print(job), PRINT_TIMEOUT_MS, { success: false, message: "timeout" });
+          if (result.success) return;
+          if (attempt < MAX_RETRIES) await sleep(RETRY_DELAY_MS);
+        } catch {
+          if (attempt < MAX_RETRIES) await sleep(RETRY_DELAY_MS);
+        }
+      }
+      this.deadLetterQueue.push(job);
+    } finally {
+      resolve();
+      if (this.printChain.get(key) === next) this.printChain.delete(key);
     }
-    this.deadLetterQueue.push(job);
   }
 
   async printDirect(job: PrintJob): Promise<PrintResult> {
-    return this.getAdapter(job).print(job);
+    const key = this.adapterKey(job);
+    const prev = this.printChain.get(key) ?? Promise.resolve();
+    let resolve!: () => void;
+    const next = new Promise<void>((r) => { resolve = r; });
+    this.printChain.set(key, next);
+    try {
+      // Await the previous job in the chain, but never block longer than the
+      // print timeout — a permanently-hung job must not freeze all successors.
+      const prevSettled = await raceTimeout(prev, PRINT_TIMEOUT_MS);
+      if (!prevSettled) {
+        // Previous job timed out while still writing. Destroy the socket so
+        // its in-flight bytes don't contaminate this job's stream.
+        this.abortAdapter(job);
+      }
+      return await withTimeout(
+        this.getAdapter(job).print(job),
+        PRINT_TIMEOUT_MS,
+        { success: false, message: `Print timeout after ${PRINT_TIMEOUT_MS}ms` },
+      );
+    } finally {
+      resolve();
+      if (this.printChain.get(key) === next) this.printChain.delete(key);
+    }
+  }
+
+  private adapterKey(job: PrintJob): string {
+    const cfg = job.printerConfig;
+    if (!cfg) return `fallback:${job.printerId}`;
+    if (cfg.connectionType === "usb") return `usb:${job.printerId}`;
+    if (cfg.connectionType === "windows") return `win:${job.printerId}`;
+    return `tcp:${job.printerId}`;
   }
 
   getDeadLetterQueue(): readonly PrintJob[] {
@@ -110,7 +206,11 @@ export class PrinterService {
   }
 
   destroyAdapterPool(): void {
-    for (const adapter of this.adapterPool.values()) adapter.destroy();
+    for (const adapter of this.adapterPool.values()) {
+      if ("destroy" in adapter && typeof (adapter as { destroy?: () => void }).destroy === "function") {
+        (adapter as { destroy: () => void }).destroy();
+      }
+    }
     this.adapterPool.clear();
   }
 }

@@ -50,7 +50,7 @@ export function registerKitchenRoutes(
     handler: async (req, reply) => {
       const { id } = req.params as { id: string };
       try {
-        const order = await service.getOrder(id);
+        const order = await service.getOrder(parseInt(id, 10));
         reply.send(serializeOrder(order));
       } catch (err) {
         if (err instanceof KitchenValidationError) {
@@ -89,7 +89,7 @@ export function registerKitchenRoutes(
       const { id } = req.params as { id: string };
       const { status } = req.body as { status: OrderStatus };
       try {
-        const order = await service.requestTransition(id, status);
+        const order = await service.requestTransition(parseInt(id, 10), status);
         reply.send(serializeOrder(order));
       } catch (err) {
         if (err instanceof KitchenValidationError) {

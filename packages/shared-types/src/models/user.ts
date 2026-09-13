@@ -1,7 +1,7 @@
 export type UserRole = "admin" | "cashier" | "kitchen" | "waiter" | "viewer";
 
 export interface User {
-  readonly id: string;
+  readonly id: number;
   readonly name: string;
   readonly username: string;
   readonly role: UserRole;
@@ -11,7 +11,7 @@ export interface User {
 }
 
 export interface AuthSession {
-  readonly userId: string;
+  readonly userId: number;
   readonly role: UserRole;
   readonly expiresAt: Date;
 }

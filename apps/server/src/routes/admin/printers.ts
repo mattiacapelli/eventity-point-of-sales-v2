@@ -2,10 +2,9 @@ import "@fastify/swagger";
 import type { FastifyPluginAsync } from "fastify";
 import { eq } from "@pos/db";
 import { printers, productionCenters, productionCenterPrinters } from "@pos/db";
-import { randomUUID } from "node:crypto";
 import * as net from "node:net";
 import * as os from "node:os";
-import { requireRole, AuthError } from "@pos/core";
+import { requireRole, AuthError, listUsbPrinters, listWindowsPrinters, listWindowsUsbPorts } from "@pos/core";
 
 const printersRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("onRequest", async (request, reply) => {
@@ -31,11 +30,12 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["printers"], summary: "List production centers assigned to a printer" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const rows = await fastify.ctx.db
       .select({ id: productionCenters.id, name: productionCenters.name, color: productionCenters.color })
       .from(productionCenterPrinters)
       .innerJoin(productionCenters, eq(productionCenterPrinters.productionCenterId, productionCenters.id))
-      .where(eq(productionCenterPrinters.printerId, id));
+      .where(eq(productionCenterPrinters.printerId, numId));
     return reply.send(rows);
   });
 
@@ -48,26 +48,29 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       connectionType?: string;
       host?: string;
       port?: number;
+      usbVendorId?: number | null;
+      usbProductId?: number | null;
+      winPrinterName?: string | null;
       active?: boolean;
       receiptEnabled?: boolean;
       kitchenEnabled?: boolean;
       printMode?: "text" | "image";
     };
-    const id = randomUUID();
-    await fastify.ctx.db.insert(printers).values({
-      id,
+    const [row] = await fastify.ctx.db.insert(printers).values({
       name:           body.name,
       type:           body.type ?? "escpos",
       connectionType: body.connectionType ?? "network",
       host:           body.host ?? null,
       port:           body.port ?? null,
+      usbVendorId:    body.usbVendorId ?? null,
+      usbProductId:   body.usbProductId ?? null,
+      winPrinterName: body.winPrinterName ?? null,
       active:         body.active ?? true,
       receiptEnabled: body.receiptEnabled ?? false,
       kitchenEnabled: body.kitchenEnabled ?? false,
       printMode:      body.printMode ?? "text",
-    });
-    const [row] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, id));
-    fastify.ctx.eventBus.emit("PRINTER_CREATED", { traceId: randomUUID(), id, timestamp: new Date() });
+    }).returning();
+    fastify.ctx.eventBus.emit("PRINTER_CREATED", { traceId: crypto.randomUUID(), id: row!.id, timestamp: new Date() });
     return reply.status(201).send(row);
   });
 
@@ -75,19 +78,23 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["printers"], summary: "Update a printer" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const body = request.body as Partial<{
       name: string;
       type: string;
       connectionType: string;
       host: string | null;
       port: number | null;
+      usbVendorId: number | null;
+      usbProductId: number | null;
+      winPrinterName: string | null;
       active: boolean;
       receiptEnabled: boolean;
       kitchenEnabled: boolean;
       printMode: "text" | "image";
     }>;
 
-    const [existing] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, id));
+    const [existing] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     const update: {
@@ -96,6 +103,9 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
       connectionType?: string;
       host?: string | null;
       port?: number | null;
+      usbVendorId?: number | null;
+      usbProductId?: number | null;
+      winPrinterName?: string | null;
       active?: boolean;
       receiptEnabled?: boolean;
       kitchenEnabled?: boolean;
@@ -106,16 +116,19 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.connectionType !== undefined) update.connectionType = body.connectionType;
     if ("host" in body) update.host = body.host ?? null;
     if ("port" in body) update.port = body.port ?? null;
+    if ("usbVendorId" in body) update.usbVendorId = body.usbVendorId ?? null;
+    if ("usbProductId" in body) update.usbProductId = body.usbProductId ?? null;
+    if ("winPrinterName" in body) update.winPrinterName = body.winPrinterName ?? null;
     if (body.active !== undefined) update.active = body.active;
     if (body.receiptEnabled !== undefined) update.receiptEnabled = body.receiptEnabled;
     if (body.kitchenEnabled !== undefined) update.kitchenEnabled = body.kitchenEnabled;
     if (body.printMode !== undefined) update.printMode = body.printMode;
 
     if (Object.keys(update).length > 0) {
-      await fastify.ctx.db.update(printers).set(update).where(eq(printers.id, id));
+      await fastify.ctx.db.update(printers).set(update).where(eq(printers.id, numId));
     }
-    const [row] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, id));
-    fastify.ctx.eventBus.emit("PRINTER_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
+    const [row] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, numId));
+    fastify.ctx.eventBus.emit("PRINTER_UPDATED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
     return reply.send(row);
   });
 
@@ -157,8 +170,9 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["printers"], summary: "Delete a printer" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    await fastify.ctx.db.delete(printers).where(eq(printers.id, id));
-    fastify.ctx.eventBus.emit("PRINTER_DELETED", { traceId: randomUUID(), id, timestamp: new Date() });
+    const numId = parseInt(id, 10);
+    await fastify.ctx.db.delete(printers).where(eq(printers.id, numId));
+    fastify.ctx.eventBus.emit("PRINTER_DELETED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
     return reply.status(204).send();
   });
 
@@ -166,23 +180,59 @@ const printersRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["printers"], summary: "Test print on a printer", body: {} },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const [printer] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, id));
+    const numId = parseInt(id, 10);
+    const [printer] = await fastify.ctx.db.select().from(printers).where(eq(printers.id, numId));
     if (!printer) return reply.status(404).send({ error: "Not found" });
 
+    const printerConfig = buildPrinterConfig(printer);
     const result = await fastify.ctx.printerService.printDirect({
       printerId: printer.id,
       content: `## Test stampa\n\nStampante: ${printer.name}\nOra: ${new Date().toLocaleString("it-IT")}\n`,
       type: "receipt",
-      ...(printer.host && printer.port
-        ? { printerConfig: { host: printer.host, port: printer.port } }
-        : {}),
+      ...(printerConfig ? { printerConfig } : {}),
     });
 
     return reply.send(result);
   });
+
+  fastify.get("/printers/discover/usb", {
+    schema: { tags: ["printers"], summary: "List USB printers connected to this machine" },
+  }, async (_request, reply) => {
+    const devices = listUsbPrinters();
+    return reply.send({ devices });
+  });
+
+  fastify.get("/printers/discover/windows", {
+    schema: { tags: ["printers"], summary: "List printers installed in Windows (Win32 only)" },
+  }, async (_request, reply) => {
+    const printerList = listWindowsPrinters();
+    return reply.send({ printers: printerList });
+  });
+
+  fastify.get("/printers/discover/windows-ports", {
+    schema: { tags: ["printers"], summary: "List USB port paths (USB001…USB009) that have a device attached" },
+  }, async (_request, reply) => {
+    const ports = listWindowsUsbPorts();
+    return reply.send({ ports });
+  });
 };
 
 export default printersRoutes;
+
+type PrinterRow = { connectionType: string; host: string | null; port: number | null; usbVendorId: number | null; usbProductId: number | null; winPrinterName: string | null };
+
+function buildPrinterConfig(printer: PrinterRow) {
+  if (printer.connectionType === "usb" && printer.usbVendorId && printer.usbProductId) {
+    return { connectionType: "usb" as const, usbVendorId: printer.usbVendorId, usbProductId: printer.usbProductId };
+  }
+  if (printer.connectionType === "windows" && printer.winPrinterName) {
+    return { connectionType: "windows" as const, winPrinterName: printer.winPrinterName };
+  }
+  if (printer.host && printer.port) {
+    return { connectionType: "network" as const, host: printer.host, port: printer.port };
+  }
+  return undefined;
+}
 
 function getLocalSubnet(): string | null {
   const ifaces = os.networkInterfaces();

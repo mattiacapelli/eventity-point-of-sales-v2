@@ -1,20 +1,21 @@
 export interface Category {
-  id: string;
+  id: number;
   name: string;
+  emoji: string | null;
 }
 
 export type OptionPrefix = "+" | "-" | ">>";
 export type OptionGroupType = "single" | "multi" | "removal";
 
 export interface ProductOption {
-  id: string;
+  id: number;
   name: string;
   priceDelta: number;
   prefix: OptionPrefix;
 }
 
 export interface ProductOptionGroup {
-  id: string;
+  id: number;
   name: string;
   type: OptionGroupType;
   required: boolean;
@@ -24,18 +25,19 @@ export interface ProductOptionGroup {
 }
 
 export interface Product {
-  id: string;
-  categoryId: string;
+  id: number;
+  categoryId: number;
   name: string;
   price: number;
   description?: string;
+  imageUrl: string | null;
   optionGroups: ProductOptionGroup[];
 }
 
 export interface CartLine {
-  productId: string;
+  productId: number;
   quantity: number;
-  selectedOptionIds: string[];
+  selectedOptionIds: number[];
 }
 
 export interface OrderInfo {

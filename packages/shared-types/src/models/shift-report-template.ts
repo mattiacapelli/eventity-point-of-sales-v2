@@ -12,6 +12,7 @@ export type ShiftReportBlockType =
   | "by-category"
   | "by-production-center"
   | "by-payment-method"
+  | "by-terminal"
   | "top-products"
   | "footer";
 

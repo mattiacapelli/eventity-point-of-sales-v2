@@ -1,8 +1,7 @@
 import "@fastify/swagger";
 import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
-import { eq, asc, and, like } from "@pos/db";
-import { products, categories } from "@pos/db";
-import { randomUUID } from "node:crypto";
+import { eq, asc, and, like, inArray } from "@pos/db";
+import { products, categories, terminalProducts, terminals } from "@pos/db";
 import { requireRole, AuthError } from "@pos/core";
 import { mkdirSync, unlinkSync, existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
@@ -39,9 +38,25 @@ const PRODUCT_SELECT = {
   sortOrder:          products.sortOrder,
   vatRate:            products.vatRate,
   receiptPrintMode:   products.receiptPrintMode,
+  availableDates:     products.availableDates,
   createdAt:          products.createdAt,
   updatedAt:          products.updatedAt,
 } as const;
+
+function parseAvailableDates(raw: string | null): string[] | null {
+  if (!raw) return null;
+  try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : null; }
+  catch { return null; }
+}
+
+function serializeAvailableDates(dates: string[] | null | undefined): string | null {
+  if (!dates || dates.length === 0) return null;
+  return JSON.stringify(dates);
+}
+
+function mapProductRow<T extends { availableDates: string | null }>(row: T): Omit<T, "availableDates"> & { availableDates: string[] | null } {
+  return { ...row, availableDates: parseAvailableDates(row.availableDates) };
+}
 
 const productsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("onRequest", async (request) => {
@@ -59,7 +74,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     };
 
     const conditions = [];
-    if (categoryId) conditions.push(eq(products.categoryId, categoryId));
+    if (categoryId) conditions.push(eq(products.categoryId, parseInt(categoryId, 10)));
     if (active !== undefined) conditions.push(eq(products.active, active === "true"));
     if (search) conditions.push(like(products.name, `%${search}%`));
 
@@ -70,20 +85,21 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(asc(products.sortOrder), asc(products.name));
 
-    return reply.send(rows);
+    return reply.send(rows.map(mapProductRow));
   });
 
   fastify.get("/products/:id", {
     schema: { tags: ["products"], summary: "Get a product by id" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const [row] = await fastify.ctx.db
       .select(PRODUCT_SELECT)
       .from(products)
       .leftJoin(categories, eq(products.categoryId, categories.id))
-      .where(eq(products.id, id));
+      .where(eq(products.id, numId));
     if (!row) return reply.status(404).send({ error: "Not found" });
-    return reply.send(row);
+    return reply.send(mapProductRow(row));
   });
 
   fastify.post("/products", {
@@ -93,8 +109,8 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     const body = request.body as {
       name: string;
       price: number;
-      categoryId?: string;
-      productionCenterId?: string;
+      categoryId?: number | null;
+      productionCenterId?: number | null;
       active?: boolean;
       color?: string;
       description?: string;
@@ -102,11 +118,10 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       sortOrder?: number;
       vatRate?: number;
       receiptPrintMode?: "inherit" | "included" | "separate";
+      availableDates?: string[] | null;
     };
-    const id = randomUUID();
     const now = Date.now();
-    await fastify.ctx.db.insert(products).values({
-      id,
+    const [row] = await fastify.ctx.db.insert(products).values({
       name:               body.name,
       price:              body.price,
       categoryId:         body.categoryId ?? null,
@@ -118,16 +133,12 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       sortOrder:          body.sortOrder ?? 0,
       vatRate:            body.vatRate ?? 10,
       receiptPrintMode:   body.receiptPrintMode ?? "inherit",
+      availableDates:     serializeAvailableDates(body.availableDates),
       createdAt:          now,
       updatedAt:          now,
-    });
-    const [row] = await fastify.ctx.db
-      .select(PRODUCT_SELECT)
-      .from(products)
-      .leftJoin(categories, eq(products.categoryId, categories.id))
-      .where(eq(products.id, id));
-    fastify.ctx.eventBus.emit("PRODUCT_CREATED", { traceId: randomUUID(), id, timestamp: new Date() });
-    return reply.status(201).send(row);
+    }).returning();
+    fastify.ctx.eventBus.emit("PRODUCT_CREATED", { traceId: crypto.randomUUID(), id: row!.id, timestamp: new Date() });
+    return reply.status(201).send(mapProductRow(row!));
   });
 
   fastify.patch("/products/:id", {
@@ -135,11 +146,12 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const body = request.body as Partial<{
       name: string;
       price: number;
-      categoryId: string | null;
-      productionCenterId: string | null;
+      categoryId: number | null;
+      productionCenterId: number | null;
       active: boolean;
       color: string | null;
       description: string | null;
@@ -147,16 +159,17 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       sortOrder: number;
       vatRate: number;
       receiptPrintMode: "inherit" | "included" | "separate";
+      availableDates: string[] | null;
     }>;
 
-    const [existing] = await fastify.ctx.db.select().from(products).where(eq(products.id, id));
+    const [existing] = await fastify.ctx.db.select().from(products).where(eq(products.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     const update: {
       name?: string;
       price?: number;
-      categoryId?: string | null;
-      productionCenterId?: string | null;
+      categoryId?: number | null;
+      productionCenterId?: number | null;
       active?: boolean;
       color?: string | null;
       description?: string | null;
@@ -164,6 +177,7 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
       sortOrder?: number;
       vatRate?: number;
       receiptPrintMode?: "inherit" | "included" | "separate";
+      availableDates?: string | null;
       updatedAt?: number;
     } = {};
     if (body.name !== undefined) update.name = body.name;
@@ -177,19 +191,20 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.sortOrder !== undefined) update.sortOrder = body.sortOrder;
     if (body.vatRate !== undefined) update.vatRate = body.vatRate;
     if (body.receiptPrintMode !== undefined) update.receiptPrintMode = body.receiptPrintMode;
+    if ("availableDates" in body) update.availableDates = serializeAvailableDates(body.availableDates);
 
     if (Object.keys(update).length > 0) {
       update.updatedAt = Date.now();
-      await fastify.ctx.db.update(products).set(update).where(eq(products.id, id));
+      await fastify.ctx.db.update(products).set(update).where(eq(products.id, numId));
     }
 
     const [row] = await fastify.ctx.db
       .select(PRODUCT_SELECT)
       .from(products)
       .leftJoin(categories, eq(products.categoryId, categories.id))
-      .where(eq(products.id, id));
-    fastify.ctx.eventBus.emit("PRODUCT_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
-    return reply.send(row);
+      .where(eq(products.id, numId));
+    fastify.ctx.eventBus.emit("PRODUCT_UPDATED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
+    return reply.send(mapProductRow(row!));
   });
 
   fastify.delete("/products/:id", {
@@ -197,13 +212,14 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const [existing] = await fastify.ctx.db.select({ imageData: products.imageData }).from(products).where(eq(products.id, id));
+    const numId = parseInt(id, 10);
+    const [existing] = await fastify.ctx.db.select({ imageData: products.imageData }).from(products).where(eq(products.id, numId));
     if (existing?.imageData) {
       const absPath = resolve(join(fastify.ctx.config.dataDir, existing.imageData));
       if (existsSync(absPath)) { try { unlinkSync(absPath); } catch { /* ok */ } }
     }
-    await fastify.ctx.db.delete(products).where(eq(products.id, id));
-    fastify.ctx.eventBus.emit("PRODUCT_DELETED", { traceId: randomUUID(), id, timestamp: new Date() });
+    await fastify.ctx.db.delete(products).where(eq(products.id, numId));
+    fastify.ctx.eventBus.emit("PRODUCT_DELETED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
     return reply.status(204).send();
   });
 
@@ -213,8 +229,9 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
 
-    const [existing] = await fastify.ctx.db.select({ id: products.id }).from(products).where(eq(products.id, id));
+    const [existing] = await fastify.ctx.db.select({ id: products.id }).from(products).where(eq(products.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     const data = await request.file();
@@ -231,13 +248,13 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
 
     const IMAGES_DIR = resolve(productImagesDir(fastify.ctx.config.dataDir));
     ensureDir(IMAGES_DIR);
-    const safeFilename = `${id}${ext}`;
+    const safeFilename = `${numId}${ext}`;
     const relPath = `images/products/${safeFilename}`;
     const absPath = join(IMAGES_DIR, safeFilename);
 
     // Remove old image files for this product (different extension)
     for (const oldExt of IMAGE_EXTS) {
-      const old = join(IMAGES_DIR, `${id}${oldExt}`);
+      const old = join(IMAGES_DIR, `${numId}${oldExt}`);
       if (old !== absPath && existsSync(old)) { try { unlinkSync(old); } catch { /* ok */ } }
     }
 
@@ -247,8 +264,8 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
 
     await fastify.ctx.db.update(products)
       .set({ imageData: relPath, updatedAt: Date.now() })
-      .where(eq(products.id, id));
-    fastify.ctx.eventBus.emit("PRODUCT_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
+      .where(eq(products.id, numId));
+    fastify.ctx.eventBus.emit("PRODUCT_UPDATED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
 
     return reply.send({ imagePath: `/api/static/${relPath}` });
   });
@@ -259,8 +276,9 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: adminOnly,
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
 
-    const [existing] = await fastify.ctx.db.select({ imageData: products.imageData }).from(products).where(eq(products.id, id));
+    const [existing] = await fastify.ctx.db.select({ imageData: products.imageData }).from(products).where(eq(products.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     if (existing.imageData) {
@@ -270,9 +288,54 @@ const productsRoutes: FastifyPluginAsync = async (fastify) => {
 
     await fastify.ctx.db.update(products)
       .set({ imageData: null, updatedAt: Date.now() })
-      .where(eq(products.id, id));
-    fastify.ctx.eventBus.emit("PRODUCT_UPDATED", { traceId: randomUUID(), id, timestamp: new Date() });
+      .where(eq(products.id, numId));
+    fastify.ctx.eventBus.emit("PRODUCT_UPDATED", { traceId: crypto.randomUUID(), id: numId, timestamp: new Date() });
 
+    return reply.status(204).send();
+  });
+
+  // GET /products/:id/terminals — list terminals where this product is restricted to
+  fastify.get("/products/:id/terminals", {
+    schema: { tags: ["products"], summary: "List terminals where this product is visible (empty = all terminals)" },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
+    const rows = await fastify.ctx.db.select().from(terminalProducts).where(eq(terminalProducts.productId, numId));
+    if (rows.length === 0) return reply.send([]);
+    const terminalIds = rows.map((r) => r.terminalId);
+    const terminalRows = await fastify.ctx.db.select({ id: terminals.id, name: terminals.name }).from(terminals)
+      .where(inArray(terminals.id, terminalIds));
+    return reply.send(terminalRows);
+  });
+
+  // POST /products/:id/terminals/:terminalId
+  fastify.post("/products/:id/terminals/:terminalId", {
+    schema: { tags: ["products"], summary: "Restrict this product to a specific terminal" },
+    preHandler: adminOnly,
+  }, async (request, reply) => {
+    const { id, terminalId } = request.params as { id: string; terminalId: string };
+    const numId = parseInt(id, 10);
+    const numTerminalId = parseInt(terminalId, 10);
+    const [product] = await fastify.ctx.db.select().from(products).where(eq(products.id, numId));
+    if (!product) return reply.status(404).send({ error: "Product not found" });
+    const [terminal] = await fastify.ctx.db.select().from(terminals).where(eq(terminals.id, numTerminalId));
+    if (!terminal) return reply.status(404).send({ error: "Terminal not found" });
+    const [existing] = await fastify.ctx.db.select().from(terminalProducts)
+      .where(and(eq(terminalProducts.productId, numId), eq(terminalProducts.terminalId, numTerminalId)));
+    if (!existing) {
+      await fastify.ctx.db.insert(terminalProducts).values({ terminalId: numTerminalId, productId: numId });
+    }
+    return reply.status(204).send();
+  });
+
+  // DELETE /products/:id/terminals/:terminalId
+  fastify.delete("/products/:id/terminals/:terminalId", {
+    schema: { tags: ["products"], summary: "Remove terminal restriction from this product" },
+    preHandler: adminOnly,
+  }, async (request, reply) => {
+    const { id, terminalId } = request.params as { id: string; terminalId: string };
+    await fastify.ctx.db.delete(terminalProducts)
+      .where(and(eq(terminalProducts.productId, parseInt(id, 10)), eq(terminalProducts.terminalId, parseInt(terminalId, 10))));
     return reply.status(204).send();
   });
 

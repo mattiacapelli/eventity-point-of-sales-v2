@@ -5,7 +5,7 @@ import type { InventoryRepository, InventoryItem, InventoryMovement, MovementFil
 export class InventoryValidationError extends Error {}
 
 export type OrderItemForInventory = {
-  productId: string;
+  productId: number;
   quantity: number;
 };
 
@@ -19,7 +19,7 @@ export class InventoryService {
     return this.repo.findAllItems();
   }
 
-  async getItem(id: string): Promise<InventoryItem> {
+  async getItem(id: number): Promise<InventoryItem> {
     const item = await this.repo.findItemById(id);
     if (!item) throw new InventoryValidationError(`Item ${id} not found`);
     return item;
@@ -31,13 +31,12 @@ export class InventoryService {
     unit?: string;
     currentStock?: number;
     minStock?: number;
-    productionCenterId?: string | null;
-    productId?: string | null;
+    productionCenterId?: number | null;
+    productId?: number | null;
     resetOnShiftOpen?: boolean;
   }): Promise<InventoryItem> {
     const now = Math.floor(Date.now() / 1000);
     return this.repo.createItem({
-      id: randomUUID(),
       name: data.name,
       sku: data.sku ?? null,
       unit: data.unit ?? "pz",
@@ -51,13 +50,13 @@ export class InventoryService {
     });
   }
 
-  async updateItem(id: string, data: {
+  async updateItem(id: number, data: {
     name?: string;
     sku?: string | null;
     unit?: string;
     minStock?: number;
-    productionCenterId?: string | null;
-    productId?: string | null;
+    productionCenterId?: number | null;
+    productId?: number | null;
     resetOnShiftOpen?: boolean;
   }): Promise<InventoryItem> {
     const existing = await this.repo.findItemById(id);
@@ -76,18 +75,18 @@ export class InventoryService {
     return (await this.repo.updateItem(id, update))!;
   }
 
-  async getItemsByProduct(productId: string): Promise<InventoryItem[]> {
+  async getItemsByProduct(productId: number): Promise<InventoryItem[]> {
     return this.repo.findItemsByProductId(productId);
   }
 
-  async deleteItem(id: string): Promise<void> {
+  async deleteItem(id: number): Promise<void> {
     const existing = await this.repo.findItemById(id);
     if (!existing) throw new InventoryValidationError(`Item ${id} not found`);
     await this.repo.deleteMovementsByItemId(id);
     await this.repo.deleteItem(id);
   }
 
-  async adjustStock(id: string, quantity: number, reason?: string): Promise<InventoryItem> {
+  async adjustStock(id: number, quantity: number, reason?: string): Promise<InventoryItem> {
     const item = await this.repo.findItemById(id);
     if (!item) throw new InventoryValidationError(`Item ${id} not found`);
 
@@ -96,7 +95,6 @@ export class InventoryService {
 
     await this.repo.updateItem(id, { currentStock: newStock, updatedAt: now });
     await this.repo.createMovement({
-      id: randomUUID(),
       itemId: id,
       type: "manual",
       quantity,
@@ -133,7 +131,7 @@ export class InventoryService {
     return this.repo.findMovements(filters);
   }
 
-  async getItemMovements(itemId: string): Promise<InventoryMovement[]> {
+  async getItemMovements(itemId: number): Promise<InventoryMovement[]> {
     return this.repo.findMovements({ itemId });
   }
 
@@ -141,12 +139,11 @@ export class InventoryService {
     return this.repo.findLowStockItems();
   }
 
-  async decrementForOrder(orderId: string, items: OrderItemForInventory[]): Promise<void> {
+  async decrementForOrder(orderId: number, items: OrderItemForInventory[]): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
     const traceId = randomUUID();
 
-    // Phase 1: resolve item IDs and deltas with async reads (no stock snapshot taken here).
-    type Delta = { itemId: string; itemName: string; delta: number };
+    type Delta = { itemId: number; itemName: string; delta: number };
     const deltas: Delta[] = [];
 
     for (const orderItem of items) {
@@ -177,11 +174,8 @@ export class InventoryService {
 
     if (deltas.length === 0) return;
 
-    // Phase 2: read current stock AND apply writes atomically inside the transaction.
-    // Reading inside the transaction avoids the TOCTOU race where two concurrent orders
-    // could each read the same pre-decrement value and overwrite each other's write.
     const newStocks = this.repo.transaction((txRepo) => {
-      const result: Map<string, { newStock: number; minStock: number }> = new Map();
+      const result: Map<number, { newStock: number; minStock: number }> = new Map();
       for (const d of deltas) {
         const current = txRepo.findItemByIdSync(d.itemId);
         if (!current) continue;
@@ -189,7 +183,6 @@ export class InventoryService {
         result.set(d.itemId, { newStock, minStock: current.minStock });
         void txRepo.updateItem(d.itemId, { currentStock: newStock, updatedAt: now });
         void txRepo.createMovement({
-          id: randomUUID(),
           itemId: d.itemId,
           type: "sale",
           quantity: d.delta,
@@ -201,7 +194,6 @@ export class InventoryService {
       return result;
     });
 
-    // Phase 3: emit events after successful commit
     for (const d of deltas) {
       this.eventBus.emit("INVENTORY_UPDATED", {
         traceId,
@@ -224,20 +216,19 @@ export class InventoryService {
     }
   }
 
-  async getIngredientsByProduct(productId: string) {
+  async getIngredientsByProduct(productId: number) {
     return this.repo.findIngredientsByProduct(productId);
   }
 
-  async createIngredient(data: { productId: string; inventoryItemId: string; quantity?: number }) {
+  async createIngredient(data: { productId: number; inventoryItemId: number; quantity?: number }) {
     return this.repo.createIngredient({
-      id: randomUUID(),
       productId: data.productId,
       inventoryItemId: data.inventoryItemId,
       quantity: data.quantity ?? 1,
     });
   }
 
-  async deleteIngredient(id: string): Promise<void> {
+  async deleteIngredient(id: number): Promise<void> {
     await this.repo.deleteIngredient(id);
   }
 }

@@ -1,14 +1,29 @@
 import { randomUUID } from "node:crypto";
-import { formatReceipt, renderReceiptImage, pngToEscposRaster } from "@pos/core";
+import { formatReceipt, renderPool } from "@pos/core";
 import { computeVatBreakdown } from "@pos/module-sales";
 import type { ReceiptBlock } from "@pos/shared-types";
-import type { PrinterService, Logger } from "@pos/core";
+import type { PrinterService, Logger, PrinterConfig } from "@pos/core";
 import type { EventBus } from "@pos/event-bus";
+import type { DbClient } from "@pos/db";
+import { logPrint } from "@pos/db";
 import type { OrderItemRow, PrinterRow, ReceiptContext, ReceiptJobData } from "./types.js";
 import type { ReceiptLine } from "@pos/core";
 
+function buildPrinterConfig(printer: PrinterRow): PrinterConfig | undefined {
+  if (printer.connectionType === "usb" && printer.usbVendorId && printer.usbProductId) {
+    return { connectionType: "usb", usbVendorId: printer.usbVendorId, usbProductId: printer.usbProductId };
+  }
+  if (printer.connectionType === "windows" && printer.winPrinterName) {
+    return { connectionType: "windows", winPrinterName: printer.winPrinterName };
+  }
+  if (printer.host && printer.port) {
+    return { connectionType: "network", host: printer.host, port: printer.port };
+  }
+  return undefined;
+}
+
 type TemplateRow = {
-  id: string;
+  id: number;
   role: string | null;
   printMode: string | null;
   blocks: string | unknown | null;
@@ -61,7 +76,7 @@ export function buildTextLines(
     lines.push({ type: "item", left: `${item.quantity}x ${item.name}`, right: `€${(item.unitPrice * item.quantity).toFixed(2)}` });
     if (tmpl?.showItemCategory) {
       const catId   = productCategoryMap[item.productId] ?? null;
-      const catName = catId ? categoryNameMap[catId] : undefined;
+      const catName = catId !== null ? categoryNameMap[catId] : undefined;
       if (catName) lines.push({ type: "text", content: `  ${catName}` });
     }
   }
@@ -71,7 +86,7 @@ export function buildTextLines(
   if (!groupName && (tmpl?.showPaymentMethod ?? true)) lines.push({ type: "item", left: "Pagamento", right: paymentMethodName });
 
   if (!groupName) {
-    const vatItems = jobItems.map((i) => ({
+    const vatItems: Array<{ id: number; productId: number; name: string; quantity: number; unitPrice: number; vatRate: number }> = jobItems.map((i) => ({
       id: i.id, productId: i.productId, name: i.name,
       quantity: i.quantity, unitPrice: i.unitPrice,
       vatRate: i.vatRate ?? 10,
@@ -111,12 +126,15 @@ export async function printOneReceipt(opts: {
   printerService: PrinterService;
   logger: Logger;
   eventBus: EventBus;
+  db: DbClient;
   jobId: string;
   printMethod: string;
   groupName?: string;
+  terminalId?: number;
+  terminalIp?: string;
 }): Promise<void> {
-  const { tmpl, jobItems, jobTotal, ctx, p, printer, printerService, logger, eventBus, jobId, printMethod, groupName } = opts;
-  const printerConfig = printer.host && printer.port ? { host: printer.host, port: printer.port } : undefined;
+  const { tmpl, jobItems, jobTotal, ctx, p, printer, printerService, logger, eventBus, db, jobId, printMethod, groupName, terminalId, terminalIp } = opts;
+  const printerConfig = buildPrinterConfig(printer);
   const isSub = groupName !== undefined;
 
   const emitOffline = (reason: string) => {
@@ -127,6 +145,16 @@ export async function printOneReceipt(opts: {
       reason,
       timestamp:   new Date(),
     });
+  };
+
+  const cfg = printerConfig;
+  const logBase = {
+    orderId: p.orderId, jobType: "receipt" as const,
+    printerId: printer.id, printerName: printer.name,
+    connectionType: cfg?.connectionType ?? "network",
+    printerHost: (cfg as { host?: string } | undefined)?.host,
+    printerPort: (cfg as { port?: number } | undefined)?.port,
+    terminalId, terminalIp,
   };
 
   try {
@@ -142,7 +170,8 @@ export async function printOneReceipt(opts: {
         return;
       }
 
-      const pngBuffer = await renderReceiptImage({
+      logPrint(db, { ...logBase, event: "rendering" });
+      const rasterBuffer = await renderPool.renderReceipt({
         blocks,
         canvasWidth:       tmpl!.canvasWidth ?? 576,
         logoPath:          ctx.resolvedLogoPath,
@@ -150,7 +179,7 @@ export async function printOneReceipt(opts: {
         receiptDisplay:    ctx.displayNum,
         items:             jobItems.map((i) => {
           const catId   = ctx.productCategoryMap[i.productId] ?? null;
-          const catName = catId ? ctx.categoryNameMap[catId] : undefined;
+          const catName = catId !== null ? ctx.categoryNameMap[catId] : undefined;
           return { name: i.name, quantity: i.quantity, unitPrice: i.unitPrice, ...(catName ? { category: catName } : {}) };
         }),
         showItemCategory:  tmpl?.showItemCategory ?? false,
@@ -168,8 +197,7 @@ export async function printOneReceipt(opts: {
         ...(ctx.orderRow?.tableId    ? { tableId:      ctx.orderRow.tableId }    : {}),
         ...(ctx.orderRow?.customerName ? { customerName: ctx.orderRow.customerName } : {}),
       });
-
-      const rasterBuffer = await pngToEscposRaster(pngBuffer, tmpl!.canvasWidth ?? 576);
+      logPrint(db, { ...logBase, event: "sent", bytes: rasterBuffer.length });
       const result = await printerService.printDirect({
         printerId: printer.id,
         contentBuffer: rasterBuffer,
@@ -177,10 +205,16 @@ export async function printOneReceipt(opts: {
         ...(printerConfig ? { printerConfig } : {}),
       });
       logger.info({ result, printerId: printer.id, mode: "image", printMethod, isSub }, "Print result");
-      if (!result.success) emitOffline(result.message);
+      if (result.success) {
+        logPrint(db, { ...logBase, event: "ok", bytes: rasterBuffer.length });
+      } else {
+        logPrint(db, { ...logBase, event: "failed", errorMsg: result.message });
+        emitOffline(result.message);
+      }
     } else {
       const lines   = buildTextLines(tmpl, jobItems, jobTotal, ctx, p, groupName);
       const content = formatReceipt(lines);
+      logPrint(db, { ...logBase, event: "sent", bytes: content.length });
       const result  = await printerService.printDirect({
         printerId: printer.id,
         content,
@@ -188,9 +222,15 @@ export async function printOneReceipt(opts: {
         ...(printerConfig ? { printerConfig } : {}),
       });
       logger.info({ result, printerId: printer.id, mode: "text", printMethod, isSub }, "Print result");
-      if (!result.success) emitOffline(result.message);
+      if (result.success) {
+        logPrint(db, { ...logBase, event: "ok", bytes: content.length });
+      } else {
+        logPrint(db, { ...logBase, event: "failed", errorMsg: result.message });
+        emitOffline(result.message);
+      }
     }
   } catch (err) {
+    logPrint(db, { ...logBase, event: "failed", errorMsg: err instanceof Error ? err.message : "Print failed" });
     emitOffline(err instanceof Error ? err.message : "Print failed");
     throw err;
   }
@@ -202,11 +242,12 @@ export function groupItemsByCategory(
 ): Map<string, { name: string; items: OrderItemRow[] }> {
   const grouped = new Map<string, { name: string; items: OrderItemRow[] }>();
   for (const item of items) {
-    const catId   = ctx.productCategoryMap[item.productId] ?? "__none__";
-    const catName = catId !== "__none__" ? (ctx.categoryNameMap[catId] ?? "Senza categoria") : "Senza categoria";
-    const existing = grouped.get(catId) ?? { name: catName, items: [] };
+    const catId   = ctx.productCategoryMap[item.productId] ?? null;
+    const catKey  = catId !== null ? String(catId) : "__none__";
+    const catName = catId !== null ? (ctx.categoryNameMap[catId] ?? "Senza categoria") : "Senza categoria";
+    const existing = grouped.get(catKey) ?? { name: catName, items: [] };
     existing.items.push(item);
-    grouped.set(catId, existing);
+    grouped.set(catKey, existing);
   }
   return grouped;
 }
@@ -217,12 +258,13 @@ export function groupItemsByCenter(
 ): Map<string, { name: string; items: OrderItemRow[] }> {
   const grouped = new Map<string, { name: string; items: OrderItemRow[] }>();
   for (const item of items) {
-    const catId    = ctx.productCategoryMap[item.productId] ?? null;
-    const centerId = (catId && ctx.categoryFirstCenterMap[catId]) ? ctx.categoryFirstCenterMap[catId]! : "__none__";
-    const centerName = centerId !== "__none__" ? (ctx.centerNameMap[centerId] ?? "Senza centro") : "Senza centro";
-    const existing = grouped.get(centerId) ?? { name: centerName, items: [] };
+    const catId     = ctx.productCategoryMap[item.productId] ?? null;
+    const centerId  = (catId !== null && ctx.categoryFirstCenterMap[catId] !== undefined) ? ctx.categoryFirstCenterMap[catId]! : null;
+    const centerKey = centerId !== null ? String(centerId) : "__none__";
+    const centerName = centerId !== null ? (ctx.centerNameMap[centerId] ?? "Senza centro") : "Senza centro";
+    const existing = grouped.get(centerKey) ?? { name: centerName, items: [] };
     existing.items.push(item);
-    grouped.set(centerId, existing);
+    grouped.set(centerKey, existing);
   }
   return grouped;
 }
@@ -244,15 +286,27 @@ export function buildSeparateGroups(
       continue;
     }
 
-    // "inherit" — check production center mode
-    const catId     = ctx.productCategoryMap[item.productId] ?? null;
-    const centerIds = catId ? (ctx.categoryCentersMap[catId] ?? []) : [];
+    // "inherit" — check category mode first, then production center mode
+    const catId      = ctx.productCategoryMap[item.productId] ?? null;
+    const catMode    = catId !== null ? (ctx.categoryPrintModeMap[catId] ?? "inherit") : "inherit";
+
+    if (catMode === "per_item") {
+      // One slip per unit: expand quantity into individual single-unit items
+      for (let i = 0; i < item.quantity; i++) {
+        const slotKey = `peritem:${item.productId}:${i}`;
+        separateGroups.set(slotKey, { name: item.name, items: [{ ...item, quantity: 1 }] });
+      }
+      continue;
+    }
+
+    const centerIds = catId !== null ? (ctx.categoryCentersMap[catId] ?? []) : [];
     const separateCenterId = centerIds.find((cid) => ctx.centerPrintModeMap[cid] === "separate");
-    if (separateCenterId) {
+    if (separateCenterId !== undefined) {
+      const centerKey  = String(separateCenterId);
       const centerName = ctx.centerNameMap[separateCenterId] ?? "Centro";
-      const existing   = separateGroups.get(separateCenterId) ?? { name: centerName, items: [] };
+      const existing   = separateGroups.get(centerKey) ?? { name: centerName, items: [] };
       existing.items.push(item);
-      separateGroups.set(separateCenterId, existing);
+      separateGroups.set(centerKey, existing);
     }
   }
   return separateGroups;

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import type { CartLine, Category, OrderInfo, Product } from "../core/types.js";
 import { ProductCard } from "../components/ProductCard.js";
 import { ProductOptionsModal } from "../components/ProductOptionsModal.js";
@@ -15,17 +16,18 @@ export function MenuScreen({
   products: Product[];
   info: OrderInfo;
   cart: CartLine[];
-  onQuantityChange: (productId: string, quantity: number) => void;
-  onAddItemWithOptions: (productId: string, selectedOptionIds: string[], quantity: number) => void;
+  onQuantityChange: (productId: number, quantity: number) => void;
+  onAddItemWithOptions: (productId: number, selectedOptionIds: number[], quantity: number) => void;
   onProceed: () => void;
   onBack: () => void;
 }) {
-  const [activeCategory, setActiveCategory] = useState(categories[0]?.id ?? "");
+  const [activeCategory, setActiveCategory] = useState<number | null>(categories[0]?.id ?? null);
   const [search, setSearch] = useState("");
   const [configuring, setConfiguring] = useState<Product | null>(null);
 
   const isSearching = search.trim().length > 0;
   const categoryNameById = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c.name])), [categories]);
+  const categoryEmojiById = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c.emoji])), [categories]);
 
   const visibleProducts = isSearching
     ? products.filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase()))
@@ -37,7 +39,7 @@ export function MenuScreen({
     return sum + (product ? product.price * l.quantity : 0);
   }, 0);
 
-  const quantityFor = (productId: string) => cart.filter((l) => l.productId === productId).reduce((s, l) => s + l.quantity, 0);
+  const quantityFor = (productId: number) => cart.filter((l) => l.productId === productId).reduce((s, l) => s + l.quantity, 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
@@ -55,6 +57,7 @@ export function MenuScreen({
           <button
             onClick={onBack}
             aria-label="Indietro"
+            className="icon-btn"
             style={{
               flexShrink: 0,
               width: "40px",
@@ -76,6 +79,7 @@ export function MenuScreen({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Cerca un piatto..."
+              className="input-field"
               style={{
                 width: "100%",
                 height: "40px",
@@ -91,6 +95,7 @@ export function MenuScreen({
               <button
                 onClick={() => setSearch("")}
                 aria-label="Cancella ricerca"
+                className="icon-btn"
                 style={{
                   position: "absolute", right: "6px", top: "50%", transform: "translateY(-50%)",
                   width: "28px", height: "28px", borderRadius: "50%",
@@ -145,20 +150,23 @@ export function MenuScreen({
       </div>
 
       <div
-        className="scrollable"
+        className="scrollable product-grid"
         style={{
           flex: 1,
           minHeight: 0,
           padding: "var(--sp-lg)",
           display: "grid",
-          gridTemplateColumns: "1fr 1fr",
           gap: "var(--sp-md)",
           alignContent: "start",
+          maxWidth: "1100px",
+          margin: "0 auto",
+          width: "100%",
         }}
       >
         {visibleProducts.length === 0 ? (
-          <div style={{ gridColumn: "1 / -1", textAlign: "center", color: "var(--color-gray-400)", padding: "var(--sp-xxl) 0" }}>
-            Nessun prodotto trovato
+          <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--sp-sm)", color: "var(--color-gray-400)", padding: "var(--sp-xxl) 0" }}>
+            <MagnifyingGlassIcon width={40} height={40} color="var(--color-gray-300)" />
+            <span>Nessun prodotto trovato</span>
           </div>
         ) : (
           visibleProducts.map((product) => (
@@ -166,6 +174,7 @@ export function MenuScreen({
               key={product.id}
               product={product}
               categoryLabel={isSearching ? categoryNameById[product.categoryId] : undefined}
+              categoryEmoji={categoryEmojiById[product.categoryId]}
               quantity={quantityFor(product.id)}
               onChange={(q) => onQuantityChange(product.id, q)}
               onOpenOptions={() => setConfiguring(product)}

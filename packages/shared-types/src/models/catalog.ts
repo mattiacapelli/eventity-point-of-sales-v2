@@ -1,20 +1,23 @@
+export type CategoryReceiptPrintMode = "inherit" | "per_item";
+
 export interface Category {
-  id: string;
+  id: number;
   name: string;
   color: string | null;
   sortOrder: number;
   active: boolean;
+  receiptPrintMode: CategoryReceiptPrintMode;
 }
 
 export type ProductReceiptPrintMode = "inherit" | "included" | "separate";
 
 export interface Product {
-  id: string;
+  id: number;
   name: string;
   price: number;
-  categoryId: string | null;
+  categoryId: number | null;
   categoryName: string | null;
-  productionCenterId: string | null;
+  productionCenterId: number | null;
   active: boolean;
   color: string | null;
   description: string | null;
@@ -22,12 +25,13 @@ export interface Product {
   sortOrder: number;
   vatRate: number;
   receiptPrintMode: ProductReceiptPrintMode;
+  availableDates: string[] | null;
   createdAt: number | null;
   updatedAt: number | null;
 }
 
 export interface ProductGridSlot {
-  productId: string;
+  productId: number;
   slotX: number;
   slotY: number;
   spanW: number;
@@ -37,9 +41,10 @@ export interface ProductGridSlot {
 export type ReceiptPrintMode = "included" | "separate";
 
 export interface ProductionCenter {
-  id: string;
+  id: number;
   name: string;
   color: string | null;
+  icon: string | null;
   receiptPrintMode: ReceiptPrintMode;
   sortOrder: number;
 }
@@ -53,8 +58,8 @@ export type OptionGroupType = "single" | "multi" | "removal";
 export type OptionPrefix = "+" | "-" | ">>";
 
 export interface Option {
-  id: string;
-  optionGroupId: string;
+  id: number;
+  optionGroupId: number;
   name: string;
   priceDelta: number;
   prefix: OptionPrefix;
@@ -63,8 +68,8 @@ export interface Option {
 }
 
 export interface OptionGroup {
-  id: string;
-  productId: string;
+  id: number;
+  productId: number;
   name: string;
   type: OptionGroupType;
   required: boolean;

@@ -1,6 +1,6 @@
-import type { AuditLogEntry, CurrentUser, Paginated, Tenant, TenantStats, TenantUser, TenantUserRole } from "./types.js";
+import type { AuditLogEntry, CategoryRecord, CurrentUser, Paginated, ProductRecord, Tenant, TenantStats, TenantUser, TenantUserRole } from "./types.js";
 
-const API_BASE = import.meta.env["VITE_API_BASE"] ?? "http://localhost:4000";
+export const API_BASE = import.meta.env["VITE_API_BASE"] ?? "http://localhost:4000";
 const TOKEN_KEY = "epos-admin-token";
 
 export function getToken(): string | null {
@@ -137,4 +137,115 @@ export async function downloadOrdersCsv(tenantId: string): Promise<Blob> {
   const res = await authedFetch(`/admin/tenants/${tenantId}/orders/export.csv`);
   if (!res.ok) throw new Error("Impossibile esportare gli ordini");
   return res.blob();
+}
+
+export interface MenuImportResult {
+  ok: true;
+  categories: number;
+  products: number;
+  optionGroups: number;
+}
+
+export async function importMenu(tenantId: string, payload: unknown): Promise<MenuImportResult> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/menu/import`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  await throwIfNotOk(res, "Impossibile importare il menu");
+  return res.json() as Promise<MenuImportResult>;
+}
+
+export async function uploadTenantLogo(tenantId: string, file: File): Promise<{ logoPath: string }> {
+  const token = getToken();
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_BASE}/admin/tenants/${tenantId}/logo`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  await throwIfNotOk(res, "Impossibile caricare il logo");
+  return res.json() as Promise<{ logoPath: string }>;
+}
+
+export async function deleteTenantLogo(tenantId: string): Promise<void> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/logo`, { method: "DELETE" });
+  await throwIfNotOk(res, "Impossibile rimuovere il logo");
+}
+
+export async function updateTenantBranding(tenantId: string, data: Partial<{ colorBrand: string; colorAccent: string }>): Promise<{ colorBrand: string | null; colorAccent: string | null }> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/branding`, { method: "PATCH", body: JSON.stringify(data) });
+  await throwIfNotOk(res, "Impossibile aggiornare i colori");
+  return res.json() as Promise<{ colorBrand: string | null; colorAccent: string | null }>;
+}
+
+export async function listCategories(tenantId: string): Promise<CategoryRecord[]> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/categories`);
+  await throwIfNotOk(res, "Impossibile caricare le categorie");
+  return res.json() as Promise<CategoryRecord[]>;
+}
+
+export async function reorderCategories(tenantId: string, order: number[]): Promise<void> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/categories/reorder`, {
+    method: "PATCH",
+    body: JSON.stringify({ order }),
+  });
+  await throwIfNotOk(res, "Impossibile riordinare le categorie");
+}
+
+export async function listProducts(tenantId: string): Promise<ProductRecord[]> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/products`);
+  await throwIfNotOk(res, "Impossibile caricare i prodotti");
+  return res.json() as Promise<ProductRecord[]>;
+}
+
+export async function renameProduct(tenantId: string, productId: number, name: string): Promise<ProductRecord> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/products/${productId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ name }),
+  });
+  await throwIfNotOk(res, "Impossibile rinominare il prodotto");
+  return res.json() as Promise<ProductRecord>;
+}
+
+export async function updateTenantSettings(tenantId: string, data: Partial<{ requireTableId: boolean; requireCustomerName: boolean }>): Promise<{ requireTableId: boolean; requireCustomerName: boolean }> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/settings`, { method: "PATCH", body: JSON.stringify(data) });
+  await throwIfNotOk(res, "Impossibile aggiornare le impostazioni");
+  return res.json() as Promise<{ requireTableId: boolean; requireCustomerName: boolean }>;
+}
+
+export async function updateCategoryEmoji(tenantId: string, categoryId: number, emoji: string | null): Promise<CategoryRecord> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/categories/${categoryId}/emoji`, {
+    method: "PATCH",
+    body: JSON.stringify({ emoji }),
+  });
+  await throwIfNotOk(res, "Impossibile aggiornare l'emoji");
+  return res.json() as Promise<CategoryRecord>;
+}
+
+export async function updateProductAvailability(tenantId: string, productId: number, availableDates: string[] | null): Promise<ProductRecord> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/products/${productId}/availability`, {
+    method: "PATCH",
+    body: JSON.stringify({ availableDates }),
+  });
+  await throwIfNotOk(res, "Impossibile aggiornare la disponibilità");
+  return res.json() as Promise<ProductRecord>;
+}
+
+export async function uploadProductImage(tenantId: string, productId: number, file: File): Promise<ProductRecord> {
+  const token = getToken();
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_BASE}/admin/tenants/${tenantId}/products/${productId}/image`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  await throwIfNotOk(res, "Impossibile caricare l'immagine");
+  return res.json() as Promise<ProductRecord>;
+}
+
+export async function deleteProductImage(tenantId: string, productId: number): Promise<void> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/products/${productId}/image`, { method: "DELETE" });
+  await throwIfNotOk(res, "Impossibile rimuovere l'immagine");
 }

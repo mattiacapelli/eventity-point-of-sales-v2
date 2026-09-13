@@ -1,9 +1,9 @@
-import { eq, inArray, desc, orders, orderItems } from "@pos/db";
+import { eq, inArray, desc, orders, orderItems, orderCenterNumbers } from "@pos/db";
 import type { DbClient } from "@pos/db";
 import type { Order, OrderItem, OrderStatus } from "@pos/shared-types";
 
 type DbOrderRow = {
-  id: string;
+  id: number;
   tableId: string | null;
   eventId: string | null;
   status: string;
@@ -14,9 +14,9 @@ type DbOrderRow = {
 };
 
 type DbItemRow = {
-  id: string;
-  orderId: string;
-  productId: string;
+  id: number;
+  orderId: number;
+  productId: number;
   name: string;
   quantity: number;
   unitPrice: number;
@@ -40,17 +40,21 @@ export class KitchenRepository {
     );
   }
 
-  async findById(id: string): Promise<Order | undefined> {
+  async findById(id: number): Promise<Order | undefined> {
     const [row] = await this.db.select().from(orders).where(eq(orders.id, id)).limit(1);
     if (!row) return undefined;
     return this.hydrateOrder(row as unknown as DbOrderRow);
   }
 
   private async hydrateOrder(row: DbOrderRow): Promise<Order> {
-    const items = await this.db
-      .select()
-      .from(orderItems)
-      .where(eq(orderItems.orderId, row.id));
+    const [items, cnRows] = await Promise.all([
+      this.db.select().from(orderItems).where(eq(orderItems.orderId, row.id)),
+      this.db.select().from(orderCenterNumbers).where(eq(orderCenterNumbers.orderId, row.id)),
+    ]);
+
+    const centerNumbers = cnRows.length > 0
+      ? Object.fromEntries(cnRows.map((r) => [r.productionCenterId, r.centerNumber]))
+      : undefined;
 
     return {
       id: row.id,
@@ -70,6 +74,7 @@ export class KitchenRepository {
       ...(row.tableId !== null ? { tableId: row.tableId } : {}),
       ...(row.eventId !== null ? { eventId: row.eventId } : {}),
       ...(row.syncedAt !== null ? { syncedAt: row.syncedAt } : {}),
+      ...(centerNumbers !== undefined ? { centerNumbers } : {}),
     };
   }
 }

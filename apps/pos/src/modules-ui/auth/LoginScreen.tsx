@@ -99,8 +99,36 @@ export function LoginScreen() {
         background: "linear-gradient(160deg, var(--color-brand) 0%, #1a4a1e 100%)",
         padding: "var(--sp-xl)",
         gap: "var(--sp-xl)",
+        position: "relative",
       }}
     >
+      {/* Close button */}
+      <button
+        onClick={() => window.close()}
+        title="Chiudi applicazione"
+        style={{
+          position: "absolute",
+          top: "16px",
+          right: "16px",
+          width: "36px",
+          height: "36px",
+          borderRadius: "50%",
+          border: "none",
+          background: "rgba(255,255,255,0.15)",
+          color: "rgba(255,255,255,0.8)",
+          cursor: "pointer",
+          fontSize: "18px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          lineHeight: 1,
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.25)"; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.15)"; }}
+      >
+        ✕
+      </button>
+
       {/* Logo */}
       <div style={{ textAlign: "center" }}>
         <img src="/logo.svg" alt="Eventity" style={{ height: "64px", marginBottom: "8px" }} />

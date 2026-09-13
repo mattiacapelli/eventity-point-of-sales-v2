@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
+import { CheckCircleIcon } from "@heroicons/react/24/solid";
 import { Header } from "../components/Header.js";
 import { Footer } from "../components/Footer.js";
 import { Button } from "../components/Button.js";
@@ -26,12 +27,20 @@ export function ConfirmedScreen({ orderCode, qrPayload, onNewOrder }: { orderCod
       </Header>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "var(--sp-lg)", padding: "var(--sp-xl) var(--sp-lg)" }}>
+        <CheckCircleIcon
+          width={56}
+          height={56}
+          color="var(--color-accent)"
+          style={{ animation: "pop-in 0.5s ease" }}
+        />
+
         <div
           style={{
             width: "260px",
             height: "260px",
             borderRadius: "var(--radius-lg)",
             border: "1.5px solid var(--color-gray-200)",
+            boxShadow: "var(--shadow-md)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -40,9 +49,12 @@ export function ConfirmedScreen({ orderCode, qrPayload, onNewOrder }: { orderCod
           }}
         >
           {qrDataUrl ? (
-            <img src={qrDataUrl} alt={`QR ordine ${orderCode}`} style={{ width: "100%", height: "100%" }} />
+            <img src={qrDataUrl} alt={`QR ordine ${orderCode}`} style={{ width: "100%", height: "100%", animation: "fade-in 0.3s ease" }} />
           ) : (
-            <span style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>Generazione QR...</span>
+            <div
+              className="skeleton"
+              style={{ width: "70%", height: "70%", borderRadius: "var(--radius-md)" }}
+            />
           )}
         </div>
 

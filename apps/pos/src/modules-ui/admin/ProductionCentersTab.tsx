@@ -4,9 +4,10 @@ import { useAdminStore } from "../../state/admin-store.js";
 import { Button } from "../../components/ui/Button.js";
 import { Modal } from "../../components/ui/Modal.js";
 import type { Category, ProductionCenter, Printer } from "@pos/shared-types";
-import { BuildingStorefrontIcon, PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, PrinterIcon, Bars3Icon } from "../../components/ui/icons.js";
+import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, PrinterIcon, Bars3Icon } from "../../components/ui/icons.js";
 import { inputStyle, labelStyle } from "./shared.js";
 import { ColorField } from "./ColorField.js";
+import { IconPickerField, getProductionCenterIcon } from "./IconPickerField.js";
 
 export function ProductionCentersTab() {
   const { productionCenters, categories, upsertProductionCenter, removeProductionCenter, setProductionCenters } = useAdminStore();
@@ -37,42 +38,44 @@ export function ProductionCentersTab() {
   }
 
   // Per-center assigned categories (loaded lazily)
-  const [centerCategories, setCenterCategories] = useState<Record<string, Category[]>>({});
-  const [loadedCenters, setLoadedCenters] = useState<Set<string>>(new Set());
+  const [centerCategories, setCenterCategories] = useState<Record<number, Category[]>>({});
+  const [loadedCenters, setLoadedCenters] = useState<Set<number>>(new Set());
 
   // Per-center assigned printers
-  const [centerPrinters, setCenterPrinters] = useState<Record<string, Array<Pick<Printer, "id" | "name" | "host" | "port" | "kitchenEnabled" | "active">>>>({});
-  const [loadedPrinterCenters, setLoadedPrinterCenters] = useState<Set<string>>(new Set());
+  const [centerPrinters, setCenterPrinters] = useState<Record<number, Array<Pick<Printer, "id" | "name" | "host" | "port" | "kitchenEnabled" | "active">>>>({});
+  const [loadedPrinterCenters, setLoadedPrinterCenters] = useState<Set<number>>(new Set());
   const [allPrinters, setAllPrinters] = useState<Printer[]>([]);
-  const [printerDropdown, setPrinterDropdown] = useState<string | null>(null);
+  const [printerDropdown, setPrinterDropdown] = useState<number | null>(null);
 
   // Modal: new center
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [newCenterName, setNewCenterName] = useState("");
   const [newCenterColor, setNewCenterColor] = useState("");
+  const [newCenterIcon, setNewCenterIcon] = useState("");
   const [creating, setCreating] = useState(false);
 
   // Edit center
   const [editTarget, setEditTarget] = useState<ProductionCenter | null>(null);
   const [editName, setEditName] = useState("");
   const [editColor, setEditColor] = useState("");
+  const [editIcon, setEditIcon] = useState("");
   const [editReceiptPrintMode, setEditReceiptPrintMode] = useState<"included" | "separate">("included");
   const [editSaving, setEditSaving] = useState(false);
 
   // Delete center
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   // Dropdown for adding category to a center
-  const [addDropdown, setAddDropdown] = useState<string | null>(null);
+  const [addDropdown, setAddDropdown] = useState<number | null>(null);
 
-  async function loadCenterCategories(centerId: string) {
+  async function loadCenterCategories(centerId: number) {
     if (loadedCenters.has(centerId)) return;
     const cats = await adminApi.productionCenters.getCategories(centerId);
     setCenterCategories((prev) => ({ ...prev, [centerId]: cats }));
     setLoadedCenters((prev) => new Set(prev).add(centerId));
   }
 
-  async function loadCenterPrinters(centerId: string) {
+  async function loadCenterPrinters(centerId: number) {
     if (loadedPrinterCenters.has(centerId)) return;
     const prs = await adminApi.productionCenters.getPrinters(centerId);
     setCenterPrinters((prev) => ({ ...prev, [centerId]: prs }));
@@ -94,12 +97,14 @@ export function ProductionCentersTab() {
       const created = await adminApi.productionCenters.create({
         name: newCenterName.trim(),
         color: newCenterColor === "" ? null : newCenterColor,
+        icon: newCenterIcon === "" ? null : newCenterIcon,
       });
       upsertProductionCenter(created);
       setCenterCategories((prev) => ({ ...prev, [created.id]: [] }));
       setLoadedCenters((prev) => new Set(prev).add(created.id));
       setNewCenterName("");
       setNewCenterColor("");
+      setNewCenterIcon("");
       setCreateModalOpen(false);
     } finally {
       setCreating(false);
@@ -110,6 +115,7 @@ export function ProductionCentersTab() {
     setEditTarget(pc);
     setEditName(pc.name);
     setEditColor(pc.color ?? "");
+    setEditIcon(pc.icon ?? "");
     setEditReceiptPrintMode(pc.receiptPrintMode);
   }
 
@@ -120,6 +126,7 @@ export function ProductionCentersTab() {
       const updated = await adminApi.productionCenters.update(editTarget.id, {
         name: editName.trim(),
         color: editColor === "" ? null : editColor,
+        icon: editIcon === "" ? null : editIcon,
         receiptPrintMode: editReceiptPrintMode,
       });
       upsertProductionCenter(updated);
@@ -129,34 +136,34 @@ export function ProductionCentersTab() {
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: number) {
     await adminApi.productionCenters.delete(id);
     removeProductionCenter(id);
     setCenterCategories((prev) => { const next = { ...prev }; delete next[id]; return next; });
     setDeleteId(null);
   }
 
-  async function handleAssignCategory(centerId: string, categoryId: string) {
+  async function handleAssignCategory(centerId: number, categoryId: number) {
     await adminApi.productionCenters.assignCategory(centerId, categoryId);
     const cats = await adminApi.productionCenters.getCategories(centerId);
     setCenterCategories((prev) => ({ ...prev, [centerId]: cats }));
     setAddDropdown(null);
   }
 
-  async function handleRemoveCategory(centerId: string, categoryId: string) {
+  async function handleRemoveCategory(centerId: number, categoryId: number) {
     await adminApi.productionCenters.removeCategory(centerId, categoryId);
     const cats = await adminApi.productionCenters.getCategories(centerId);
     setCenterCategories((prev) => ({ ...prev, [centerId]: cats }));
   }
 
-  async function handleAssignPrinter(centerId: string, printerId: string) {
+  async function handleAssignPrinter(centerId: number, printerId: number) {
     await adminApi.productionCenters.assignPrinter(centerId, printerId);
     const prs = await adminApi.productionCenters.getPrinters(centerId);
     setCenterPrinters((prev) => ({ ...prev, [centerId]: prs }));
     setPrinterDropdown(null);
   }
 
-  async function handleRemovePrinter(centerId: string, printerId: string) {
+  async function handleRemovePrinter(centerId: number, printerId: number) {
     await adminApi.productionCenters.removePrinter(centerId, printerId);
     const prs = await adminApi.productionCenters.getPrinters(centerId);
     setCenterPrinters((prev) => ({ ...prev, [centerId]: prs }));
@@ -229,7 +236,7 @@ export function ProductionCentersTab() {
                   style={{ width: "16px", height: "16px", color: "var(--color-gray-400)", flexShrink: 0, cursor: "grab" }}
                   title="Trascina per riordinare"
                 />
-                <BuildingStorefrontIcon style={{ width: "20px", height: "20px", color: pc.color ?? "var(--color-brand)", flexShrink: 0 }} />
+                {(() => { const Icon = getProductionCenterIcon(pc.icon); return <Icon style={{ width: "20px", height: "20px", color: pc.color ?? "var(--color-brand)", flexShrink: 0 }} />; })()}
                 <span style={{ flex: 1, fontSize: "var(--text-md)", fontWeight: 700, color: "var(--color-gray-800)" }}>
                   {pc.name}
                 </span>
@@ -486,6 +493,7 @@ export function ProductionCentersTab() {
               autoFocus
             />
           </div>
+          <IconPickerField value={newCenterIcon} onChange={setNewCenterIcon} />
           <ColorField value={newCenterColor} onChange={setNewCenterColor} />
           <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
             <Button variant="ghost" size="sm" onClick={() => setCreateModalOpen(false)}>Annulla</Button>
@@ -510,6 +518,7 @@ export function ProductionCentersTab() {
               autoFocus
             />
           </div>
+          <IconPickerField value={editIcon} onChange={setEditIcon} />
           <ColorField value={editColor} onChange={setEditColor} />
           <div>
             <label style={labelStyle}>Stampa scontrino</label>

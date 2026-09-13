@@ -1,6 +1,6 @@
 export interface Shift {
-  id: string;
-  userId: string;
+  id: number;
+  userId: number;
   openedAt: number;
   closedAt: number | null;
   openingCash: number;

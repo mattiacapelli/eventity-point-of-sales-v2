@@ -6,8 +6,8 @@ import { requireRole, AuthError } from "@pos/core";
 const RECEIPT_NUM_KEYS = ["receipt_number_mode", "receipt_number_prefix", "receipt_number_padding"] as const;
 const GRID_KEYS = ["grid_view_mode", "grid_show_price", "grid_show_description", "grid_sort_by", "grid_base_cols", "grid_show_category", "grid_show_image", "grid_card_text_size", "grid_card_row_height", "grid_sidebar_text_size", "grid_sidebar_sort_by"] as const;
 const TERMINAL_KEYS = ["multi_terminal_enabled"] as const;
-const MODULE_KEYS = ["tables_enabled", "shift_auto_print_report"] as const;
-const CART_KEYS = ["cart_notes_enabled", "cart_pax_enabled", "cart_discount_enabled", "cart_text_size"] as const;
+const MODULE_KEYS = ["tables_enabled", "shift_auto_print_report", "shift_force_close_default", "product_date_filter_enabled", "table_input_mode", "table_required", "customer_required"] as const;
+const CART_KEYS = ["cart_notes_enabled", "cart_pax_enabled", "cart_discount_enabled", "cart_text_size", "custom_note_add_price", "custom_note_remove_price"] as const;
 
 const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("onRequest", async (request) => {
@@ -25,7 +25,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
 
     return reply.send({
       expressMode: m["express_mode"] === "true",
-      receiptNumberMode: (m["receipt_number_mode"] ?? "shift") as "default" | "global" | "shift",
+      receiptNumberMode: (m["receipt_number_mode"] ?? "shift") as "default" | "global" | "shift" | "center",
       receiptNumberPrefix: m["receipt_number_prefix"] ?? "",
       receiptNumberPadding: parseInt(m["receipt_number_padding"] ?? "0", 10),
       gridViewMode: (m["grid_view_mode"] ?? "category") as "category" | "center" | "all" | "grouped_category" | "grouped_center" | "grouped_color",
@@ -44,8 +44,15 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       cartPaxEnabled: m["cart_pax_enabled"] !== "false",
       cartDiscountEnabled: m["cart_discount_enabled"] !== "false",
       cartTextSize: parseInt(m["cart_text_size"] ?? "14", 10),
+      customNoteAddPrice: parseFloat(m["custom_note_add_price"] ?? "0"),
+      customNoteRemovePrice: parseFloat(m["custom_note_remove_price"] ?? "0"),
       tablesEnabled: m["tables_enabled"] === "true",
+      tableInputMode: (m["table_input_mode"] ?? "checkout") as "checkout" | "sidebar",
+      tableRequired: m["table_required"] === "true",
+      customerRequired: m["customer_required"] === "true",
       shiftAutoPrintReport: m["shift_auto_print_report"] === "true",
+      shiftForceCloseDefault: m["shift_force_close_default"] === "true",
+      productDateFilterEnabled: m["product_date_filter_enabled"] === "true",
     });
   });
 
@@ -63,7 +70,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const body = request.body as Partial<{
       expressMode: boolean;
-      receiptNumberMode: "default" | "global" | "shift";
+      receiptNumberMode: "default" | "global" | "shift" | "center";
       receiptNumberPrefix: string;
       receiptNumberPadding: number;
       gridViewMode: "category" | "center" | "all" | "grouped_category" | "grouped_center" | "grouped_color";
@@ -82,8 +89,15 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       cartPaxEnabled: boolean;
       cartDiscountEnabled: boolean;
       cartTextSize: number;
+      customNoteAddPrice: number;
+      customNoteRemovePrice: number;
       tablesEnabled: boolean;
+      tableInputMode: "checkout" | "sidebar";
+      tableRequired: boolean;
+      customerRequired: boolean;
       shiftAutoPrintReport: boolean;
+      shiftForceCloseDefault: boolean;
+      productDateFilterEnabled: boolean;
     }>;
     const db = fastify.ctx.db;
 
@@ -108,8 +122,15 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.cartPaxEnabled !== undefined) upserts.push({ key: "cart_pax_enabled", value: String(body.cartPaxEnabled) });
     if (body.cartDiscountEnabled !== undefined) upserts.push({ key: "cart_discount_enabled", value: String(body.cartDiscountEnabled) });
     if (body.cartTextSize !== undefined) upserts.push({ key: "cart_text_size", value: String(body.cartTextSize) });
+    if (body.customNoteAddPrice !== undefined) upserts.push({ key: "custom_note_add_price", value: String(body.customNoteAddPrice) });
+    if (body.customNoteRemovePrice !== undefined) upserts.push({ key: "custom_note_remove_price", value: String(body.customNoteRemovePrice) });
     if (body.tablesEnabled !== undefined) upserts.push({ key: "tables_enabled", value: String(body.tablesEnabled) });
+    if (body.tableInputMode !== undefined) upserts.push({ key: "table_input_mode", value: body.tableInputMode });
+    if (body.tableRequired !== undefined) upserts.push({ key: "table_required", value: String(body.tableRequired) });
+    if (body.customerRequired !== undefined) upserts.push({ key: "customer_required", value: String(body.customerRequired) });
     if (body.shiftAutoPrintReport !== undefined) upserts.push({ key: "shift_auto_print_report", value: String(body.shiftAutoPrintReport) });
+    if (body.shiftForceCloseDefault !== undefined) upserts.push({ key: "shift_force_close_default", value: String(body.shiftForceCloseDefault) });
+    if (body.productDateFilterEnabled !== undefined) upserts.push({ key: "product_date_filter_enabled", value: String(body.productDateFilterEnabled) });
 
     for (const { key, value } of upserts) {
       await db.insert(appSettings).values({ key, value }).onConflictDoUpdate({ target: appSettings.key, set: { value } });
@@ -122,7 +143,7 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
 
     return reply.send({
       expressMode: m["express_mode"] === "true",
-      receiptNumberMode: (m["receipt_number_mode"] ?? "shift") as "default" | "global" | "shift",
+      receiptNumberMode: (m["receipt_number_mode"] ?? "shift") as "default" | "global" | "shift" | "center",
       receiptNumberPrefix: m["receipt_number_prefix"] ?? "",
       receiptNumberPadding: parseInt(m["receipt_number_padding"] ?? "0", 10),
       gridViewMode: (m["grid_view_mode"] ?? "category") as "category" | "center" | "all" | "grouped_category" | "grouped_center" | "grouped_color",
@@ -141,8 +162,15 @@ const appSettingsRoutes: FastifyPluginAsync = async (fastify) => {
       cartPaxEnabled: m["cart_pax_enabled"] !== "false",
       cartDiscountEnabled: m["cart_discount_enabled"] !== "false",
       cartTextSize: parseInt(m["cart_text_size"] ?? "14", 10),
+      customNoteAddPrice: parseFloat(m["custom_note_add_price"] ?? "0"),
+      customNoteRemovePrice: parseFloat(m["custom_note_remove_price"] ?? "0"),
       tablesEnabled: m["tables_enabled"] === "true",
+      tableInputMode: (m["table_input_mode"] ?? "checkout") as "checkout" | "sidebar",
+      tableRequired: m["table_required"] === "true",
+      customerRequired: m["customer_required"] === "true",
       shiftAutoPrintReport: m["shift_auto_print_report"] === "true",
+      shiftForceCloseDefault: m["shift_force_close_default"] === "true",
+      productDateFilterEnabled: m["product_date_filter_enabled"] === "true",
     });
   });
 

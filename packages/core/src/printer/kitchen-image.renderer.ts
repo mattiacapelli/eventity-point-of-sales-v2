@@ -15,7 +15,7 @@ export interface KitchenRenderData {
   canvasWidth: number;
   logoPath?: string | null;
   centerName: string;
-  orderId: string;
+  orderId: number;
   receiptDisplay?: string | undefined;
   tableId?: string | null;
   customerName?: string | null;
@@ -23,6 +23,7 @@ export interface KitchenRenderData {
   pax?: number | null;
   timestamp: Date;
   items: KitchenRenderItem[];
+  isModification?: boolean;
 }
 
 const BUNDLED_FONTS_DIR = new URL("../../assets/fonts", import.meta.url).pathname;
@@ -81,7 +82,7 @@ export async function renderKitchenImage(data: KitchenRenderData): Promise<Buffe
 
     switch (block.type as KitchenBlockType) {
       case "center-name":
-        h += lineH;
+        h += lineH * (data.isModification ? 2 : 1);
         break;
       case "order-number":
         h += lineH;
@@ -142,11 +143,15 @@ export async function renderKitchenImage(data: KitchenRenderData): Promise<Buffe
 
     switch (block.type as KitchenBlockType) {
       case "center-name":
+        if (data.isModification) {
+          ctx.fillText("*** MODIFICA ***", x, y);
+          y += lineH;
+        }
         ctx.fillText(data.centerName.toUpperCase(), x, y);
         y += lineH;
         break;
       case "order-number":
-        ctx.fillText(`#${data.receiptDisplay ?? data.orderId.slice(-6).toUpperCase()}`, x, y);
+        ctx.fillText(`#${data.receiptDisplay ?? String(data.orderId)}`, x, y);
         y += lineH;
         break;
       case "table-number":

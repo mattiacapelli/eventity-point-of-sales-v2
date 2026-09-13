@@ -92,14 +92,15 @@ export class WsBroadcaster {
 
   /** Send an event only to clients that belong to a specific terminal. */
   sendToTerminal<K extends PlatformEventName>(
-    terminalId: string,
+    terminalId: number | string,
     event: K,
     payload: PlatformEventMap[K],
   ): void {
+    const tidStr = String(terminalId);
     const message = JSON.stringify({ event, payload, timestamp: new Date().toISOString() });
     const dead: string[] = [];
     for (const [id, client] of this.clients) {
-      if (client.terminalId !== terminalId) continue;
+      if (client.terminalId !== tidStr) continue;
       if (!client.isAlive()) { dead.push(id); continue; }
       try { client.send(message); } catch { dead.push(id); }
     }

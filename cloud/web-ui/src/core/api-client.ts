@@ -1,6 +1,6 @@
 import type { Category, Product } from "./types.js";
 
-const API_BASE = import.meta.env["VITE_API_BASE"] ?? "http://localhost:4000";
+export const API_BASE = import.meta.env["VITE_API_BASE"] ?? "http://localhost:4000";
 
 export function getTenantSlug(): string {
   const params = new URLSearchParams(window.location.search);
@@ -8,7 +8,15 @@ export function getTenantSlug(): string {
 }
 
 export interface MenuResponse {
-  tenant: { slug: string; name: string };
+  tenant: {
+    slug: string;
+    name: string;
+    logoUrl: string | null;
+    colorBrand: string | null;
+    colorAccent: string | null;
+    requireTableId: boolean;
+    requireCustomerName: boolean;
+  };
   categories: Category[];
   products: Product[];
 }
@@ -22,7 +30,7 @@ export async function fetchMenu(slug: string): Promise<MenuResponse> {
 export interface CreateOrderInput {
   tableId: string;
   customerName?: string;
-  items: { productId: string; quantity: number; selectedOptionIds?: string[] }[];
+  items: { productId: number; quantity: number; selectedOptionIds?: number[] }[];
 }
 
 export interface CreateOrderResponse {

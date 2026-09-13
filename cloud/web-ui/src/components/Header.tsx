@@ -5,7 +5,7 @@ export function Header({ title, subtitle, onBack, children }: { title?: string |
   return (
     <header
       style={{
-        background: "var(--color-brand)",
+        background: "linear-gradient(160deg, var(--color-brand) 0%, var(--color-brand-dark) 100%)",
         color: "var(--color-white)",
         padding: `calc(var(--sp-lg) + var(--safe-top)) var(--sp-lg) var(--sp-lg)`,
         display: "flex",

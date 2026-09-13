@@ -7,8 +7,8 @@ import { requireRole, AuthError } from "@pos/core";
 export interface AuditEntry {
   id: string;
   type: "order_created" | "order_completed" | "order_cancelled" | "payment_completed" | "payment_refunded" | "shift_opened" | "shift_closed";
-  entityId: string;
-  actorId: string | null;
+  entityId: number;
+  actorId: number | null;
   actorName: string | null;
   actorRole: string | null;
   ts: number;

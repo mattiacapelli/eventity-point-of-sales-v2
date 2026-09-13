@@ -3,38 +3,38 @@ import { inventoryItems, inventoryMovements, productIngredients, products } from
 import type { DbClient } from "@pos/db";
 
 export type InventoryItem = {
-  id: string;
+  id: number;
   name: string;
   sku: string | null;
   unit: string;
   currentStock: number;
   minStock: number;
-  productionCenterId: string | null;
-  productId: string | null;
+  productionCenterId: number | null;
+  productId: number | null;
   resetOnShiftOpen: number;
   createdAt: number;
   updatedAt: number;
 };
 
 export type InventoryMovement = {
-  id: string;
-  itemId: string;
+  id: number;
+  itemId: number;
   type: "sale" | "restock" | "manual" | "waste";
   quantity: number;
   reason: string | null;
-  orderId: string | null;
+  orderId: number | null;
   createdAt: number;
 };
 
 export type ProductIngredient = {
-  id: string;
-  productId: string;
-  inventoryItemId: string;
+  id: number;
+  productId: number;
+  inventoryItemId: number;
   quantity: number;
 };
 
 export type MovementFilters = {
-  itemId?: string;
+  itemId?: number;
   type?: "sale" | "restock" | "manual" | "waste";
   from?: number;
   to?: number;
@@ -47,15 +47,13 @@ export class InventoryRepository {
     return this.db.select().from(inventoryItems).orderBy(inventoryItems.name) as Promise<InventoryItem[]>;
   }
 
-  async findItemById(id: string): Promise<InventoryItem | undefined> {
+  async findItemById(id: number): Promise<InventoryItem | undefined> {
     const [row] = await this.db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1);
     return row as InventoryItem | undefined;
   }
 
   // Synchronous variant for use inside better-sqlite3 transaction callbacks.
-  // drizzle/better-sqlite3 is synchronous: queries resolve immediately.
-  // We use the sync .all() method on the prepared statement via the raw session.
-  findItemByIdSync(id: string): InventoryItem | undefined {
+  findItemByIdSync(id: number): InventoryItem | undefined {
     const result = this.db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1) as unknown as { all: () => InventoryItem[] };
     return result.all()[0];
   }
@@ -65,7 +63,7 @@ export class InventoryRepository {
     return row as InventoryItem | undefined;
   }
 
-  async findItemsByProductId(productId: string): Promise<InventoryItem[]> {
+  async findItemsByProductId(productId: number): Promise<InventoryItem[]> {
     const rows = await this.db.select().from(inventoryItems).where(eq(inventoryItems.productId, productId));
     return rows as unknown as InventoryItem[];
   }
@@ -75,9 +73,8 @@ export class InventoryRepository {
     return rows as unknown as InventoryItem[];
   }
 
-  async createItem(data: Omit<InventoryItem, "currentStock" | "minStock" | "productId" | "resetOnShiftOpen"> & { currentStock?: number; minStock?: number; productId?: string | null; resetOnShiftOpen?: number }): Promise<InventoryItem> {
-    await this.db.insert(inventoryItems).values({
-      id: data.id,
+  async createItem(data: Omit<InventoryItem, "id" | "currentStock" | "minStock" | "productId" | "resetOnShiftOpen"> & { currentStock?: number; minStock?: number; productId?: number | null; resetOnShiftOpen?: number }): Promise<InventoryItem> {
+    const [row] = await this.db.insert(inventoryItems).values({
       name: data.name,
       sku: data.sku ?? null,
       unit: data.unit,
@@ -88,22 +85,22 @@ export class InventoryRepository {
       resetOnShiftOpen: data.resetOnShiftOpen ?? 0,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
-    });
-    return (await this.findItemById(data.id))!;
+    }).returning({ id: inventoryItems.id });
+    return (await this.findItemById(row!.id))!;
   }
 
-  async updateItem(id: string, data: Partial<Pick<InventoryItem, "name" | "sku" | "unit" | "currentStock" | "minStock" | "productionCenterId" | "productId" | "resetOnShiftOpen" | "updatedAt">>): Promise<InventoryItem | undefined> {
+  async updateItem(id: number, data: Partial<Pick<InventoryItem, "name" | "sku" | "unit" | "currentStock" | "minStock" | "productionCenterId" | "productId" | "resetOnShiftOpen" | "updatedAt">>): Promise<InventoryItem | undefined> {
     if (Object.keys(data).length > 0) {
       await this.db.update(inventoryItems).set(data).where(eq(inventoryItems.id, id));
     }
     return this.findItemById(id);
   }
 
-  async deleteMovementsByItemId(itemId: string): Promise<void> {
+  async deleteMovementsByItemId(itemId: number): Promise<void> {
     await this.db.delete(inventoryMovements).where(eq(inventoryMovements.itemId, itemId));
   }
 
-  async deleteItem(id: string): Promise<void> {
+  async deleteItem(id: number): Promise<void> {
     await this.db.delete(inventoryItems).where(eq(inventoryItems.id, id));
   }
 
@@ -126,39 +123,37 @@ export class InventoryRepository {
     return rows as unknown as InventoryMovement[];
   }
 
-  async createMovement(data: InventoryMovement): Promise<InventoryMovement> {
-    await this.db.insert(inventoryMovements).values({
-      id: data.id,
+  async createMovement(data: Omit<InventoryMovement, "id">): Promise<InventoryMovement> {
+    const [row] = await this.db.insert(inventoryMovements).values({
       itemId: data.itemId,
       type: data.type,
       quantity: data.quantity,
       reason: data.reason ?? null,
       orderId: data.orderId ?? null,
       createdAt: data.createdAt,
-    });
-    return data;
+    }).returning();
+    return row as unknown as InventoryMovement;
   }
 
-  async findIngredientsByProduct(productId: string): Promise<ProductIngredient[]> {
+  async findIngredientsByProduct(productId: number): Promise<ProductIngredient[]> {
     const rows = await this.db.select().from(productIngredients).where(eq(productIngredients.productId, productId));
     return rows as ProductIngredient[];
   }
 
-  async createIngredient(data: ProductIngredient): Promise<ProductIngredient> {
-    await this.db.insert(productIngredients).values({
-      id: data.id,
+  async createIngredient(data: Omit<ProductIngredient, "id">): Promise<ProductIngredient> {
+    const [row] = await this.db.insert(productIngredients).values({
       productId: data.productId,
       inventoryItemId: data.inventoryItemId,
       quantity: data.quantity,
-    });
-    return data;
+    }).returning();
+    return row as unknown as ProductIngredient;
   }
 
-  async deleteIngredient(id: string): Promise<void> {
+  async deleteIngredient(id: number): Promise<void> {
     await this.db.delete(productIngredients).where(eq(productIngredients.id, id));
   }
 
-  async findProductById(productId: string): Promise<{ id: string; name: string } | undefined> {
+  async findProductById(productId: number): Promise<{ id: number; name: string } | undefined> {
     const [row] = await this.db.select({ id: products.id, name: products.name })
       .from(products)
       .where(eq(products.id, productId))

@@ -2,7 +2,6 @@ import "@fastify/swagger";
 import type { FastifyPluginAsync } from "fastify";
 import { eq, desc, and, isNull, count, inArray } from "@pos/db";
 import { shifts, orders } from "@pos/db";
-import { randomUUID } from "node:crypto";
 import { requireRole, AuthError } from "@pos/core";
 
 const shiftsRoutes: FastifyPluginAsync = async (fastify) => {
@@ -21,8 +20,8 @@ const shiftsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/shifts/current", {
     schema: { tags: ["shifts"], summary: "Get the current open shift" },
   }, async (request, reply) => {
-    const userId = (request as { userId?: string }).userId;
-    let query = fastify.ctx.db.select().from(shifts).where(isNull(shifts.closedAt));
+    const userId = (request as { userId?: number }).userId;
+    const query = fastify.ctx.db.select().from(shifts).where(isNull(shifts.closedAt));
     const rows = await query;
     const row = userId ? rows.find((s) => s.userId === userId) : rows[0];
     if (!row) return reply.status(404).send({ error: "No open shift" });
@@ -43,32 +42,30 @@ const shiftsRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["shifts"], summary: "Open a new shift" },
   }, async (request, reply) => {
     const body = request.body as {
-      userId: string;
+      userId: number | string;
       openingCash?: number;
       notes?: string;
     };
+    const numUserId = typeof body.userId === "string" ? parseInt(body.userId, 10) : body.userId;
 
     // Check if there's already an open shift for this user
     const existing = await fastify.ctx.db
       .select()
       .from(shifts)
-      .where(and(eq(shifts.userId, body.userId), isNull(shifts.closedAt)));
+      .where(and(eq(shifts.userId, numUserId), isNull(shifts.closedAt)));
     if (existing.length > 0) {
       return reply.status(409).send({ error: "User already has an open shift", shift: existing[0] });
     }
 
-    const id = randomUUID();
-    await fastify.ctx.db.insert(shifts).values({
-      id,
-      userId:      body.userId,
+    const [row] = await fastify.ctx.db.insert(shifts).values({
+      userId:      numUserId,
       openedAt:    Date.now(),
       openingCash: body.openingCash ?? 0,
       totalSales:  0,
       totalOrders: 0,
       notes:       body.notes ?? null,
-    });
-    const [row] = await fastify.ctx.db.select().from(shifts).where(eq(shifts.id, id));
-    fastify.ctx.eventBus.emit("SHIFT_OPENED", { traceId: randomUUID(), shiftId: id, userId: body.userId, timestamp: new Date() });
+    }).returning();
+    fastify.ctx.eventBus.emit("SHIFT_OPENED", { traceId: crypto.randomUUID(), shiftId: row!.id, userId: numUserId, timestamp: new Date() });
     return reply.status(201).send(row);
   });
 
@@ -76,6 +73,7 @@ const shiftsRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["shifts"], summary: "Close a shift" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const { force, ...bodyRest } = request.body as {
       closingCash?: number;
       notes?: string;
@@ -83,7 +81,7 @@ const shiftsRoutes: FastifyPluginAsync = async (fastify) => {
     };
     const body = bodyRest;
 
-    const [existing] = await fastify.ctx.db.select().from(shifts).where(eq(shifts.id, id));
+    const [existing] = await fastify.ctx.db.select().from(shifts).where(eq(shifts.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
     if (existing.closedAt !== null) return reply.status(409).send({ error: "Shift already closed" });
 
@@ -91,7 +89,7 @@ const shiftsRoutes: FastifyPluginAsync = async (fastify) => {
       const countRows = await fastify.ctx.db
         .select({ pendingCount: count() })
         .from(orders)
-        .where(and(eq(orders.shiftId, id), inArray(orders.status, ["pending", "preparing"])));
+        .where(and(eq(orders.shiftId, numId), inArray(orders.status, ["pending", "preparing"])));
       const pendingCount = countRows[0]?.pendingCount ?? 0;
       if (pendingCount > 0) {
         return reply.status(409).send({ error: `Ci sono ${pendingCount} ordini ancora attivi. Usa force=true per forzare la chiusura.`, pendingCount });
@@ -102,10 +100,10 @@ const shiftsRoutes: FastifyPluginAsync = async (fastify) => {
       closedAt:    Date.now(),
       closingCash: body.closingCash ?? null,
       notes:       body.notes ?? existing.notes ?? null,
-    }).where(eq(shifts.id, id));
+    }).where(eq(shifts.id, numId));
 
-    const [row] = await fastify.ctx.db.select().from(shifts).where(eq(shifts.id, id));
-    fastify.ctx.eventBus.emit("SHIFT_CLOSED", { traceId: randomUUID(), shiftId: id, timestamp: new Date() });
+    const [row] = await fastify.ctx.db.select().from(shifts).where(eq(shifts.id, numId));
+    fastify.ctx.eventBus.emit("SHIFT_CLOSED", { traceId: crypto.randomUUID(), shiftId: numId, timestamp: new Date() });
     return reply.send(row);
   });
 
@@ -113,12 +111,13 @@ const shiftsRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["shifts"], summary: "Update shift totals (called after each order)" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const body = request.body as {
       totalSales?: number;
       totalOrders?: number;
     };
 
-    const [existing] = await fastify.ctx.db.select().from(shifts).where(eq(shifts.id, id));
+    const [existing] = await fastify.ctx.db.select().from(shifts).where(eq(shifts.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     const update: { totalSales?: number; totalOrders?: number } = {};
@@ -126,10 +125,10 @@ const shiftsRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.totalOrders !== undefined) update.totalOrders = body.totalOrders;
 
     if (Object.keys(update).length > 0) {
-      await fastify.ctx.db.update(shifts).set(update).where(eq(shifts.id, id));
-      fastify.ctx.eventBus.emit("SHIFT_UPDATED", { traceId: randomUUID(), shiftId: id, timestamp: new Date() });
+      await fastify.ctx.db.update(shifts).set(update).where(eq(shifts.id, numId));
+      fastify.ctx.eventBus.emit("SHIFT_UPDATED", { traceId: crypto.randomUUID(), shiftId: numId, timestamp: new Date() });
     }
-    const [row] = await fastify.ctx.db.select().from(shifts).where(eq(shifts.id, id));
+    const [row] = await fastify.ctx.db.select().from(shifts).where(eq(shifts.id, numId));
     return reply.send(row);
   });
 };

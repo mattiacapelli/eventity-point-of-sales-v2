@@ -23,53 +23,70 @@ const labelStyle: React.CSSProperties = {
   display: "block",
 };
 
-export function InfoScreen({ initial, onSubmit }: { initial: OrderInfo; onSubmit: (info: OrderInfo) => void }) {
+export function InfoScreen({ initial, logoUrl, requireTableId = true, requireCustomerName = false, onSubmit }: {
+  initial: OrderInfo;
+  logoUrl?: string | null;
+  requireTableId?: boolean;
+  requireCustomerName?: boolean;
+  onSubmit: (info: OrderInfo) => void;
+}) {
   const [tableId, setTableId] = useState(initial.tableId);
   const [customerName, setCustomerName] = useState(initial.customerName);
 
-  const canProceed = tableId.trim().length > 0;
+  const canProceed = (!requireTableId || tableId.trim().length > 0) && (!requireCustomerName || customerName.trim().length > 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
       <Header />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "var(--sp-xl) var(--sp-lg)", gap: "var(--sp-xl)" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "var(--sp-xl) var(--sp-lg)", gap: "var(--sp-xl)" }}>
         <div
           style={{
             width: "180px",
             height: "180px",
             borderRadius: "50%",
-            background: "var(--color-brand)",
+            background: logoUrl ? "var(--color-white)" : "linear-gradient(160deg, var(--color-brand) 0%, var(--color-brand-dark) 100%)",
+            boxShadow: "var(--shadow-lg)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            padding: "var(--sp-lg)",
+            padding: logoUrl ? "var(--sp-md)" : "var(--sp-lg)",
+            overflow: "hidden",
           }}
         >
-          <img src="/logo.svg" alt="epos" style={{ width: "100%", height: "auto" }} />
+          {logoUrl ? (
+            <img src={logoUrl} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+          ) : (
+            <img src="/logo.svg" alt="epos" style={{ width: "100%", height: "auto" }} />
+          )}
         </div>
 
         <div style={{ width: "100%", maxWidth: "360px", display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
           <div>
-            <label style={labelStyle} htmlFor="tableId">Tavolo</label>
+            <label style={labelStyle} htmlFor="tableId">
+              Tavolo{requireTableId && <span style={{ color: "var(--color-danger)" }}> *</span>}
+            </label>
             <input
               id="tableId"
+              className="input-field"
               style={inputStyle}
               value={tableId}
               onChange={(e) => setTableId(e.target.value)}
-              placeholder="Es. 12"
-              inputMode="numeric"
+              placeholder="Es. 12 o A3"
               maxLength={20}
               autoFocus
             />
           </div>
           <div>
-            <label style={labelStyle} htmlFor="customerName">Nome e Cognome</label>
+            <label style={labelStyle} htmlFor="customerName">
+              Nome e Cognome{requireCustomerName && <span style={{ color: "var(--color-danger)" }}> *</span>}
+            </label>
             <input
               id="customerName"
+              className="input-field"
               style={inputStyle}
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="Facoltativo"
+              placeholder={requireCustomerName ? "Es. Mario Rossi" : "Facoltativo"}
               maxLength={100}
             />
           </div>

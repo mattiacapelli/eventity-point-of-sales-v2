@@ -5,6 +5,7 @@ import { CartPanel } from "./CartPanel.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { Button } from "../../components/ui/Button.js";
 import { useStore } from "../../state/global-store.js";
+import { useTerminalStore } from "../../state/terminal-store.js";
 import { useAdminStore } from "../../state/admin-store.js";
 import { useShiftStore } from "../../state/shift-store.js";
 import { apiClient } from "../../core/api-client.js";
@@ -33,16 +34,91 @@ function formatEur(n: number) {
   return `€${n.toFixed(2)}`;
 }
 
+const CALC_BANKNOTES = [5, 10, 20, 50, 100];
+const CALC_KEYS = [["7","8","9"],["4","5","6"],["1","2","3"],["00","0","⌫"]];
+
+function CashCalculator({ total, received, onChange }: { total: number; received: string; onChange: (v: string) => void }) {
+  const receivedNum = parseFloat(received) || 0;
+  const change = receivedNum >= total ? receivedNum - total : null;
+  const insufficient = received !== "" && receivedNum < total;
+
+  function pressKey(key: string) {
+    if (key === "⌫") { onChange(received.slice(0, -1)); return; }
+    const next = received + key;
+    if ((next.match(/\./g) ?? []).length > 1) return;
+    if (next.length > 8) return;
+    onChange(next);
+  }
+
+  const btnStyle = (key: string): React.CSSProperties => ({
+    display: "flex", alignItems: "center", justifyContent: "center",
+    height: "52px", borderRadius: "var(--radius-md)",
+    border: "1.5px solid var(--color-gray-200)",
+    background: key === "⌫" ? "rgba(239,68,68,0.08)" : "var(--color-white)",
+    fontFamily: "var(--font)",
+    fontSize: key === "⌫" ? "18px" : "var(--text-lg)", fontWeight: 700,
+    color: key === "⌫" ? "var(--color-danger)" : "var(--color-gray-800)",
+    cursor: "pointer", userSelect: "none",
+  });
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      {/* Display */}
+      <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", border: "2px solid var(--color-gray-200)", padding: "10px 14px", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "2px" }}>
+        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>Ricevuto</div>
+        <div style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-gray-800)", lineHeight: 1 }}>
+          {received === "" ? <span style={{ color: "var(--color-gray-300)" }}>0.00</span> : `€${received}`}
+        </div>
+      </div>
+      {/* Banknote shortcuts */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "5px" }}>
+        {CALC_BANKNOTES.map((note) => (
+          <button key={note} onClick={() => onChange(String(note))} style={{ height: "36px", borderRadius: "var(--radius-md)", border: `1.5px solid ${receivedNum === note ? "var(--color-brand)" : "var(--color-gray-300)"}`, background: receivedNum === note ? "rgba(48,107,52,0.08)" : "var(--color-white)", fontFamily: "var(--font)", fontSize: "var(--text-xs)", fontWeight: 700, color: receivedNum === note ? "var(--color-brand)" : "var(--color-gray-700)", cursor: "pointer" }}>
+            €{note}
+          </button>
+        ))}
+      </div>
+      {/* Numpad */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+        {CALC_KEYS.map((row, ri) => (
+          <div key={ri} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "5px" }}>
+            {row.map((key) => <button key={key} onClick={() => pressKey(key)} style={btnStyle(key)}>{key}</button>)}
+          </div>
+        ))}
+        <button onClick={() => pressKey(".")} style={{ ...btnStyle("."), height: "36px", fontSize: "var(--text-md)" }}>,</button>
+      </div>
+      {/* Change / insufficient */}
+      {change !== null && (
+        <div style={{ padding: "10px 14px", borderRadius: "var(--radius-md)", background: "rgba(34,197,94,0.12)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontWeight: 600, color: "#166534" }}>Resto</span>
+          <span style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "#166534" }}>€{change.toFixed(2)}</span>
+        </div>
+      )}
+      {insufficient && (
+        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-danger)", fontWeight: 500, textAlign: "center" }}>
+          Mancano €{(total - receivedNum).toFixed(2)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CheckoutModal() {
-  const { checkoutOrder, setCheckoutOrder, clearCart, pendingTableId, pendingCustomerName } = useStore();
+  const { checkoutOrder, setCheckoutOrder, clearCart, pendingTableId, pendingCustomerName, setTriggerPreOrderModal } = useStore();
   const { paymentMethods, setPaymentMethods } = useAdminStore();
+  const { terminalId } = useTerminalStore();
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [paid, setPaid] = useState(false);
   const [tableId, setTableId] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [tablesEnabled, setTablesEnabled] = useState(false);
+  const [tableInputMode, setTableInputMode] = useState<"checkout" | "sidebar">("checkout");
+  const [tableRequired, setTableRequired] = useState(false);
+  const [customerRequired, setCustomerRequired] = useState(false);
+  const [disableTableInput, setDisableTableInput] = useState(false);
+  const [tableInputOptional, setTableInputOptional] = useState(false);
+  const [received, setReceived] = useState("");
 
   const activeMethods = paymentMethods.filter((m) => m.active);
   const singleMethod = activeMethods.length === 1 ? activeMethods[0] : null;
@@ -50,10 +126,25 @@ function CheckoutModal() {
   // Load payment methods + settings when modal opens; auto-select if single method
   useEffect(() => {
     if (!checkoutOrder) return;
+    setReceived("");
     // Fall back to values prefilled by a QR scan when the order itself doesn't have them yet.
     setTableId(checkoutOrder.tableId ?? pendingTableId ?? "");
     setCustomerName(checkoutOrder.customerName ?? pendingCustomerName ?? "");
-    adminApi.settings.get().then((s) => setTablesEnabled(s.tablesEnabled)).catch(() => {});
+    adminApi.settings.get().then((s) => {
+      setTablesEnabled(s.tablesEnabled);
+      setTableInputMode(s.tableInputMode ?? "checkout");
+      setTableRequired(s.tableRequired ?? false);
+      setCustomerRequired(s.customerRequired ?? false);
+    }).catch(() => {});
+    if (terminalId) {
+      adminApi.terminals.list().then((ts) => {
+        const mine = ts.find((t) => t.id === terminalId);
+        if (mine) {
+            setDisableTableInput(mine.disableTableInput ?? false);
+            setTableInputOptional(mine.tableInputOptional ?? false);
+          }
+      }).catch(() => {});
+    }
     if (paymentMethods.length === 0) {
       adminApi.paymentMethods.list().then((ms) => {
         setPaymentMethods(ms);
@@ -69,6 +160,12 @@ function CheckoutModal() {
 
   const order = checkoutOrder;
   const selectedMethod = activeMethods.find((m) => m.id === selectedMethodId);
+  const isCash = selectedMethod?.type === "cash";
+  const receivedNum = parseFloat(received) || 0;
+  const showTableFields = tablesEnabled && tableInputMode === "checkout" && !disableTableInput;
+  const tableMissing = showTableFields && tableRequired && !tableInputOptional && tableId.trim() === "";
+  const customerMissing = showTableFields && customerRequired && !tableInputOptional && customerName.trim() === "";
+  const canPay = !!selectedMethod && !tableMissing && !customerMissing;
 
   const handlePay = async () => {
     if (!selectedMethod) return;
@@ -84,13 +181,11 @@ function CheckoutModal() {
         });
       }
       await apiClient.payments.pay({ orderId: order.id, method: selectedMethod.id, amount: order.totalAmount });
-      setPaid(true);
-      setTimeout(() => {
-        setCheckoutOrder(null);
-        clearCart();
-        setPaid(false);
-        setSelectedMethodId(null);
-      }, 2000);
+      useToastStore.getState().show("Pagamento registrato", "success");
+      setCheckoutOrder(null);
+      clearCart();
+      setSelectedMethodId(null);
+      setTriggerPreOrderModal(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore pagamento");
     } finally {
@@ -98,138 +193,114 @@ function CheckoutModal() {
     }
   };
 
-  if (paid) {
-    return (
-      <Modal open onClose={() => {}} title="" width="360px">
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--sp-md)", padding: "var(--sp-xl) 0" }}>
-          <CheckCircleIcon style={{ width: "72px", height: "72px", color: "var(--color-success)" }} />
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-success)" }}>
-              Pagamento registrato
-            </div>
-            <div style={{ color: "var(--color-gray-500)", fontSize: "var(--text-sm)", marginTop: "4px" }}>
-              Stampa in corso...
-            </div>
-          </div>
-        </div>
-      </Modal>
-    );
-  }
-
   return (
-    <Modal open onClose={() => setCheckoutOrder(null)} title="Pagamento" width="560px">
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
+    <Modal open onClose={() => setCheckoutOrder(null)} title="Pagamento" width={isCash ? "860px" : "560px"}>
+      <div style={{ display: "flex", gap: "var(--sp-xl)", alignItems: "flex-start" }}>
 
-        {/* Table / customer — only when tables module is enabled */}
-        {tablesEnabled && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-            <div>
-              <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)", display: "block" }}>
-                Tavolo
-              </label>
-              <input
-                value={tableId}
-                onChange={(e) => setTableId(e.target.value)}
-                placeholder="Es. 12"
-                style={{ width: "100%", height: "40px", padding: "0 12px", borderRadius: "var(--radius-md)", border: "2px solid var(--color-gray-200)", fontFamily: "var(--font)", fontSize: "var(--text-md)", boxSizing: "border-box" }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)", display: "block" }}>
-                Nome cliente
-              </label>
-              <input
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="Es. Mario Rossi"
-                style={{ width: "100%", height: "40px", padding: "0 12px", borderRadius: "var(--radius-md)", border: "2px solid var(--color-gray-200)", fontFamily: "var(--font)", fontSize: "var(--text-md)", boxSizing: "border-box" }}
-              />
-            </div>
-          </div>
-        )}
+        {/* Left column */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
 
-        {/* Order summary */}
-        <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-lg)", padding: "var(--sp-md)" }}>
-          <div style={{ color: "var(--color-gray-500)", fontSize: "var(--text-sm)", marginBottom: "var(--sp-sm)" }}>
-            Ordine #{order.id.slice(-6).toUpperCase()}
-          </div>
-          {order.items.map((item) => (
-            <div key={item.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)", padding: "4px 0" }}>
-              <span>{item.name} ×{item.quantity}</span>
-              <span style={{ fontWeight: 600 }}>{formatEur(item.unitPrice * item.quantity)}</span>
-            </div>
-          ))}
-          <div style={{ borderTop: "1px solid var(--color-gray-200)", marginTop: "var(--sp-sm)", paddingTop: "var(--sp-sm)", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <span style={{ fontWeight: 700 }}>Totale</span>
-            <span style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-brand)" }}>
-              {formatEur(order.totalAmount)}
-            </span>
-          </div>
-        </div>
-
-        {/* Payment method — dynamic */}
-        <div>
-          <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)" }}>
-            Metodo di pagamento
-          </div>
-          {activeMethods.length === 0 ? (
-            <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)", padding: "16px 0" }}>
-              Nessun metodo di pagamento attivo — configurali in Amministrazione.
-            </div>
-          ) : singleMethod ? (
-            <div style={{
-              display: "flex", alignItems: "center", gap: "10px",
-              padding: "12px 14px", borderRadius: "var(--radius-lg)",
-              border: "2px solid var(--color-brand)",
-              background: "rgba(48,107,52,0.06)",
-            }}>
-              <PaymentIcon type={singleMethod.type} style={{ width: "20px", height: "20px", color: "var(--color-brand)", flexShrink: 0 }} />
-              <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-brand)" }}>{singleMethod.name}</span>
-            </div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: activeMethods.length > 2 ? "1fr 1fr" : `repeat(${activeMethods.length}, 1fr)`, gap: "8px" }}>
-              {activeMethods.map((m) => {
-                const active = selectedMethodId === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => setSelectedMethodId(m.id)}
-                    style={{
-                      padding: "14px 12px",
-                      borderRadius: "var(--radius-lg)",
-                      border: `2px solid ${active ? "var(--color-brand)" : "var(--color-gray-200)"}`,
-                      background: active ? "rgba(48,107,52,0.06)" : "var(--color-white)",
-                      fontFamily: "var(--font)",
-                      cursor: "pointer",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: "6px",
-                      minHeight: "72px",
-                      transition: "all var(--transition)",
-                    }}
-                  >
-                    <PaymentIcon type={m.type} style={{ width: "22px", height: "22px", color: active ? "var(--color-brand)" : "var(--color-gray-400)" }} />
-                    <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: active ? "var(--color-brand)" : "var(--color-gray-700)" }}>
-                      {m.name}
-                    </span>
-                  </button>
-                );
-              })}
+          {/* Table / customer — only when tables module is enabled and mode is checkout */}
+          {showTableFields && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              <div>
+                <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: tableMissing ? "var(--color-danger)" : "var(--color-gray-600)", marginBottom: "var(--sp-sm)", display: "block" }}>
+                  Tavolo{tableRequired && !tableInputOptional ? " *" : ""}
+                </label>
+                <input
+                  value={tableId}
+                  onChange={(e) => setTableId(e.target.value)}
+                  placeholder="Es. 12"
+                  style={{ width: "100%", height: "40px", padding: "0 12px", borderRadius: "var(--radius-md)", border: `2px solid ${tableMissing ? "var(--color-danger)" : "var(--color-gray-200)"}`, fontFamily: "var(--font)", fontSize: "var(--text-md)", boxSizing: "border-box" }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: customerMissing ? "var(--color-danger)" : "var(--color-gray-600)", marginBottom: "var(--sp-sm)", display: "block" }}>
+                  Nome cliente{customerRequired && !tableInputOptional ? " *" : ""}
+                </label>
+                <input
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Es. Mario Rossi"
+                  style={{ width: "100%", height: "40px", padding: "0 12px", borderRadius: "var(--radius-md)", border: `2px solid ${customerMissing ? "var(--color-danger)" : "var(--color-gray-200)"}`, fontFamily: "var(--font)", fontSize: "var(--text-md)", boxSizing: "border-box" }}
+                />
+              </div>
             </div>
           )}
+
+          {/* Order summary */}
+          <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-lg)", padding: "var(--sp-md)" }}>
+            <div style={{ color: "var(--color-gray-500)", fontSize: "var(--text-sm)", marginBottom: "var(--sp-sm)" }}>
+              Ordine #{order.id}
+            </div>
+            {order.items.map((item) => (
+              <div key={item.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)", padding: "4px 0" }}>
+                <span>{item.name} ×{item.quantity}</span>
+                <span style={{ fontWeight: 600 }}>{formatEur(item.unitPrice * item.quantity)}</span>
+              </div>
+            ))}
+            <div style={{ borderTop: "1px solid var(--color-gray-200)", marginTop: "var(--sp-sm)", paddingTop: "var(--sp-sm)", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ fontWeight: 700 }}>Totale</span>
+              <span style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-brand)" }}>
+                {formatEur(order.totalAmount)}
+              </span>
+            </div>
+          </div>
+
+          {/* Payment method — dynamic */}
+          <div>
+            <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)" }}>
+              Metodo di pagamento
+            </div>
+            {activeMethods.length === 0 ? (
+              <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)", padding: "16px 0" }}>
+                Nessun metodo di pagamento attivo — configurali in Amministrazione.
+              </div>
+            ) : singleMethod ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 14px", borderRadius: "var(--radius-lg)", border: "2px solid var(--color-brand)", background: "rgba(48,107,52,0.06)" }}>
+                <PaymentIcon type={singleMethod.type} style={{ width: "20px", height: "20px", color: "var(--color-brand)", flexShrink: 0 }} />
+                <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-brand)" }}>{singleMethod.name}</span>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: activeMethods.length > 2 ? "1fr 1fr" : `repeat(${activeMethods.length}, 1fr)`, gap: "8px" }}>
+                {activeMethods.map((m) => {
+                  const active = selectedMethodId === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => { setSelectedMethodId(m.id); setReceived(""); }}
+                      style={{ padding: "14px 12px", borderRadius: "var(--radius-lg)", border: `2px solid ${active ? "var(--color-brand)" : "var(--color-gray-200)"}`, background: active ? "rgba(48,107,52,0.06)" : "var(--color-white)", fontFamily: "var(--font)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", minHeight: "72px", transition: "all var(--transition)" }}
+                    >
+                      <PaymentIcon type={m.type} style={{ width: "22px", height: "22px", color: active ? "var(--color-brand)" : "var(--color-gray-400)" }} />
+                      <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: active ? "var(--color-brand)" : "var(--color-gray-700)" }}>{m.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {error && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(239,68,68,0.08)", borderRadius: "var(--radius-md)", padding: "10px 14px" }}>
+              <ExclamationCircleIcon style={{ width: "18px", height: "18px", color: "var(--color-danger)", flexShrink: 0 }} />
+              <span style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-danger)" }}>{error}</span>
+            </div>
+          )}
+
+          <Button fullWidth size="xl" loading={loading} disabled={!canPay} onClick={() => void handlePay()}>
+            Paga {formatEur(order.totalAmount)}
+          </Button>
         </div>
 
-        {error && (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(239,68,68,0.08)", borderRadius: "var(--radius-md)", padding: "10px 14px" }}>
-            <ExclamationCircleIcon style={{ width: "18px", height: "18px", color: "var(--color-danger)", flexShrink: 0 }} />
-            <span style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-danger)" }}>{error}</span>
+        {/* Right column — cash calculator */}
+        {isCash && (
+          <div style={{ width: "280px", flexShrink: 0, borderLeft: "1px solid var(--color-gray-200)", paddingLeft: "var(--sp-xl)" }}>
+            <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "var(--sp-sm)" }}>
+              Calcolatrice resto
+            </div>
+            <CashCalculator total={order.totalAmount} received={received} onChange={setReceived} />
           </div>
         )}
-
-        <Button fullWidth size="xl" loading={loading} disabled={!selectedMethod} onClick={() => void handlePay()}>
-          Paga {formatEur(order.totalAmount)}
-        </Button>
       </div>
     </Modal>
   );
@@ -285,12 +356,19 @@ type InvItem = import("../../core/admin-api.js").InventoryItemRecord;
 function OpenShiftModal({ onDone }: { onDone: () => void }) {
   const { session } = useStore();
   const { setCurrentShift } = useShiftStore();
-  const [step, setStep] = useState<"cash" | "inventory" | "summary">("cash");
+  const [step, setStep] = useState<"cash" | "extras" | "inventory" | "summary">("cash");
   const [openingCash, setOpeningCash] = useState("0");
   const [saving, setSaving] = useState(false);
   const [inventoryItems, setInventoryItems] = useState<InvItem[]>([]);
   const [stockValues, setStockValues] = useState<Record<string, number>>({});
   const [invIdx, setInvIdx] = useState(0);
+
+  // Extra del giorno
+  const [dateFilterEnabled, setDateFilterEnabled] = useState(false);
+  const [extrasProducts, setExtrasProducts] = useState<import("@pos/shared-types").Product[]>([]);
+  const [enabledExtraIds, setEnabledExtraIds] = useState<Set<number>>(new Set());
+  const [extrasLoading, setExtrasLoading] = useState(false);
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
     adminApi.inventory.listItems()
@@ -301,6 +379,19 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
           vals[item.id] = item.resetOnShiftOpen ? 0 : item.currentStock;
         }
         setStockValues(vals);
+      })
+      .catch(() => {});
+
+    // Carica settings e prodotti per lo step extra
+    Promise.all([adminApi.settings.get(), adminApi.products.list(), adminApi.dailyExtras.list(todayStr)])
+      .then(([settings, prods, existing]) => {
+        setDateFilterEnabled(settings.productDateFilterEnabled);
+        // Prodotti che hanno date configurate ma oggi non è incluso → candidati extra
+        const candidates = prods.filter(
+          (p) => p.active && p.availableDates && p.availableDates.length > 0 && !p.availableDates.includes(todayStr)
+        );
+        setExtrasProducts(candidates);
+        setEnabledExtraIds(new Set(existing.map((e) => e.productId)));
       })
       .catch(() => {});
   }, []);
@@ -327,12 +418,13 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
     }
   }
 
-  function adj(id: string, delta: number) {
+  function adj(id: number, delta: number) {
     setStockValues((v) => ({ ...v, [id]: Math.max(0, (v[id] ?? 0) + delta) }));
   }
 
-  const stepIndex = step === "cash" ? 0 : step === "inventory" ? 1 : 2;
-  const totalSteps = inventoryItems.length > 0 ? 3 : 2;
+  const showExtrasStep = dateFilterEnabled && extrasProducts.length > 0;
+  const totalSteps = 2 + (showExtrasStep ? 1 : 0) + (inventoryItems.length > 0 ? 1 : 0);
+  const stepIndex = step === "cash" ? 0 : step === "extras" ? 1 : step === "inventory" ? (showExtrasStep ? 2 : 1) : totalSteps - 1;
   const currentInvItem = inventoryItems[invIdx] ?? null;
 
   const TOUCH_BTN: React.CSSProperties = {
@@ -345,6 +437,10 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
 
   function goNext() {
     if (step === "cash") {
+      if (showExtrasStep) setStep("extras");
+      else if (inventoryItems.length > 0) { setInvIdx(0); setStep("inventory"); }
+      else setStep("summary");
+    } else if (step === "extras") {
       if (inventoryItems.length > 0) { setInvIdx(0); setStep("inventory"); }
       else setStep("summary");
     } else if (step === "inventory") {
@@ -355,14 +451,31 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
   function goBack() {
     if (step === "summary") {
       if (inventoryItems.length > 0) { setInvIdx(inventoryItems.length - 1); setStep("inventory"); }
+      else if (showExtrasStep) setStep("extras");
       else setStep("cash");
     } else if (step === "inventory") {
       if (invIdx > 0) setInvIdx((i) => i - 1);
+      else if (showExtrasStep) setStep("extras");
       else setStep("cash");
+    } else if (step === "extras") {
+      setStep("cash");
     }
   }
 
-  const stepLabel = step === "cash" ? "Fondo cassa" : step === "inventory" ? `Inventario (${invIdx + 1}/${inventoryItems.length})` : "Riepilogo";
+  async function toggleExtra(productId: number) {
+    setExtrasLoading(true);
+    try {
+      if (enabledExtraIds.has(productId)) {
+        await adminApi.dailyExtras.remove(productId, todayStr);
+        setEnabledExtraIds((prev) => { const next = new Set(prev); next.delete(productId); return next; });
+      } else {
+        await adminApi.dailyExtras.add(productId, todayStr);
+        setEnabledExtraIds((prev) => new Set([...prev, productId]));
+      }
+    } catch { /* ignore */ } finally { setExtrasLoading(false); }
+  }
+
+  const stepLabel = step === "cash" ? "Fondo cassa" : step === "extras" ? "Extra del giorno" : step === "inventory" ? `Inventario (${invIdx + 1}/${inventoryItems.length})` : "Riepilogo";
 
   return (
     <Modal open onClose={onDone} title="Apertura turno" width="520px">
@@ -398,6 +511,77 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
             >
               Continua →
             </button>
+          </div>
+        )}
+
+        {/* ── STEP extra: prodotti non programmati ── */}
+        {step === "extras" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div>
+              <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-gray-400)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "4px" }}>
+                Extra del giorno
+              </div>
+              <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)" }}>
+                Abilita i prodotti disponibili oggi ma non in programma.
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "320px", overflowY: "auto" }}>
+              {extrasProducts.map((p) => {
+                const isOn = enabledExtraIds.has(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => void toggleExtra(p.id)}
+                    disabled={extrasLoading}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "14px 16px", borderRadius: "var(--radius-lg)",
+                      border: `1.5px solid ${isOn ? "var(--color-brand)" : "var(--color-gray-200)"}`,
+                      background: isOn ? "rgba(99,102,241,0.06)" : "var(--color-white)",
+                      cursor: extrasLoading ? "not-allowed" : "pointer",
+                      touchAction: "manipulation", textAlign: "left", fontFamily: "var(--font)",
+                      opacity: extrasLoading ? 0.7 : 1,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: "var(--text-base)", color: isOn ? "var(--color-brand)" : "var(--color-gray-800)" }}>
+                        {p.name}
+                      </div>
+                      {p.categoryName && (
+                        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginTop: "2px" }}>{p.categoryName}</div>
+                      )}
+                    </div>
+                    {/* Toggle */}
+                    <div style={{
+                      width: "42px", height: "24px", borderRadius: "12px", flexShrink: 0,
+                      background: isOn ? "var(--color-brand)" : "var(--color-gray-300)",
+                      position: "relative", transition: "background 0.2s",
+                    }}>
+                      <div style={{
+                        position: "absolute", top: "3px", left: isOn ? "20px" : "3px",
+                        width: "18px", height: "18px", borderRadius: "50%",
+                        background: "#fff", transition: "left 0.2s",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                      }} />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                style={{ flex: 1, height: "52px", borderRadius: "var(--radius-lg)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", fontSize: "var(--text-base)", fontWeight: 600, color: "var(--color-gray-600)", cursor: "pointer", touchAction: "manipulation" }}
+                onClick={goBack}
+              >← Indietro</button>
+              <button
+                style={{ flex: 2, height: "52px", borderRadius: "var(--radius-lg)", border: "none", background: "var(--color-brand)", color: "var(--color-white)", fontSize: "var(--text-base)", fontWeight: 700, cursor: "pointer", touchAction: "manipulation" }}
+                onClick={goNext}
+              >
+                {inventoryItems.length > 0 ? "Avanti →" : "Riepilogo →"}
+              </button>
+            </div>
           </div>
         )}
 
@@ -534,9 +718,14 @@ function CloseShiftModal({ onDone }: { onDone: () => void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsForce, setNeedsForce] = useState(false);
+  const [forceCloseDefault, setForceCloseDefault] = useState(false);
   const [shiftStats, setShiftStats] = useState<import("../../core/api-client.js").ShiftFullStats | null>(null);
   const [printing, setPrinting] = useState(false);
   const [printResult, setPrintResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    adminApi.settings.get().then((s) => setForceCloseDefault(s.shiftForceCloseDefault)).catch(() => {});
+  }, []);
 
   async function handleClose(force = false) {
     if (!currentShift) return;
@@ -544,7 +733,7 @@ function CloseShiftModal({ onDone }: { onDone: () => void }) {
     setSaving(true);
     setError(null);
     try {
-      await adminApi.shifts.close(shiftId, { closingCash: parseFloat(closingCash) || 0, force });
+      await adminApi.shifts.close(shiftId, { closingCash: parseFloat(closingCash) || 0, force: force || forceCloseDefault });
       setCurrentShift(null);
       // Load full stats and auto-print in parallel
       const [stats, settings] = await Promise.all([
@@ -739,6 +928,7 @@ export function PosScreen() {
   // Ignored while the catalogue isn't loaded yet, or while the checkout/configurator modal
   // is already open — scanning mid-flow would otherwise silently contaminate that other order.
   useScannerListener((raw) => {
+    console.log("[scanner] raw scan received, length:", raw.length, "preview:", raw.slice(0, 40));
     if (!catalogueReady) {
       useToastStore.getState().show("Catalogo non ancora caricato: riprova tra un istante", "error");
       return;
@@ -751,7 +941,8 @@ export function PosScreen() {
     let payload;
     try {
       payload = decodeQrPayload(raw);
-    } catch {
+    } catch (err) {
+      console.log("[scanner] decode failed:", err, "raw:", raw);
       return; // not a recognizable payload — ignore silently (could be an unrelated barcode)
     }
 

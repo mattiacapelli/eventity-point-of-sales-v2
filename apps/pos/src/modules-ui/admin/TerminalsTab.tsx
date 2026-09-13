@@ -5,7 +5,7 @@ import { useToastStore } from "../../components/ui/Toast.js";
 import { Button } from "../../components/ui/Button.js";
 import type { Terminal, Printer, Category } from "@pos/shared-types";
 import { PlusIcon, TrashIcon } from "../../components/ui/icons.js";
-import { inputStyle } from "./shared.js";
+import { inputStyle, Toggle } from "./shared.js";
 import { wsClient } from "../../core/ws-client.js";
 
 const VIEW_MODE_LABELS: Record<string, string> = {
@@ -25,10 +25,13 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [savingNew, setSavingNew] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [terminalPrinters, setTerminalPrinters] = useState<Record<string, string[]>>({});
-  const [terminalCategories, setTerminalCategories] = useState<Record<string, Category[]>>({});
-  const [categoryDropdownId, setCategoryDropdownId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [terminalPrinters, setTerminalPrinters] = useState<Record<number, number[]>>({});
+  const [terminalCategories, setTerminalCategories] = useState<Record<number, Category[]>>({});
+  const [categoryDropdownId, setCategoryDropdownId] = useState<number | null>(null);
+  const [terminalProducts, setTerminalProducts] = useState<Record<number, { id: number; name: string }[]>>({});
+  const [productDropdownId, setProductDropdownId] = useState<number | null>(null);
+  const [allProducts, setAllProducts] = useState<{ id: number; name: string }[]>([]);
 
   const now = Date.now();
   const isOnline = (t: Terminal) => t.lastSeenAt !== null && now - t.lastSeenAt < 5 * 60 * 1000;
@@ -41,9 +44,11 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
     Promise.all([
       adminApi.terminals.list(),
       adminApi.printers.list(),
-    ]).then(([tList, pList]) => {
+      adminApi.products.list(),
+    ]).then(([tList, pList, prods]) => {
       setTerminals(tList);
       setPrinters(pList);
+      setAllProducts(prods.map((p) => ({ id: p.id, name: p.name })));
     }).catch(() => {}).finally(() => setLoading_(false));
   }, []);
 
@@ -56,7 +61,7 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
     return () => { for (const unsub of unsubs) unsub(); };
   }, []);
 
-  async function loadTerminalPrinters(terminalId: string) {
+  async function loadTerminalPrinters(terminalId: number) {
     try {
       const list = await adminApi.terminals.getPrinters(terminalId);
       setTerminalPrinters((prev) => ({ ...prev, [terminalId]: list.map((p) => p.id) }));
@@ -83,14 +88,14 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
     } catch { /* ignore */ }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: number) {
     try {
       await adminApi.terminals.delete(id);
       setTerminals((prev) => prev.filter((t) => t.id !== id));
     } catch { /* ignore */ }
   }
 
-  async function handleTogglePrinter(terminalId: string, printerId: string) {
+  async function handleTogglePrinter(terminalId: number, printerId: number) {
     const current = terminalPrinters[terminalId] ?? [];
     const has = current.includes(printerId);
     try {
@@ -103,14 +108,14 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
     } catch { /* ignore */ }
   }
 
-  async function loadTerminalCategories(terminalId: string) {
+  async function loadTerminalCategories(terminalId: number) {
     try {
       const list = await adminApi.terminals.getCategories(terminalId);
       setTerminalCategories((prev) => ({ ...prev, [terminalId]: list }));
     } catch { /* ignore */ }
   }
 
-  async function handleAssignCategory(terminalId: string, categoryId: string) {
+  async function handleAssignCategory(terminalId: number, categoryId: number) {
     try {
       await adminApi.terminals.assignCategory(terminalId, categoryId);
       await loadTerminalCategories(terminalId);
@@ -120,7 +125,7 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
     }
   }
 
-  async function handleRemoveCategory(terminalId: string, categoryId: string) {
+  async function handleRemoveCategory(terminalId: number, categoryId: number) {
     try {
       await adminApi.terminals.removeCategory(terminalId, categoryId);
       await loadTerminalCategories(terminalId);
@@ -129,7 +134,7 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
     }
   }
 
-  async function handleMoveCategory(terminalId: string, index: number, direction: -1 | 1) {
+  async function handleMoveCategory(terminalId: number, index: number, direction: -1 | 1) {
     const list = terminalCategories[terminalId] ?? [];
     const newIndex = index + direction;
     if (newIndex < 0 || newIndex >= list.length) return;
@@ -142,6 +147,32 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
     } catch (err) {
       useToastStore.getState().show(err instanceof Error ? err.message : "Errore nel riordino categorie");
       await loadTerminalCategories(terminalId);
+    }
+  }
+
+  async function loadTerminalProducts(terminalId: number) {
+    try {
+      const list = await adminApi.terminals.getProducts(terminalId);
+      setTerminalProducts((prev) => ({ ...prev, [terminalId]: list }));
+    } catch { /* ignore */ }
+  }
+
+  async function handleAssignProduct(terminalId: number, productId: number) {
+    try {
+      await adminApi.terminals.assignProduct(terminalId, productId);
+      await loadTerminalProducts(terminalId);
+      setProductDropdownId(null);
+    } catch (err) {
+      useToastStore.getState().show(err instanceof Error ? err.message : "Errore nell'assegnazione prodotto");
+    }
+  }
+
+  async function handleRemoveProduct(terminalId: number, productId: number) {
+    try {
+      await adminApi.terminals.removeProduct(terminalId, productId);
+      await loadTerminalProducts(terminalId);
+    } catch (err) {
+      useToastStore.getState().show(err instanceof Error ? err.message : "Errore nella rimozione prodotto");
     }
   }
 
@@ -224,7 +255,7 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
                 <button
                   title="Configura"
                   onClick={() => {
-                    if (!expanded) { loadTerminalPrinters(t.id); loadTerminalCategories(t.id); }
+                    if (!expanded) { loadTerminalPrinters(t.id); loadTerminalCategories(t.id); loadTerminalProducts(t.id); }
                     setExpandedId(expanded ? null : t.id);
                   }}
                   style={{ background: "none", border: "1px solid var(--color-gray-200)", borderRadius: "var(--radius-md)", padding: "5px 10px", cursor: "pointer", fontSize: "var(--text-xs)", color: "var(--color-gray-600)" }}
@@ -328,6 +359,53 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
                     );
                   })()}
 
+                  <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", margin: "18px 0 10px" }}>
+                    Prodotti visibili
+                  </div>
+                  <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginBottom: "10px" }}>
+                    Se non ne assegni nessuno, questo terminale mostra tutti i prodotti.
+                  </div>
+                  {(() => {
+                    const assignedProducts = terminalProducts[t.id] ?? [];
+                    const unassignedProducts = allProducts.filter((p) => !assignedProducts.some((a) => a.id === p.id));
+                    const isProductDropdownOpen = productDropdownId === t.id;
+                    return (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
+                        {assignedProducts.length === 0 ? (
+                          <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>Nessun prodotto assegnato (mostra tutti).</div>
+                        ) : (
+                          assignedProducts.map((p) => (
+                            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "var(--text-sm)" }}>
+                              <span style={{ flex: 1, fontWeight: 500, color: "var(--color-gray-800)" }}>{p.name}</span>
+                              <button onClick={() => handleRemoveProduct(t.id, p.id)}
+                                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-gray-400)", padding: "2px" }}>
+                                <TrashIcon style={{ width: "14px", height: "14px" }} />
+                              </button>
+                            </div>
+                          ))
+                        )}
+                        {unassignedProducts.length > 0 && (
+                          <div style={{ position: "relative", marginTop: "4px" }}>
+                            <button onClick={() => setProductDropdownId(isProductDropdownOpen ? null : t.id)}
+                              style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 12px", borderRadius: "20px", border: "1.5px dashed var(--color-gray-300)", background: "transparent", cursor: "pointer", fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-gray-500)" }}>
+                              <PlusIcon style={{ width: "12px", height: "12px" }} /> Aggiungi prodotto
+                            </button>
+                            {isProductDropdownOpen && (
+                              <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, background: "var(--color-white)", borderRadius: "var(--radius-lg)", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", border: "1px solid var(--color-gray-200)", minWidth: "220px", maxHeight: "200px", overflowY: "auto", zIndex: 100 }}>
+                                {unassignedProducts.map((p, i) => (
+                                  <button key={p.id} onClick={() => handleAssignProduct(t.id, p.id)}
+                                    style={{ width: "100%", padding: "10px 14px", border: "none", borderBottom: i < unassignedProducts.length - 1 ? "1px solid var(--color-gray-100)" : "none", background: "transparent", cursor: "pointer", textAlign: "left", fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-gray-700)", fontFamily: "var(--font)" }}>
+                                    {p.name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "8px" }}>
                     Vista predefinita
                   </div>
@@ -338,6 +416,60 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
                   >
                     {Object.entries(VIEW_MODE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
+
+                  <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <Toggle
+                        value={t.disableTableInput ?? false}
+                        onChange={async (v) => {
+                          const updated = await adminApi.terminals.update(t.id, { disableTableInput: v });
+                          setTerminals((prev) => prev.map((x) => x.id === updated.id ? updated : x));
+                        }}
+                      />
+                      <div>
+                        <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-700)" }}>
+                          Disabilita input tavolo/cliente
+                        </div>
+                        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
+                          Nasconde completamente i campi tavolo e cliente dalla sidebar
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <Toggle
+                        value={t.disablePreOrderModal ?? false}
+                        onChange={async (v) => {
+                          const updated = await adminApi.terminals.update(t.id, { disablePreOrderModal: v });
+                          setTerminals((prev) => prev.map((x) => x.id === updated.id ? updated : x));
+                        }}
+                      />
+                      <div>
+                        <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-700)" }}>
+                          Disabilita modal tavolo/cliente
+                        </div>
+                        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
+                          Non mostra il popup automatico prima del primo prodotto (i campi restano nella sidebar)
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <Toggle
+                        value={t.tableInputOptional ?? false}
+                        onChange={async (v) => {
+                          const updated = await adminApi.terminals.update(t.id, { tableInputOptional: v });
+                          setTerminals((prev) => prev.map((x) => x.id === updated.id ? updated : x));
+                        }}
+                      />
+                      <div>
+                        <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-700)" }}>
+                          Tavolo/cliente facoltativi
+                        </div>
+                        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
+                          Su questa cassa i campi tavolo e cliente non sono obbligatori, anche se configurati come tali
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

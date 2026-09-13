@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { PosLayout } from "../../layout/PosLayout.js";
 import { Button } from "../../components/ui/Button.js";
@@ -19,6 +19,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }>
   ready:      { bg: "#d1fae5", text: "#065f46", label: "Pronto" },
   completed:  { bg: "#d1fae5", text: "#065f46", label: "Completato" },
   cancelled:  { bg: "#fee2e2", text: "#991b1b", label: "Annullato" },
+  refunded:   { bg: "#ede9fe", text: "#5b21b6", label: "Rimborsato" },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -45,13 +46,13 @@ function CancelModal({
   onClose,
 }: {
   order: Order | null;
-  onConfirm: (id: string, reason?: string, refundPaymentId?: string) => Promise<void>;
+  onConfirm: (id: number, reason?: string, refundPaymentId?: number) => Promise<void>;
   onClose: () => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [reason, setReason] = useState("");
   const [withRefund, setWithRefund] = useState(false);
-  const [paymentId, setPaymentId] = useState<string | null>(null);
+  const [paymentId, setPaymentId] = useState<number | null>(null);
   const [paymentAmount, setPaymentAmount] = useState(0);
 
   // Se l'ordine è completed carica il pagamento per proporre il rimborso
@@ -84,7 +85,7 @@ function CancelModal({
     <Modal open={order !== null} onClose={onClose} title="Annulla ordine">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-md)" }}>
         <p style={{ margin: 0, color: "var(--color-gray-700)", fontSize: "var(--text-sm)" }}>
-          Confermi l'annullamento dell'ordine <strong>#{order?.id.slice(-6).toUpperCase() ?? ""}</strong>?
+          Confermi l'annullamento dell'ordine <strong>#{order?.id ?? ""}</strong>?
         </p>
         {isPaid && (
           <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: "var(--radius-md)", padding: "12px 14px" }}>
@@ -126,7 +127,7 @@ function EditItemsModal({
   onSaved: () => void;
   onClose: () => void;
 }) {
-  type EditItem = { productId: string; name: string; quantity: number; unitPrice: number };
+  type EditItem = { productId: number; name: string; quantity: number; unitPrice: number };
   const [items, setItems] = useState<EditItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -206,9 +207,9 @@ function RefundModal({
   onConfirm,
   onClose,
 }: {
-  paymentId: string | null;
+  paymentId: number | null;
   amount: number;
-  onConfirm: (paymentId: string, reason?: string) => Promise<void>;
+  onConfirm: (paymentId: number, reason?: string) => Promise<void>;
   onClose: () => void;
 }) {
   const [loading, setLoading] = useState(false);
@@ -267,8 +268,8 @@ function OrderRow({
 }: {
   order: Order;
   isAdmin: boolean;
-  onReprint: (id: string) => void;
-  onReprintKitchen: (id: string) => void;
+  onReprint: (id: number) => void;
+  onReprintKitchen: (id: number) => void;
   onCancel: (order: Order) => void;
   onRefund: (order: Order) => void;
   onEdit: (order: Order) => void;
@@ -282,6 +283,14 @@ function OrderRow({
   const itemSummary = order.items.length > 0
     ? order.items.map((i) => `${i.quantity}× ${i.name}`).join(", ")
     : "—";
+
+  const chips: { label: string; value: string }[] = [];
+  if (order.tableId)      chips.push({ label: "Tavolo", value: order.tableId });
+  if (order.customerName) chips.push({ label: "Cliente", value: order.customerName });
+  if (order.pax)          chips.push({ label: "Coperti", value: String(order.pax) });
+  if (order.notes)        chips.push({ label: "Note", value: order.notes });
+  if (order.discountAmount > 0) chips.push({ label: "Sconto", value: `€${order.discountAmount.toFixed(2)}${order.discountType === "percent" ? ` (${((order.discountAmount / (order.totalAmount + order.discountAmount)) * 100).toFixed(0)}%)` : ""}` });
+  if (order.fiscalDocNumber) chips.push({ label: "Doc.", value: order.fiscalDocNumber });
 
   return (
     <div style={{
@@ -305,6 +314,22 @@ function OrderRow({
         </div>
         <StatusBadge status={order.status} />
       </div>
+
+      {chips.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+          {chips.map((c) => (
+            <span key={c.label} style={{
+              display: "inline-flex", alignItems: "center", gap: "4px",
+              background: "var(--color-gray-50)", border: "1px solid var(--color-gray-200)",
+              borderRadius: "6px", padding: "2px 8px",
+              fontSize: "var(--text-xs)", color: "var(--color-gray-700)",
+            }}>
+              <span style={{ color: "var(--color-gray-400)", fontWeight: 600 }}>{c.label}</span>
+              {c.value}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-600)" }}>
         {itemSummary}
@@ -364,7 +389,7 @@ function displayOrderNum(order: Order, prefix: string, padding: number): string 
     const padded = padding > 0 ? String(order.receiptNumber).padStart(padding, "0") : String(order.receiptNumber);
     return `${prefix}${padded}`;
   }
-  return order.id.slice(-6).toUpperCase();
+  return String(order.id);
 }
 
 export function HistoryScreen() {
@@ -394,9 +419,20 @@ export function HistoryScreen() {
   const [filterTerminalId, setFilterTerminalId] = useState("");
   const [terminals, setTerminals] = useState<Terminal[]>([]);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounce search — aspetta 400ms dopo l'ultimo tasto prima di caricare
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 400);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [searchQuery]);
+
   // Modals
   const [cancelOrder, setCancelOrder] = useState<Order | null>(null);
-  const [refundOrder, setRefundOrder] = useState<{ paymentId: string; amount: number } | null>(null);
+  const [refundOrder, setRefundOrder] = useState<{ paymentId: number; amount: number } | null>(null);
 
   function showToast(msg: string, type: "success" | "error") {
     setToast({ msg, type });
@@ -430,7 +466,7 @@ export function HistoryScreen() {
   const load = useCallback((currentOffset = 0, append = false) => {
     setLoading(true);
     setError(null);
-    const filters: { status?: string; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number } = {
+    const filters: { status?: string; shiftId?: string; terminalId?: string; from?: number; to?: number; limit?: number; offset?: number; search?: string } = {
       limit: PAGE_SIZE,
       offset: currentOffset,
     };
@@ -439,6 +475,7 @@ export function HistoryScreen() {
     if (filterTerminalId) filters.terminalId = filterTerminalId;
     if (filterFrom) filters.from = new Date(filterFrom).getTime();
     if (filterTo) filters.to = new Date(filterTo + "T23:59:59").getTime();
+    if (debouncedSearch) filters.search = debouncedSearch;
     apiClient.orders.list(filters)
       .then((data) => {
         setOrders((prev) => append ? [...prev, ...data] : data);
@@ -447,7 +484,7 @@ export function HistoryScreen() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [filterStatus, filterShiftId, filterTerminalId, filterFrom, filterTo]);
+  }, [filterStatus, filterShiftId, filterTerminalId, filterFrom, filterTo, debouncedSearch]);
 
   useEffect(() => { load(0, false); }, [load]);
 
@@ -467,32 +504,42 @@ export function HistoryScreen() {
     );
   }
 
-  async function handleReprint(id: string) {
+  async function handleReprint(id: number) {
     try {
       await apiClient.orders.reprint(id);
       showToast("Ristampa inviata alla stampante", "success");
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Errore ristampa", "error");
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("No completed payment")) showToast("Nessun pagamento trovato — impossibile ristampare", "error");
+      else if (msg.includes("No active receipt printer") || msg.includes("unavailable")) showToast("Nessuna stampante scontrini attiva", "error");
+      else if (msg.includes("404")) showToast("Ordine non trovato", "error");
+      else showToast("Errore durante la ristampa", "error");
     }
   }
 
-  async function handleReprintKitchen(id: string) {
+  async function handleReprintKitchen(id: number) {
     try {
       await apiClient.orders.reprintKitchen(id);
       showToast("Comanda inviata alla stampante cucina", "success");
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Errore ristampa comanda", "error");
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("No active kitchen")) showToast("Nessuna stampante cucina attiva", "error");
+      else if (msg.includes("unavailable")) showToast("Servizio stampa non disponibile", "error");
+      else if (msg.includes("404")) showToast("Ordine non trovato", "error");
+      else showToast("Errore durante la ristampa comanda", "error");
     }
   }
 
-  async function handleCancel(id: string, reason?: string, refundPaymentId?: string) {
+  async function handleCancel(id: number, reason?: string, refundPaymentId?: number) {
     try {
       await apiClient.orders.cancel(id, reason);
       if (refundPaymentId) await apiClient.payments.refund(refundPaymentId, reason);
       showToast(refundPaymentId ? "Ordine annullato e rimborso effettuato" : "Ordine annullato", "success");
       load(0, false);
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Errore annullamento", "error");
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("404")) showToast("Ordine non trovato", "error");
+      else showToast("Errore durante l'annullamento", "error");
     }
   }
 
@@ -507,7 +554,7 @@ export function HistoryScreen() {
     }
   }
 
-  async function handleRefundConfirm(paymentId: string, reason?: string) {
+  async function handleRefundConfirm(paymentId: number, reason?: string) {
     try {
       await apiClient.payments.refund(paymentId, reason);
       showToast("Rimborso effettuato", "success");
@@ -539,6 +586,7 @@ export function HistoryScreen() {
 
   return (
     <PosLayout>
+      <div style={{ height: "100%", overflowY: "auto", boxSizing: "border-box" }}>
       <div style={{ maxWidth: "720px", margin: "0 auto", padding: "var(--sp-lg)", display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <h1 style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-gray-900)", margin: 0 }}>
@@ -551,6 +599,22 @@ export function HistoryScreen() {
             <Button size="sm" variant="ghost" onClick={() => load(0, false)}>Aggiorna</Button>
           </div>
         </div>
+
+        {/* Search */}
+        <input
+          type="search"
+          placeholder="Cerca per numero, cliente, tavolo, cassa, note…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{
+            width: "100%", boxSizing: "border-box",
+            height: "40px", padding: "0 12px",
+            borderRadius: "var(--radius-md)",
+            border: "2px solid var(--color-gray-200)",
+            fontFamily: "var(--font)", fontSize: "var(--text-sm)",
+            background: "var(--color-white)", color: "var(--color-gray-900)",
+          }}
+        />
 
         {/* Filters */}
         <div style={{ display: "flex", gap: "var(--sp-sm)", flexWrap: "wrap", alignItems: "center" }}>
@@ -583,9 +647,9 @@ export function HistoryScreen() {
           <input type="date" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)} style={dateInputStyle} placeholder="Da" />
           <input type="date" value={filterTo} onChange={(e) => setFilterTo(e.target.value)} style={dateInputStyle} placeholder="A" />
 
-          {(filterStatus || filterShiftId || filterTerminalId || filterFrom || filterTo) && (
+          {(filterStatus || filterShiftId || filterTerminalId || filterFrom || filterTo || searchQuery) && (
             <Button size="sm" variant="ghost" onClick={() => {
-              setFilterStatus(""); setFilterShiftId(""); setFilterTerminalId(""); setFilterFrom(""); setFilterTo("");
+              setFilterStatus(""); setFilterShiftId(""); setFilterTerminalId(""); setFilterFrom(""); setFilterTo(""); setSearchQuery("");
             }}>
               Cancella filtri
             </Button>
@@ -607,7 +671,7 @@ export function HistoryScreen() {
 
         {!loading && !error && orders.length === 0 && (
           <div style={{ textAlign: "center", padding: "var(--sp-xl)", color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>
-            Nessun ordine trovato
+            {debouncedSearch ? `Nessun risultato per "${debouncedSearch}"` : "Nessun ordine trovato"}
           </div>
         )}
 
@@ -676,6 +740,7 @@ export function HistoryScreen() {
           {toast.msg}
         </div>
       )}
+      </div>
     </PosLayout>
   );
 }

@@ -26,21 +26,21 @@ const GROUP_TYPE_COLORS: Record<string, string> = {
 function OptionGroupsPanel({ product }: { product: Product }) {
   const { optionGroupsByProduct, setOptionGroups, upsertOptionGroup, removeOptionGroup, upsertOption, removeOption } = useAdminStore();
   const groups: OptionGroupWithOptions[] = optionGroupsByProduct[product.id] ?? [];
-  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const [loadedFor, setLoadedFor] = useState<number | null>(null);
 
   // Modal: create/edit group
   const [groupModal, setGroupModal] = useState(false);
   const [editGroup, setEditGroup] = useState<OptionGroupWithOptions | null>(null);
   const [groupForm, setGroupForm] = useState({ name: "", type: "single" as "single" | "multi" | "removal", required: false, maxSel: 1 });
   const [savingGroup, setSavingGroup] = useState(false);
-  const [deleteGroupId, setDeleteGroupId] = useState<string | null>(null);
+  const [deleteGroupId, setDeleteGroupId] = useState<number | null>(null);
 
   // Modal: create/edit option
-  const [optionModal, setOptionModal] = useState<{ groupId: string } | null>(null);
+  const [optionModal, setOptionModal] = useState<{ groupId: number } | null>(null);
   const [editOption, setEditOption] = useState<Option | null>(null);
   const [optionForm, setOptionForm] = useState({ name: "", priceDelta: "0", prefix: "+" as "+" | "-" | ">>" });
   const [savingOption, setSavingOption] = useState(false);
-  const [deleteOption_, setDeleteOption_] = useState<{ groupId: string; optionId: string } | null>(null);
+  const [deleteOption_, setDeleteOption_] = useState<{ groupId: number; optionId: number } | null>(null);
 
   useEffect(() => {
     if (loadedFor === product.id) return;
@@ -84,18 +84,18 @@ function OptionGroupsPanel({ product }: { product: Product }) {
       setGroupModal(false);
     } finally { setSavingGroup(false); }
   }
-  async function handleDeleteGroup(id: string) {
+  async function handleDeleteGroup(id: number) {
     await adminApi.optionGroups.delete(id);
     removeOptionGroup(product.id, id);
     setDeleteGroupId(null);
   }
 
-  function openCreateOption(groupId: string) {
+  function openCreateOption(groupId: number) {
     setEditOption(null);
     setOptionForm({ name: "", priceDelta: "0", prefix: "+" });
     setOptionModal({ groupId });
   }
-  function openEditOption(groupId: string, o: Option) {
+  function openEditOption(groupId: number, o: Option) {
     setEditOption(o);
     setOptionForm({ name: o.name, priceDelta: String(o.priceDelta), prefix: o.prefix ?? "+" });
     setOptionModal({ groupId });
@@ -115,7 +115,7 @@ function OptionGroupsPanel({ product }: { product: Product }) {
       setOptionModal(null);
     } finally { setSavingOption(false); }
   }
-  async function handleDeleteOption(groupId: string, optionId: string) {
+  async function handleDeleteOption(groupId: number, optionId: number) {
     await adminApi.optionGroups.deleteOption(optionId);
     removeOption(product.id, groupId, optionId);
     setDeleteOption_(null);
@@ -359,6 +359,70 @@ interface ProductFormData {
   description: string;
   vatRate: string;
   receiptPrintMode: "inherit" | "included" | "separate";
+  availableDates: string[]; // "YYYY-MM-DD" — empty = always visible
+}
+
+function TerminalVisibilityField({ productId }: { productId: number | null }) {
+  const [allTerminals, setAllTerminals] = useState<{ id: number; name: string }[]>([]);
+  const [assigned, setAssigned] = useState<Set<number>>(new Set());
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!productId) return;
+    setLoading(true);
+    Promise.all([adminApi.terminals.list(), adminApi.products.getTerminals(productId)])
+      .then(([all, ass]) => {
+        setAllTerminals(all.map((t) => ({ id: t.id, name: t.name })));
+        setAssigned(new Set(ass.map((t) => t.id)));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [productId]);
+
+  if (!productId) return (
+    <div>
+      <label style={labelStyle}>Visibilità casse</label>
+      <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)", padding: "8px 0" }}>
+        Salva il prodotto prima di configurare la visibilità per cassa.
+      </div>
+    </div>
+  );
+
+  if (loading) return null;
+  if (allTerminals.length <= 1) return null;
+
+  async function toggle(terminalId: number) {
+    if (!productId) return;
+    if (assigned.has(terminalId)) {
+      await adminApi.products.removeTerminal(productId, terminalId);
+      setAssigned((prev) => { const s = new Set(prev); s.delete(terminalId); return s; });
+    } else {
+      await adminApi.products.assignTerminal(productId, terminalId);
+      setAssigned((prev) => new Set([...prev, terminalId]));
+    }
+  }
+
+  return (
+    <div>
+      <label style={labelStyle}>Visibilità casse</label>
+      <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginBottom: "10px" }}>
+        {assigned.size === 0 ? "Visibile in tutte le casse. Seleziona una o più casse per limitare la visibilità." : `Visibile solo in ${assigned.size} cass${assigned.size === 1 ? "a" : "e"} selezionat${assigned.size === 1 ? "a" : "e"}.`}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        {allTerminals.map((t) => (
+          <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", padding: "8px 12px", borderRadius: "var(--radius-md)", border: `1.5px solid ${assigned.has(t.id) ? "var(--color-brand)" : "var(--color-gray-200)"}`, background: assigned.has(t.id) ? "rgba(var(--color-brand-rgb,99,102,241),0.05)" : "var(--color-gray-50)" }}>
+            <input
+              type="checkbox"
+              checked={assigned.has(t.id)}
+              onChange={() => void toggle(t.id)}
+              style={{ width: "16px", height: "16px", accentColor: "var(--color-brand)", cursor: "pointer" }}
+            />
+            <span style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-gray-700)" }}>{t.name}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function IngredientsModal({ product, onClose }: { product: Product | null; onClose: () => void }) {
@@ -382,13 +446,13 @@ function IngredientsModal({ product, onClose }: { product: Product | null; onClo
     if (!product || !selectedItemId) return;
     setAdding(true);
     try {
-      const created = await adminApi.inventory.createIngredient({ productId: product.id, inventoryItemId: selectedItemId, quantity: parseFloat(qty) || 1 });
+      const created = await adminApi.inventory.createIngredient({ productId: product.id, inventoryItemId: parseInt(selectedItemId, 10), quantity: parseFloat(qty) || 1 });
       setIngredients((prev) => [...prev, created]);
       setSelectedItemId(""); setQty("1");
     } finally { setAdding(false); }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: number) {
     await adminApi.inventory.deleteIngredient(id);
     setIngredients((prev) => prev.filter((i) => i.id !== id));
   }
@@ -439,6 +503,139 @@ function IngredientsModal({ product, onClose }: { product: Product | null; onClo
         </div>
       </div>
     </Modal>
+  );
+}
+
+// ─── Available Dates Field ────────────────────────────────────────────────────
+
+const MONTHS_IT = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+const DAYS_IT = ["Lu","Ma","Me","Gi","Ve","Sa","Do"];
+
+function AvailableDatesField({ value, onChange }: { value: string[]; onChange: (dates: string[]) => void }) {
+  const selected = new Set(value);
+  const today = new Date();
+  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth()); // 0-indexed
+  const [open, setOpen] = useState(false);
+
+  function prevMonth() {
+    if (viewMonth === 0) { setViewYear((y) => y - 1); setViewMonth(11); }
+    else setViewMonth((m) => m - 1);
+  }
+  function nextMonth() {
+    if (viewMonth === 11) { setViewYear((y) => y + 1); setViewMonth(0); }
+    else setViewMonth((m) => m + 1);
+  }
+
+  function toggleDate(dateStr: string) {
+    const next = new Set(selected);
+    if (next.has(dateStr)) next.delete(dateStr);
+    else next.add(dateStr);
+    onChange(Array.from(next).sort());
+  }
+
+  // Build calendar days for current view month
+  const firstDay = new Date(viewYear, viewMonth, 1);
+  const lastDay = new Date(viewYear, viewMonth + 1, 0);
+  // Monday-first: getDay() 0=Sun → 6, 1=Mon → 0, ...
+  const startPad = (firstDay.getDay() + 6) % 7;
+  const days: Array<{ dateStr: string; day: number }> = [];
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    days.push({ dateStr, day: d });
+  }
+
+  const hasDates = selected.size > 0;
+
+  return (
+    <div>
+      <label style={labelStyle}>Disponibilità per data</label>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px",
+              padding: "7px 12px", borderRadius: "var(--radius-md)",
+              border: `1.5px solid ${hasDates ? "var(--color-brand)" : "var(--color-gray-200)"}`,
+              background: hasDates ? "rgba(var(--color-brand-rgb,99,102,241),0.06)" : "var(--color-gray-50)",
+              color: hasDates ? "var(--color-brand)" : "var(--color-gray-600)",
+              fontSize: "var(--text-sm)", fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)",
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+              <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            {hasDates ? `${selected.size} data${selected.size !== 1 ? " selezionate" : " selezionata"}` : "Sempre disponibile"}
+          </button>
+          {hasDates && (
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-gray-400)", fontSize: "var(--text-xs)", fontFamily: "var(--font)", padding: "2px 4px" }}
+            >
+              Rimuovi tutte
+            </button>
+          )}
+        </div>
+
+        {open && (
+          <div style={{
+            border: "1.5px solid var(--color-gray-200)", borderRadius: "var(--radius-md)",
+            background: "var(--color-white)", padding: "12px", userSelect: "none",
+          }}>
+            {/* Month navigation */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+              <button type="button" onClick={prevMonth} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 8px", borderRadius: "var(--radius-sm)", color: "var(--color-gray-600)" }}>‹</button>
+              <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-800)" }}>
+                {MONTHS_IT[viewMonth]} {viewYear}
+              </span>
+              <button type="button" onClick={nextMonth} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 8px", borderRadius: "var(--radius-sm)", color: "var(--color-gray-600)" }}>›</button>
+            </div>
+
+            {/* Day headers */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px", marginBottom: "4px" }}>
+              {DAYS_IT.map((d) => (
+                <div key={d} style={{ textAlign: "center", fontSize: "11px", fontWeight: 600, color: "var(--color-gray-400)", padding: "2px 0" }}>{d}</div>
+              ))}
+            </div>
+
+            {/* Calendar grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px" }}>
+              {/* Leading empty cells */}
+              {Array.from({ length: startPad }).map((_, i) => <div key={`pad-${i}`} />)}
+              {days.map(({ dateStr, day }) => {
+                const isSelected = selected.has(dateStr);
+                const isToday = dateStr === today.toISOString().slice(0, 10);
+                return (
+                  <button
+                    key={dateStr}
+                    type="button"
+                    onClick={() => toggleDate(dateStr)}
+                    style={{
+                      width: "100%", aspectRatio: "1", border: isToday && !isSelected ? "1.5px solid var(--color-brand)" : "1px solid transparent",
+                      borderRadius: "var(--radius-sm)",
+                      background: isSelected ? "var(--color-brand)" : "transparent",
+                      color: isSelected ? "#fff" : "var(--color-gray-700)",
+                      cursor: "pointer", fontSize: "12px", fontWeight: isSelected ? 700 : 400,
+                      fontFamily: "var(--font)", padding: "0",
+                    }}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Quick hint */}
+            <div style={{ marginTop: "8px", fontSize: "11px", color: "var(--color-gray-400)", textAlign: "center" }}>
+              {hasDates ? "Il prodotto appare solo nelle date selezionate (se il filtro è attivo)" : "Nessuna data → prodotto sempre visibile"}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -589,18 +786,18 @@ export function ProductsTab() {
   const { products, categories, productionCenters, upsertProduct, removeProduct, setProducts } = useAdminStore();
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Product | null>(null);
-  const [form, setForm] = useState<ProductFormData>({ name: "", price: "", categoryId: "", productionCenterId: "", active: true, color: "", imageData: null, description: "", vatRate: "10", receiptPrintMode: "inherit" });
+  const [form, setForm] = useState<ProductFormData>({ name: "", price: "", categoryId: "", productionCenterId: "", active: true, color: "", imageData: null, description: "", vatRate: "10", receiptPrintMode: "inherit", availableDates: [] });
   const [saving, setSaving] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [expandedProductId, setExpandedProductId] = useState<number | null>(null);
   const [ingredientsProduct, setIngredientsProduct] = useState<Product | null>(null);
   const [productSearch, setProductSearch] = useState("");
   const [productCategoryFilter, setProductCategoryFilter] = useState("");
 
   function openCreate() {
     setEditTarget(null);
-    setForm({ name: "", price: "", categoryId: "", productionCenterId: "", active: true, color: "", imageData: null, description: "", vatRate: "10", receiptPrintMode: "inherit" });
+    setForm({ name: "", price: "", categoryId: "", productionCenterId: "", active: true, color: "", imageData: null, description: "", vatRate: "10", receiptPrintMode: "inherit", availableDates: [] });
     setModalOpen(true);
   }
 
@@ -609,14 +806,15 @@ export function ProductsTab() {
     setForm({
       name: p.name,
       price: String(p.price),
-      categoryId: p.categoryId ?? "",
-      productionCenterId: p.productionCenterId ?? "",
+      categoryId: p.categoryId !== null ? String(p.categoryId) : "",
+      productionCenterId: p.productionCenterId !== null ? String(p.productionCenterId) : "",
       active: p.active,
       color: p.color ?? "",
       imageData: p.imageData ?? null,
       description: p.description ?? "",
       vatRate: String(p.vatRate ?? 10),
       receiptPrintMode: p.receiptPrintMode,
+      availableDates: p.availableDates ?? [],
     });
     setModalOpen(true);
   }
@@ -671,26 +869,28 @@ export function ProductsTab() {
         const updated = await adminApi.products.update(editTarget.id, {
           name: form.name,
           price,
-          categoryId: form.categoryId === "" ? null : form.categoryId,
-          productionCenterId: form.productionCenterId === "" ? null : form.productionCenterId,
+          categoryId: form.categoryId === "" ? null : parseInt(form.categoryId, 10),
+          productionCenterId: form.productionCenterId === "" ? null : parseInt(form.productionCenterId, 10),
           active: form.active,
           color: form.color === "" ? null : form.color,
           description: form.description === "" ? null : form.description,
           vatRate,
           receiptPrintMode: form.receiptPrintMode,
+          availableDates: form.availableDates.length > 0 ? form.availableDates : null,
         });
         upsertProduct(updated);
       } else {
         const created = await adminApi.products.create({
           name: form.name,
           price,
-          ...(form.categoryId !== "" ? { categoryId: form.categoryId } : {}),
-          ...(form.productionCenterId !== "" ? { productionCenterId: form.productionCenterId } : {}),
+          ...(form.categoryId !== "" ? { categoryId: parseInt(form.categoryId, 10) } : {}),
+          ...(form.productionCenterId !== "" ? { productionCenterId: parseInt(form.productionCenterId, 10) } : {}),
           active: form.active,
           color: form.color === "" ? null : form.color,
           ...(form.description !== "" ? { description: form.description } : {}),
           vatRate,
           receiptPrintMode: form.receiptPrintMode,
+          availableDates: form.availableDates.length > 0 ? form.availableDates : null,
         });
         upsertProduct(created);
       }
@@ -700,7 +900,7 @@ export function ProductsTab() {
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: number) {
     await adminApi.products.delete(id);
     removeProduct(id);
     setDeleteId(null);
@@ -765,7 +965,7 @@ export function ProductsTab() {
             )}
             {products.filter((p) => {
               if (productSearch && !p.name.toLowerCase().includes(productSearch.toLowerCase())) return false;
-              if (productCategoryFilter && p.categoryId !== productCategoryFilter) return false;
+              if (productCategoryFilter && String(p.categoryId) !== productCategoryFilter) return false;
               return true;
             }).map((p) => {
               const isExpanded = expandedProductId === p.id;
@@ -977,6 +1177,13 @@ export function ProductsTab() {
             </span>
           </div>
           <ColorField value={form.color} onChange={(v) => setForm((f) => ({ ...f, color: v }))} />
+
+          <AvailableDatesField
+            value={form.availableDates}
+            onChange={(dates) => setForm((f) => ({ ...f, availableDates: dates }))}
+          />
+
+          <TerminalVisibilityField productId={editTarget?.id ?? null} />
 
           {/* Image upload — only available in edit mode */}
           <div>

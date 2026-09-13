@@ -43,6 +43,8 @@ function buildEscPosBuffer(text: string): Buffer {
 
 const CONNECT_TIMEOUT_MS = 5000;
 
+const OFFLINE_FAST_FAIL_MS = 3_000;
+
 export class TcpPrinterAdapter implements PrinterAdapter {
   private socket: net.Socket | null = null;
   private connected = false;
@@ -50,6 +52,8 @@ export class TcpPrinterAdapter implements PrinterAdapter {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private destroyed = false;
   private connectingPromise: Promise<void> | null = null;
+  /** Timestamp of the last confirmed-offline event. Null when connected or unknown. */
+  private offlineSince: number | null = null;
 
   constructor(
     private readonly host: string,
@@ -72,6 +76,7 @@ export class TcpPrinterAdapter implements PrinterAdapter {
       this.socket.connect(this.port, this.host, () => {
         clearTimeout(timeout);
         this.connected = true;
+        this.offlineSince = null;
         this.reconnectDelay = 5000;
         this.logger.info({ host: this.host, port: this.port }, "[printer] TCP connected");
         resolve();
@@ -81,11 +86,13 @@ export class TcpPrinterAdapter implements PrinterAdapter {
         clearTimeout(timeout);
         this.logger.warn({ host: this.host, port: this.port, err: err.message }, "[printer] TCP error");
         this.connected = false;
+        this.offlineSince = Date.now();
         resolve();
       });
 
       this.socket.on("close", () => {
         this.connected = false;
+        if (this.offlineSince === null) this.offlineSince = Date.now();
         if (!this.destroyed) {
           this.logger.debug({ delay: this.reconnectDelay }, "[printer] TCP disconnected — will reconnect");
           this.connectingPromise = this.scheduleReconnect();
@@ -106,11 +113,35 @@ export class TcpPrinterAdapter implements PrinterAdapter {
     });
   }
 
+  /**
+   * Forcibly destroy the current socket so the next print() call starts on a
+   * fresh connection. Call this when the printChain chain-wait times out —
+   * the in-flight bytes on the old socket must not contaminate the next job.
+   */
+  abortCurrentSocket(): void {
+    if (this.socket) {
+      this.logger.warn({ host: this.host, port: this.port }, "[printer] aborting socket due to chain timeout — reconnecting");
+      this.socket.destroy();
+      // 'close' event handler will trigger scheduleReconnect automatically.
+    }
+  }
+
   async print(job: PrintJob): Promise<PrintResult> {
-    // Wait for initial connection attempt to complete (max CONNECT_TIMEOUT_MS)
+    // Fast-fail: if we know the printer has been offline for less than
+    // OFFLINE_FAST_FAIL_MS, skip the reconnect wait entirely. Once the grace
+    // period expires we allow another attempt so a recovered printer is noticed.
+    if (
+      !this.connected &&
+      this.offlineSince !== null &&
+      Date.now() - this.offlineSince < OFFLINE_FAST_FAIL_MS
+    ) {
+      return { success: false, message: `Printer ${this.host}:${this.port} offline` };
+    }
+
+    // Wait for in-progress connection/reconnect without nulling it — concurrent callers
+    // must each await independently so they all benefit from the same reconnect.
     if (this.connectingPromise) {
       await this.connectingPromise;
-      this.connectingPromise = null;
     }
 
     if (!this.connected || !this.socket) {
@@ -120,15 +151,29 @@ export class TcpPrinterAdapter implements PrinterAdapter {
     const buf = job.contentBuffer ?? buildEscPosBuffer(job.content ?? "");
 
     return new Promise<PrintResult>((resolve) => {
-      this.socket!.write(buf, (err) => {
+      const socket = this.socket!;
+      const flushed = socket.write(buf, (err) => {
         if (err) {
           this.logger.error({ host: this.host, port: this.port, err: err.message }, "[printer] write error");
           resolve({ success: false, message: err.message });
-        } else {
+        } else if (flushed) {
+          // Buffer was flushed immediately — no drain needed.
           this.logger.info({ host: this.host, port: this.port, bytes: buf.length }, "[printer] TCP print OK");
           resolve({ success: true, message: "OK" });
         }
+        // If !flushed, we wait for the 'drain' event below.
       });
+
+      if (!flushed) {
+        // Kernel TCP buffer is full — wait until it drains before resolving.
+        // This ensures the next job's write() only starts after all bytes of
+        // this job have left the OS send buffer, preventing interleaving on
+        // the shared persistent socket.
+        socket.once("drain", () => {
+          this.logger.info({ host: this.host, port: this.port, bytes: buf.length }, "[printer] TCP print OK (after drain)");
+          resolve({ success: true, message: "OK" });
+        });
+      }
     });
   }
 

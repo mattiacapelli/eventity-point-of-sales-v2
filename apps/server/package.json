@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --env-file=.env src/index.ts",
+    "dev": "tsx watch --env-file=.env --ignore='*.db' --ignore='*.db-wal' --ignore='*.db-shm' --ignore='backups/**' --ignore='data/**' src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit"
@@ -28,10 +28,12 @@
     "@pos/module-sales": "workspace:*",
     "@pos/shared-types": "workspace:*",
     "fastify": "^4.27.0",
-    "fastify-plugin": "^4.5.0"
+    "fastify-plugin": "^4.5.0",
+    "pdfkit": "^0.19.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/pdfkit": "^0.17.6",
     "typescript": "^5.4.0"
   }
 }

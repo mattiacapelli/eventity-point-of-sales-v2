@@ -7,31 +7,86 @@ import type { Printer, ProductionCenter } from "@pos/shared-types";
 import { PlusIcon, PrinterIcon, PencilSquareIcon, TrashIcon, BuildingStorefrontIcon, XMarkIcon } from "../../components/ui/icons.js";
 import { inputStyle, labelStyle, Toggle } from "./shared.js";
 
+type ConnectionType = "network" | "usb" | "windows";
+
+interface UsbDevice {
+  vendorId: number;
+  productId: number;
+  vendorIdHex: string;
+  productIdHex: string;
+}
+
+interface WinUsbPort {
+  portName: string;
+  description: string;
+}
+
+interface PrinterForm {
+  name: string;
+  connectionType: ConnectionType;
+  // network
+  host: string;
+  port: string;
+  // usb
+  usbVendorId: number | null;
+  usbProductId: number | null;
+  // windows
+  winPrinterName: string | null;
+  receiptEnabled: boolean;
+  kitchenEnabled: boolean;
+  printMode: "text" | "image";
+}
+
+const defaultForm = (): PrinterForm => ({
+  name: "",
+  connectionType: "network",
+  host: "",
+  port: "",
+  usbVendorId: null,
+  usbProductId: null,
+  winPrinterName: null,
+  receiptEnabled: false,
+  kitchenEnabled: false,
+  printMode: "text",
+});
+
 export function PrintersTab() {
   const { printers, setPrinters, upsertPrinter, removePrinter } = useAdminStore();
   const { productionCenters } = useAdminStore();
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Printer | null>(null);
-  const [form, setForm] = useState({ name: "", host: "", port: "", receiptEnabled: false, kitchenEnabled: false, printMode: "text" as "text" | "image" });
+  const [form, setForm] = useState<PrinterForm>(defaultForm());
   const [saving, setSaving] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [testingId, setTestingId] = useState<string | null>(null);
-  const [testResult, setTestResult] = useState<Record<string, string>>({});
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [testingId, setTestingId] = useState<number | null>(null);
+  const [testResult, setTestResult] = useState<Record<number, string>>({});
+
+  // Network discovery
   const [discovering, setDiscovering] = useState(false);
   const [discoverModalOpen, setDiscoverModalOpen] = useState(false);
   const [subnetInput, setSubnetInput] = useState("");
   const [discoverResult, setDiscoverResult] = useState<{ subnet: string; found: Array<{ host: string; port: number }> } | null>(null);
 
+  // USB discovery
+  const [usbDiscoverOpen, setUsbDiscoverOpen] = useState(false);
+  const [usbDevices, setUsbDevices] = useState<UsbDevice[]>([]);
+  const [usbDiscovering, setUsbDiscovering] = useState(false);
+
+  // Windows printer discovery
+  const [winPorts, setWinPorts] = useState<WinUsbPort[]>([]);
+  const [winPrinterList, setWinPrinterList] = useState<Array<{ name: string; status: string; isDefault: boolean; portName: string | null }>>([]);
+  const [winDiscovering, setWinDiscovering] = useState(false);
+
   // Per-printer assigned production centers
-  const [printerCenters, setPrinterCenters] = useState<Record<string, ProductionCenter[]>>({});
-  const [loadedPrinterCenters, setLoadedPrinterCenters] = useState<Set<string>>(new Set());
-  const [centerDropdown, setCenterDropdown] = useState<string | null>(null);
+  const [printerCenters, setPrinterCenters] = useState<Record<number, ProductionCenter[]>>({});
+  const [loadedPrinterCenters, setLoadedPrinterCenters] = useState<Set<number>>(new Set());
+  const [centerDropdown, setCenterDropdown] = useState<number | null>(null);
 
   useEffect(() => {
     adminApi.printers.list().then(setPrinters).catch(console.error);
   }, []);
 
-  async function loadPrinterCenters(printerId: string) {
+  async function loadPrinterCenters(printerId: number) {
     if (loadedPrinterCenters.has(printerId)) return;
     const centers = await adminApi.printers.getProductionCenters(printerId);
     setPrinterCenters((prev) => ({ ...prev, [printerId]: centers }));
@@ -42,14 +97,14 @@ export function PrintersTab() {
     printers.forEach((p) => { void loadPrinterCenters(p.id); });
   }, [printers]);
 
-  async function handleAssignCenter(printerId: string, centerId: string) {
+  async function handleAssignCenter(printerId: number, centerId: number) {
     await adminApi.productionCenters.assignPrinter(centerId, printerId);
     const centers = await adminApi.printers.getProductionCenters(printerId);
     setPrinterCenters((prev) => ({ ...prev, [printerId]: centers }));
     setCenterDropdown(null);
   }
 
-  async function handleRemoveCenter(printerId: string, centerId: string) {
+  async function handleRemoveCenter(printerId: number, centerId: number) {
     await adminApi.productionCenters.removePrinter(centerId, printerId);
     const centers = await adminApi.printers.getProductionCenters(printerId);
     setPrinterCenters((prev) => ({ ...prev, [printerId]: centers }));
@@ -57,48 +112,77 @@ export function PrintersTab() {
 
   function openCreate() {
     setEditTarget(null);
-    setForm({ name: "", host: "", port: "", receiptEnabled: false, kitchenEnabled: false, printMode: "text" });
+    setForm(defaultForm());
     setModalOpen(true);
   }
+
   function openEdit(p: Printer) {
     setEditTarget(p);
-    setForm({ name: p.name, host: p.host ?? "", port: p.port ? String(p.port) : "", receiptEnabled: p.receiptEnabled, kitchenEnabled: p.kitchenEnabled, printMode: p.printMode ?? "text" });
+    setForm({
+      name: p.name,
+      connectionType: (p.connectionType as ConnectionType) ?? "network",
+      host: p.host ?? "",
+      port: p.port ? String(p.port) : "",
+      usbVendorId: p.usbVendorId,
+      usbProductId: p.usbProductId,
+      winPrinterName: p.winPrinterName ?? null,
+      receiptEnabled: p.receiptEnabled,
+      kitchenEnabled: p.kitchenEnabled,
+      printMode: p.printMode ?? "text",
+    });
+    if (p.connectionType === "windows") void loadWinPrinters();
     setModalOpen(true);
   }
+
   async function handleSave() {
     setSaving(true);
     try {
+      const networkHost = form.connectionType === "network" && form.host !== "" ? form.host : null;
+      const networkPort = form.connectionType === "network" && form.port !== "" ? parseInt(form.port) : null;
+      const usbVid = form.connectionType === "usb" ? form.usbVendorId : null;
+      const usbPid = form.connectionType === "usb" ? form.usbProductId : null;
+      const winName = form.connectionType === "windows" ? form.winPrinterName : null;
+
       if (editTarget) {
         const updated = await adminApi.printers.update(editTarget.id, {
           name: form.name,
-          host: form.host === "" ? null : form.host,
-          port: form.port === "" ? null : parseInt(form.port),
+          connectionType: form.connectionType,
+          host: networkHost,
+          port: networkPort,
+          usbVendorId: usbVid,
+          usbProductId: usbPid,
+          winPrinterName: winName,
           receiptEnabled: form.receiptEnabled,
           kitchenEnabled: form.kitchenEnabled,
           printMode: form.printMode,
         });
         upsertPrinter(updated);
       } else {
-        const createData: Parameters<typeof adminApi.printers.create>[0] = {
+        const created = await adminApi.printers.create({
           name: form.name,
+          connectionType: form.connectionType,
+          ...(networkHost ? { host: networkHost } : {}),
+          ...(networkPort !== null ? { port: networkPort } : {}),
+          usbVendorId: usbVid,
+          usbProductId: usbPid,
+          winPrinterName: winName,
           receiptEnabled: form.receiptEnabled,
           kitchenEnabled: form.kitchenEnabled,
           printMode: form.printMode,
-        };
-        if (form.host !== "") createData.host = form.host;
-        if (form.port !== "") createData.port = parseInt(form.port);
-        const created = await adminApi.printers.create(createData);
+        });
         upsertPrinter(created);
       }
       setModalOpen(false);
     } finally { setSaving(false); }
   }
-  async function handleDelete(id: string) {
+
+  async function handleDelete(id: number) {
     await adminApi.printers.delete(id);
     removePrinter(id);
     setDeleteId(null);
   }
-  async function handleTestPrint(id: string) {
+
+  async function handleTestPrint(id: number) {
     setTestingId(id);
     try {
       const result = await adminApi.printers.testPrint(id);
@@ -127,7 +211,7 @@ export function PrintersTab() {
     try {
       const result = await adminApi.printers.discover(subnetInput.trim() || undefined);
       setDiscoverResult(result);
-    } catch (e) {
+    } catch {
       setDiscoverResult({ subnet: subnetInput, found: [] });
     } finally {
       setDiscovering(false);
@@ -136,11 +220,70 @@ export function PrintersTab() {
 
   function prefillFromDiscovered(host: string, port: number) {
     setEditTarget(null);
-    setForm({ name: "", host, port: String(port), receiptEnabled: false, kitchenEnabled: false, printMode: "text" });
+    setForm({ ...defaultForm(), host, port: String(port), connectionType: "network" });
     setDiscoverModalOpen(false);
     setDiscoverResult(null);
     setModalOpen(true);
   }
+
+  async function openUsbDiscover() {
+    setUsbDiscoverOpen(true);
+    setUsbDiscovering(true);
+    try {
+      const { devices } = await adminApi.printers.discoverUsb();
+      setUsbDevices(devices);
+    } catch {
+      setUsbDevices([]);
+    } finally {
+      setUsbDiscovering(false);
+    }
+  }
+
+  function prefillFromUsb(device: UsbDevice) {
+    setEditTarget(null);
+    setForm({ ...defaultForm(), connectionType: "usb", usbVendorId: device.vendorId, usbProductId: device.productId });
+    setUsbDiscoverOpen(false);
+    setModalOpen(true);
+  }
+
+  async function loadWinPorts() {
+    setWinDiscovering(true);
+    try {
+      const { ports } = await adminApi.printers.discoverWindowsPorts();
+      setWinPorts(ports);
+    } catch {
+      setWinPorts([]);
+    } finally {
+      setWinDiscovering(false);
+    }
+  }
+
+  async function loadWinPrinters() {
+    setWinDiscovering(true);
+    try {
+      const { printers: list } = await adminApi.printers.discoverWindows();
+      setWinPrinterList(list);
+    } catch {
+      setWinPrinterList([]);
+    } finally {
+      setWinDiscovering(false);
+    }
+  }
+
+  function printerSubtitle(p: Printer): string {
+    if (p.connectionType === "windows" && p.winPrinterName) return `Windows · ${p.winPrinterName}`;
+    if (p.connectionType === "usb" && p.usbVendorId && p.usbProductId) {
+      return `USB · VID:0x${p.usbVendorId.toString(16).padStart(4, "0")} PID:0x${p.usbProductId.toString(16).padStart(4, "0")}`;
+    }
+    if (p.host) return `${p.host}${p.port ? `:${p.port}` : ""}`;
+    return "Non configurata";
+  }
+
+  const formValid = form.name.trim() !== "" && (
+    form.connectionType === "network" ? (form.host !== "" && form.port !== "") :
+    form.connectionType === "usb" ? (form.usbVendorId !== null && form.usbProductId !== null) :
+    form.winPrinterName !== null
+  );
 
   return (
     <div style={{ padding: "var(--sp-lg)" }}>
@@ -148,6 +291,7 @@ export function PrintersTab() {
         <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-gray-800)", margin: 0 }}>Stampanti</h2>
         <div style={{ display: "flex", gap: "8px" }}>
           <Button size="sm" variant="secondary" onClick={() => void openDiscoverModal()}>Scopri in rete</Button>
+          <Button size="sm" variant="secondary" onClick={() => void openUsbDiscover()}>Scopri USB</Button>
           <Button size="sm" onClick={openCreate} icon={<PlusIcon style={{ width: "16px", height: "16px" }} />}>Nuova stampante</Button>
         </div>
       </div>
@@ -164,7 +308,7 @@ export function PrintersTab() {
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: "var(--text-md)", fontWeight: 600, color: "var(--color-gray-800)" }}>{p.name}</div>
                 <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
-                  {p.host ? `${p.host}${p.port ? `:${p.port}` : ""}` : "Locale"}
+                  {printerSubtitle(p)}
                   {p.receiptEnabled && " · Scontrini"}
                   {p.kitchenEnabled && " · Cucina"}
                 </div>
@@ -265,22 +409,110 @@ export function PrintersTab() {
           </div>
         ))}
       </div>
+
+      {/* Create / Edit modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editTarget ? "Modifica stampante" : "Nuova stampante"}>
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div>
             <label style={labelStyle}>Nome</label>
             <input style={inputStyle} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Es. Cassa, Cucina, Bar..." autoFocus />
           </div>
-          <div style={{ display: "flex", gap: "10px" }}>
-            <div style={{ flex: 2 }}>
-              <label style={labelStyle}>Host / IP</label>
-              <input style={inputStyle} value={form.host} onChange={(e) => setForm((f) => ({ ...f, host: e.target.value }))} placeholder="192.168.1.x" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Porta</label>
-              <input style={inputStyle} type="number" value={form.port} onChange={(e) => setForm((f) => ({ ...f, port: e.target.value }))} placeholder="9100" />
+
+          {/* Connection type selector */}
+          <div>
+            <label style={labelStyle}>Tipo connessione</label>
+            <div style={{ display: "flex", gap: "8px" }}>
+              {([["network", "Rete (TCP/IP)"], ["usb", "USB raw"], ["windows", "Stampante Windows"]] as [ConnectionType, string][]).map(([ct, label]) => (
+                <button key={ct} onClick={() => {
+                  setForm((f) => ({ ...f, connectionType: ct }));
+                  if (ct === "windows") void loadWinPrinters();
+                }}
+                  style={{
+                    flex: 1, padding: "8px", borderRadius: "var(--radius-md)", cursor: "pointer",
+                    border: form.connectionType === ct ? "2px solid var(--color-brand)" : "1.5px solid var(--color-gray-200)",
+                    background: form.connectionType === ct ? "rgba(99,102,241,0.07)" : "var(--color-white)",
+                    color: form.connectionType === ct ? "var(--color-brand)" : "var(--color-gray-600)",
+                    fontWeight: 600, fontSize: "var(--text-sm)", fontFamily: "var(--font)",
+                  }}>
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
+
+          {/* Network fields */}
+          {form.connectionType === "network" && (
+            <div style={{ display: "flex", gap: "10px" }}>
+              <div style={{ flex: 2 }}>
+                <label style={labelStyle}>Host / IP</label>
+                <input style={inputStyle} value={form.host} onChange={(e) => setForm((f) => ({ ...f, host: e.target.value }))} placeholder="192.168.1.x" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>Porta</label>
+                <input style={inputStyle} type="number" value={form.port} onChange={(e) => setForm((f) => ({ ...f, port: e.target.value }))} placeholder="9100" />
+              </div>
+            </div>
+          )}
+
+          {/* Windows printer fields */}
+          {form.connectionType === "windows" && (
+            <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", padding: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+              {winDiscovering ? (
+                <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)", textAlign: "center", padding: "8px" }}>
+                  Caricamento stampanti Windows...
+                </div>
+              ) : winPrinterList.length === 0 ? (
+                <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)", textAlign: "center", padding: "8px" }}>
+                  Nessuna stampante Windows trovata.{" "}
+                  <button onClick={() => void loadWinPrinters()} style={{ background: "none", border: "none", color: "var(--color-brand)", cursor: "pointer", fontWeight: 600, fontSize: "inherit", fontFamily: "var(--font)" }}>
+                    Riprova
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <label style={labelStyle}>Seleziona stampante</label>
+                  <select
+                    value={form.winPrinterName ?? ""}
+                    onChange={(e) => setForm((f) => ({ ...f, winPrinterName: e.target.value || null }))}
+                    style={{ ...inputStyle, height: "40px" }}
+                  >
+                    <option value="">— Seleziona —</option>
+                    {winPrinterList.map((wp) => (
+                      <option key={wp.name} value={wp.name}>
+                        {wp.name}{wp.isDefault ? " (predefinita)" : ""} · {wp.status}
+                      </option>
+                    ))}
+                  </select>
+                  <button onClick={() => void loadWinPrinters()} style={{ alignSelf: "flex-start", background: "none", border: "none", color: "var(--color-brand)", cursor: "pointer", fontWeight: 600, fontSize: "var(--text-xs)", fontFamily: "var(--font)", padding: 0 }}>
+                    Aggiorna elenco
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* USB fields */}
+          {form.connectionType === "usb" && (
+            <div style={{ background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", padding: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+              {form.usbVendorId !== null && form.usbProductId !== null ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div>
+                    <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-800)" }}>
+                      VID: 0x{form.usbVendorId.toString(16).padStart(4, "0")} &nbsp; PID: 0x{form.usbProductId.toString(16).padStart(4, "0")}
+                    </div>
+                    <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>Dispositivo USB selezionato</div>
+                  </div>
+                  <Button size="sm" variant="secondary" onClick={() => void openUsbDiscoverInline()}>Cambia</Button>
+                </div>
+              ) : (
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", marginBottom: "8px" }}>Nessun dispositivo USB selezionato</div>
+                  <Button size="sm" variant="secondary" onClick={() => void openUsbDiscoverInline()}>Scopri dispositivi USB</Button>
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: "20px", flexWrap: "wrap", alignItems: "center" }}>
             <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
               <Toggle value={form.receiptEnabled} onChange={(v) => setForm((f) => ({ ...f, receiptEnabled: v }))} />
@@ -301,10 +533,12 @@ export function PrintersTab() {
           </div>
           <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
             <Button variant="ghost" size="sm" onClick={() => setModalOpen(false)}>Annulla</Button>
-            <Button size="sm" loading={saving} disabled={!form.name.trim()} onClick={() => void handleSave()}>{editTarget ? "Salva" : "Aggiungi"}</Button>
+            <Button size="sm" loading={saving} disabled={!formValid} onClick={() => void handleSave()}>{editTarget ? "Salva" : "Aggiungi"}</Button>
           </div>
         </div>
       </Modal>
+
+      {/* Delete modal */}
       <Modal open={deleteId !== null} onClose={() => setDeleteId(null)} title="Elimina stampante">
         <p style={{ color: "var(--color-gray-600)", fontSize: "var(--text-sm)", marginBottom: "20px" }}>Eliminare questa stampante?</p>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
@@ -312,6 +546,8 @@ export function PrintersTab() {
           <Button variant="danger" size="sm" onClick={() => deleteId && void handleDelete(deleteId)}>Elimina</Button>
         </div>
       </Modal>
+
+      {/* Network discover modal */}
       <Modal open={discoverModalOpen} onClose={() => { setDiscoverModalOpen(false); setDiscoverResult(null); }} title="Scopri stampanti in rete">
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div>
@@ -325,7 +561,7 @@ export function PrintersTab() {
               />
               <span style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)", whiteSpace: "nowrap" }}>.1 – .254</span>
             </div>
-            <p style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginTop: "4px", margin: "4px 0 0" }}>
+            <p style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", margin: "4px 0 0" }}>
               Lascia vuoto per usare la subnet rilevata automaticamente
             </p>
           </div>
@@ -334,33 +570,87 @@ export function PrintersTab() {
             <Button size="sm" loading={discovering} onClick={() => void handleDiscover()}>Avvia scansione</Button>
           </div>
           {discoverResult && (
-            <div>
-              <div style={{ borderTop: "1px solid var(--color-gray-200)", paddingTop: "16px" }}>
-                <p style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginBottom: "10px" }}>
-                  Subnet scansionata: {discoverResult.subnet}.0/24
-                </p>
-                {discoverResult.found.length === 0 ? (
-                  <div style={{ padding: "20px", textAlign: "center", color: "var(--color-gray-400)", fontSize: "var(--text-sm)", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)" }}>
-                    Nessuna stampante rilevata.
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {discoverResult.found.map((d) => (
-                      <div key={`${d.host}:${d.port}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)" }}>
-                        <div>
-                          <span style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)" }}>{d.host}</span>
-                          <span style={{ marginLeft: "8px", fontSize: "var(--text-xs)", color: "var(--color-gray-500)" }}>porta {d.port}</span>
-                        </div>
-                        <Button size="sm" onClick={() => prefillFromDiscovered(d.host, d.port)}>Aggiungi</Button>
+            <div style={{ borderTop: "1px solid var(--color-gray-200)", paddingTop: "16px" }}>
+              <p style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginBottom: "10px" }}>
+                Subnet scansionata: {discoverResult.subnet}.0/24
+              </p>
+              {discoverResult.found.length === 0 ? (
+                <div style={{ padding: "20px", textAlign: "center", color: "var(--color-gray-400)", fontSize: "var(--text-sm)", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)" }}>
+                  Nessuna stampante rilevata.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {discoverResult.found.map((d) => (
+                    <div key={`${d.host}:${d.port}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)" }}>
+                      <div>
+                        <span style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)" }}>{d.host}</span>
+                        <span style={{ marginLeft: "8px", fontSize: "var(--text-xs)", color: "var(--color-gray-500)" }}>porta {d.port}</span>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      <Button size="sm" onClick={() => prefillFromDiscovered(d.host, d.port)}>Aggiungi</Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
       </Modal>
+
+      {/* USB discover modal */}
+      <Modal open={usbDiscoverOpen} onClose={() => setUsbDiscoverOpen(false)} title="Dispositivi USB rilevati">
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {usbDiscovering ? (
+            <div style={{ padding: "24px", textAlign: "center", color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>
+              Rilevamento in corso...
+            </div>
+          ) : usbDevices.length === 0 ? (
+            <div style={{ padding: "24px", textAlign: "center", color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>
+              Nessuna stampante USB rilevata. Assicurati che la stampante sia collegata e accesa.
+            </div>
+          ) : (
+            usbDevices.map((d) => (
+              <div key={`${d.vendorId}:${d.productId}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)" }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-gray-800)", fontFamily: "monospace" }}>
+                    VID: {d.vendorIdHex} &nbsp; PID: {d.productIdHex}
+                  </div>
+                  <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginTop: "2px" }}>Classe stampante (USB)</div>
+                </div>
+                <Button size="sm" onClick={() => prefillFromUsb(d)}>Seleziona</Button>
+              </div>
+            ))
+          )}
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px" }}>
+            <Button size="sm" variant="secondary" loading={usbDiscovering} onClick={() => void refreshUsbDevices()}>Aggiorna</Button>
+            <Button size="sm" variant="ghost" onClick={() => setUsbDiscoverOpen(false)}>Chiudi</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
+
+  async function openUsbDiscoverInline() {
+    setUsbDiscovering(true);
+    if (!usbDiscoverOpen) setUsbDiscoverOpen(true);
+    try {
+      const { devices } = await adminApi.printers.discoverUsb();
+      setUsbDevices(devices);
+    } catch {
+      setUsbDevices([]);
+    } finally {
+      setUsbDiscovering(false);
+    }
+  }
+
+  async function refreshUsbDevices() {
+    setUsbDiscovering(true);
+    try {
+      const { devices } = await adminApi.printers.discoverUsb();
+      setUsbDevices(devices);
+    } catch {
+      setUsbDevices([]);
+    } finally {
+      setUsbDiscovering(false);
+    }
+  }
 }

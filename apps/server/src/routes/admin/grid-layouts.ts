@@ -1,7 +1,6 @@
 import "@fastify/swagger";
 import type { FastifyPluginAsync } from "fastify";
 import { eq, productGridLayouts } from "@pos/db";
-import { randomUUID } from "node:crypto";
 import { AuthError, requireRole } from "@pos/core";
 import type { ProductGridSlot } from "@pos/shared-types";
 
@@ -49,7 +48,6 @@ const gridLayoutsRoutes: FastifyPluginAsync = async (fastify) => {
     if (slots.length > 0) {
       await db.insert(productGridLayouts).values(
         slots.map((s) => ({
-          id: randomUUID(),
           scope,
           productId: s.productId,
           slotX: s.slotX,

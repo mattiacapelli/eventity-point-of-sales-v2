@@ -40,6 +40,7 @@ export {
   ShieldCheckIcon,
   HomeIcon,
   UserGroupIcon,
+  CloudArrowUpIcon,
 } from "@heroicons/react/24/outline";
 
 export {

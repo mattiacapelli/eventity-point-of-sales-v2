@@ -3,13 +3,7 @@
  * Carica solo categorie e prodotti della cucina.
  * Esegui con: pnpm --filter @pos/server exec tsx src/seed-demo.ts
  */
-import { randomUUID, createHash } from "node:crypto";
 import { createDbClient, runMigrations, sql, eq } from "@pos/db";
-
-function stableId(name: string): string {
-  const h = createHash("sha1").update("demo:" + name).digest("hex");
-  return `${h.slice(0,8)}-${h.slice(8,12)}-5${h.slice(13,16)}-${h.slice(16,20)}-${h.slice(20,32)}`;
-}
 
 import {
   appSettings, users, categories, products,
@@ -90,12 +84,18 @@ const CATS: Record<CatKey, { name: string; color: string; sortOrder: number }> =
   contorni:  { name: "Contorni",       color: "#10B981", sortOrder: 4 },
   dolci:     { name: "Dolci / Dessert",color: "#EC4899", sortOrder: 5 },
 };
-const catIds: Record<CatKey, string> = {} as never;
+const catIds: Record<CatKey, number> = {} as never;
 for (const [key, cat] of Object.entries(CATS) as [CatKey, typeof CATS[CatKey]][]) {
-  const id = stableId(`cat:${key}`);
-  catIds[key] = id;
-  await db.insert(categories).values({ id, name: cat.name, color: cat.color, sortOrder: cat.sortOrder, active: true }).onConflictDoNothing();
-  console.log(`  ${cat.name}`);
+  // Check if already exists by name
+  const existingCat = await db.select({ id: categories.id }).from(categories).where(eq(categories.name, cat.name)).limit(1);
+  if (existingCat[0]) {
+    catIds[key] = existingCat[0].id;
+    console.log(`  ${cat.name} [già esistente]`);
+  } else {
+    const [row] = await db.insert(categories).values({ name: cat.name, color: cat.color, sortOrder: cat.sortOrder, active: true }).returning({ id: categories.id });
+    catIds[key] = row!.id;
+    console.log(`  ${cat.name}`);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -154,9 +154,8 @@ const PRODS: Prod[] = [
 ];
 
 for (const p of PRODS) {
-  const id = stableId(`prod:${p.name}`);
   await db.insert(products).values({
-    id, name: p.name, price: p.price, categoryId: catIds[p.cat],
+    name: p.name, price: p.price, categoryId: catIds[p.cat],
     active: true, vatRate: 10,
     description: p.description ?? null, sortOrder: 0,
   }).onConflictDoNothing();
@@ -168,8 +167,14 @@ for (const p of PRODS) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 console.log("\n── Centro di produzione");
-const cucinaId = stableId("center:cucina");
-await db.insert(productionCenters).values({ id: cucinaId, name: "Cucina" }).onConflictDoNothing();
+let cucinaId: number;
+const existingCucina = await db.select({ id: productionCenters.id }).from(productionCenters).where(eq(productionCenters.name, "Cucina")).limit(1);
+if (existingCucina[0]) {
+  cucinaId = existingCucina[0].id;
+} else {
+  const [cucinaRow] = await db.insert(productionCenters).values({ name: "Cucina" }).returning({ id: productionCenters.id });
+  cucinaId = cucinaRow!.id;
+}
 for (const cat of Object.keys(CATS) as CatKey[]) {
   await db.insert(productionCenterCategories).values({ productionCenterId: cucinaId, categoryId: catIds[cat] }).onConflictDoNothing();
 }
@@ -180,22 +185,34 @@ console.log(`  Cucina → [${Object.keys(CATS).join(", ")}]`);
 // ─────────────────────────────────────────────────────────────────────────────
 
 console.log("\n── Stampanti");
-const printerId = stableId("printer:cassa");
-await db.insert(printers).values({
-  id: printerId, name: "Stampante cassa",
-  host: "192.168.1.100", port: 9100,
-  active: true, receiptEnabled: true, kitchenEnabled: false,
-  printMode: "text",
-}).onConflictDoNothing();
+let printerId: number;
+const existingPrinter = await db.select({ id: printers.id }).from(printers).where(eq(printers.name, "Stampante cassa")).limit(1);
+if (existingPrinter[0]) {
+  printerId = existingPrinter[0].id;
+} else {
+  const [printerRow] = await db.insert(printers).values({
+    name: "Stampante cassa",
+    host: "192.168.1.100", port: 9100,
+    active: true, receiptEnabled: true, kitchenEnabled: false,
+    printMode: "text",
+  }).returning({ id: printers.id });
+  printerId = printerRow!.id;
+}
 console.log("  Stampante cassa (192.168.1.100:9100)");
 
-const kitchenPrinterId = stableId("printer:cucina");
-await db.insert(printers).values({
-  id: kitchenPrinterId, name: "Stampante cucina",
-  host: "192.168.1.101", port: 9100,
-  active: true, receiptEnabled: false, kitchenEnabled: true,
-  printMode: "text",
-}).onConflictDoNothing();
+let kitchenPrinterId: number;
+const existingKitchenPrinter = await db.select({ id: printers.id }).from(printers).where(eq(printers.name, "Stampante cucina")).limit(1);
+if (existingKitchenPrinter[0]) {
+  kitchenPrinterId = existingKitchenPrinter[0].id;
+} else {
+  const [kitchenPrinterRow] = await db.insert(printers).values({
+    name: "Stampante cucina",
+    host: "192.168.1.101", port: 9100,
+    active: true, receiptEnabled: false, kitchenEnabled: true,
+    printMode: "text",
+  }).returning({ id: printers.id });
+  kitchenPrinterId = kitchenPrinterRow!.id;
+}
 console.log("  Stampante cucina (192.168.1.101:9100)");
 
 await db.insert(productionCenterPrinters).values({ productionCenterId: cucinaId, printerId: kitchenPrinterId }).onConflictDoNothing();
@@ -206,7 +223,7 @@ await db.insert(productionCenterPrinters).values({ productionCenterId: cucinaId,
 
 console.log("\n── Receipt template");
 await db.insert(receiptTemplates).values({
-  id: stableId("receipt-template:master"), name: "Template principale", role: "master",
+  name: "Template principale", role: "master",
   headerText: "Ristorante", footerText: "Grazie per la visita!",
   showLogo: false, showOrderNumber: true, showTimestamp: true,
   showPaymentMethod: true, showItemCategory: false,

@@ -1,23 +1,74 @@
 import { randomUUID } from "node:crypto";
 import { resolve, join } from "node:path";
 import { eq, inArray } from "@pos/db";
-import { orders, orderItems, orderItemOptions, products, productionCenters, productionCenterCategories, productionCenterPrinters, printers, kitchenTemplates } from "@pos/db";
-import { formatKitchenTicket, renderKitchenImage, pngToEscposRaster } from "@pos/core";
+import { orders, orderItems, orderItemOptions, products, productionCenters, productionCenterCategories, productionCenterPrinters, printers, kitchenTemplates, orderCenterNumbers } from "@pos/db";
+import { formatKitchenTicket, renderPool } from "@pos/core";
 import type { KitchenBlock } from "@pos/shared-types";
 import type { DbClient } from "@pos/db";
-import type { PrinterService, Logger } from "@pos/core";
+import { logPrint } from "@pos/db";
+import type { PrinterService, Logger, PrinterConfig, PrintResult } from "@pos/core";
 import type { EventBus } from "@pos/event-bus";
 import type { OrderItemRow, OrderItemOptionRow, PrinterRow } from "./types.js";
+
+const KITCHEN_RETRY_DELAYS = [3_000, 6_000];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function printWithKitchenRetry(
+  printerService: PrinterService,
+  job: Parameters<PrinterService["printDirect"]>[0],
+  logger: Logger,
+  db: DbClient,
+  logBase: Omit<Parameters<typeof logPrint>[1], "event">,
+): Promise<PrintResult> {
+  let result = await printerService.printDirect(job);
+  if (result.success) {
+    logPrint(db, { ...logBase, event: "ok", bytes: job.contentBuffer?.length ?? job.content?.length });
+    return result;
+  }
+  for (const [i, delay] of KITCHEN_RETRY_DELAYS.entries()) {
+    const attempt = i + 1;
+    logger.warn({ printerId: job.printerId, attempt, delay }, "Kitchen ticket failed — retrying");
+    logPrint(db, { ...logBase, event: "retry", attempt, errorMsg: result.message });
+    await sleep(delay);
+    result = await printerService.printDirect(job);
+    if (result.success) {
+      logPrint(db, { ...logBase, event: "ok", attempt, bytes: job.contentBuffer?.length ?? job.content?.length });
+      return result;
+    }
+  }
+  logPrint(db, { ...logBase, event: "failed", attempt: KITCHEN_RETRY_DELAYS.length + 1, errorMsg: result.message });
+  return result;
+}
+
+function buildPrinterConfig(printer: PrinterRow): PrinterConfig | undefined {
+  if (printer.connectionType === "usb" && printer.usbVendorId && printer.usbProductId) {
+    return { connectionType: "usb", usbVendorId: printer.usbVendorId, usbProductId: printer.usbProductId };
+  }
+  if (printer.connectionType === "windows" && printer.winPrinterName) {
+    return { connectionType: "windows", winPrinterName: printer.winPrinterName };
+  }
+  if (printer.host && printer.port) {
+    return { connectionType: "network", host: printer.host, port: printer.port };
+  }
+  return undefined;
+}
 
 export async function printKitchenTickets(
   db: DbClient,
   printerService: PrinterService,
   logger: Logger,
   eventBus: EventBus,
-  orderId: string,
+  orderId: number,
   items: OrderItemRow[],
   dataDir: string,
   receiptDisplay?: string,
+  centerNumbersMap?: Map<number, number>,
+  isModification = false,
+  terminalId?: number,
+  terminalIp?: string,
 ): Promise<void> {
   if (items.length === 0) return;
 
@@ -37,7 +88,7 @@ export async function printKitchenTickets(
   const optionRows = itemIds.length > 0
     ? await db.select().from(orderItemOptions).where(inArray(orderItemOptions.orderItemId, itemIds)) as unknown as OrderItemOptionRow[]
     : [];
-  const optionsByItemId = new Map<string, OrderItemOptionRow[]>();
+  const optionsByItemId = new Map<number, OrderItemOptionRow[]>();
   for (const opt of optionRows) {
     const arr = optionsByItemId.get(opt.orderItemId) ?? [];
     arr.push(opt);
@@ -50,7 +101,7 @@ export async function printKitchenTickets(
     : [];
   const productCatMap = new Map(productCatRows.map((r) => [r.id, r.categoryId ?? null]));
 
-  const categoryIds = [...new Set(productCatRows.map((r) => r.categoryId).filter((c): c is string => c !== null))];
+  const categoryIds = [...new Set(productCatRows.map((r) => r.categoryId).filter((c): c is number => c !== null && c !== undefined))];
   const pcCatRows   = categoryIds.length > 0
     ? await db.select({
         categoryId:        productionCenterCategories.categoryId,
@@ -58,7 +109,7 @@ export async function printKitchenTickets(
       }).from(productionCenterCategories).where(inArray(productionCenterCategories.categoryId, categoryIds))
     : [];
 
-  const catToCenters = new Map<string, string[]>();
+  const catToCenters = new Map<number, number[]>();
   for (const r of pcCatRows) {
     const arr = catToCenters.get(r.categoryId) ?? [];
     arr.push(r.productionCenterId);
@@ -72,12 +123,12 @@ export async function printKitchenTickets(
   const centerNameMap = new Map(centerNameRows.map((r) => [r.id, r.name]));
 
   // Group items by production center
-  const centerItems = new Map<string, { centerName: string; items: OrderItemRow[] }>();
+  const centerItems = new Map<number | "__generale__", { centerName: string; items: OrderItemRow[] }>();
   const unroutedItems: OrderItemRow[] = [];
 
   for (const item of items) {
     const categoryId     = productCatMap.get(item.productId) ?? null;
-    if (!categoryId) { unroutedItems.push(item); continue; }
+    if (categoryId === null) { unroutedItems.push(item); continue; }
     const centerIdsForCat = catToCenters.get(categoryId);
     if (!centerIdsForCat || centerIdsForCat.length === 0) { unroutedItems.push(item); continue; }
     for (const centerId of centerIdsForCat) {
@@ -90,7 +141,7 @@ export async function printKitchenTickets(
     }
   }
   if (unroutedItems.length > 0) {
-    centerItems.set("__generale__", { centerName: "Generale", items: unroutedItems });
+    logger.debug({ orderId, count: unroutedItems.length }, "Kitchen items without production center — skipping");
   }
 
   const activePrinters = await db.select().from(printers).where(eq(printers.active, true)) as unknown as PrinterRow[];
@@ -100,23 +151,27 @@ export async function printKitchenTickets(
     return;
   }
 
+  logPrint(db, { orderId, jobType: "kitchen", event: "queued", terminalId, terminalIp });
+
   const now = new Date();
 
   for (const [centerId, { centerName, items: centerGroupItems }] of centerItems) {
-    let targetPrinters: PrinterRow[];
-    if (centerId !== "__generale__") {
-      const dedicatedRows = await db
-        .select({ printerId: productionCenterPrinters.printerId })
-        .from(productionCenterPrinters)
-        .where(eq(productionCenterPrinters.productionCenterId, centerId));
-      if (dedicatedRows.length > 0) {
-        const dedicatedIds = dedicatedRows.map((r) => r.printerId);
-        targetPrinters = allKitchenPrinters.filter((p) => dedicatedIds.includes(p.id));
-      } else {
-        targetPrinters = allKitchenPrinters;
-      }
-    } else {
-      targetPrinters = allKitchenPrinters;
+    const effectiveReceiptDisplay = (centerNumbersMap && typeof centerId === "number" && centerNumbersMap.has(centerId))
+      ? String(centerNumbersMap.get(centerId)!)
+      : receiptDisplay;
+    const dedicatedRows = await db
+      .select({ printerId: productionCenterPrinters.printerId })
+      .from(productionCenterPrinters)
+      .where(eq(productionCenterPrinters.productionCenterId, centerId as number));
+    if (dedicatedRows.length === 0) {
+      logger.debug({ orderId, centerId, centerName }, "Production center has no dedicated printers — skipping");
+      continue;
+    }
+    const dedicatedIds = dedicatedRows.map((r) => r.printerId);
+    const targetPrinters = allKitchenPrinters.filter((p) => dedicatedIds.includes(p.id));
+    if (targetPrinters.length === 0) {
+      logger.debug({ orderId, centerId, centerName }, "Dedicated printers not active — skipping");
+      continue;
     }
 
     const ticketItems = centerGroupItems.map((i) => ({
@@ -126,14 +181,29 @@ export async function printKitchenTickets(
       ...(i.notes ? { notes: i.notes } : {}),
     }));
 
-    for (const printer of targetPrinters) {
-      if (!printer.host || !printer.port) continue;
-      const printerConfig = { host: printer.host, port: printer.port };
+    await Promise.allSettled(targetPrinters.map(async (printer) => {
+      const printerConfig = buildPrinterConfig(printer);
+      if (!printerConfig) return;
+
+      const cfg = printerConfig;
+      const logBase = {
+        orderId, jobType: "kitchen" as const,
+        printerId: printer.id, printerName: printer.name,
+        connectionType: cfg.connectionType ?? "network",
+        printerHost: (cfg as { host?: string }).host,
+        printerPort: (cfg as { port?: number }).port,
+        terminalId, terminalIp, centerName,
+      };
+
+      const emitOffline = (reason: string) => {
+        eventBus.emit("PRINTER_OFFLINE", { traceId: randomUUID(), printerId: printer.id, printerName: printer.name, reason, timestamp: new Date() });
+      };
 
       try {
         if (printer.printMode === "image") {
           const templateRows = await db.select().from(kitchenTemplates).where(eq(kitchenTemplates.active, true));
-          const template     = templateRows.find((t) => t.productionCenterId === centerId) ?? templateRows[0];
+          const numCenterId  = typeof centerId === "number" ? centerId : null;
+          const template     = (numCenterId !== null ? templateRows.find((t) => t.productionCenterId === numCenterId) : undefined) ?? templateRows[0];
 
           if (template?.blocks) {
             let blocks: KitchenBlock[];
@@ -144,42 +214,49 @@ export async function printKitchenTickets(
               blocks = [];
             }
             if (blocks.length > 0) {
-              const pngBuffer    = await renderKitchenImage({
+              logPrint(db, { ...logBase, event: "rendering" });
+              const rasterBuffer = await renderPool.renderKitchen({
                 blocks,
                 canvasWidth:  template.canvasWidth ?? 576,
                 logoPath:     template.logoPath ? resolve(join(dataDir, template.logoPath)) : null,
-                centerName, orderId, receiptDisplay, tableId, customerName, orderNotes, pax,
-                timestamp: now, items: ticketItems,
+                centerName, orderId, receiptDisplay: effectiveReceiptDisplay, tableId, customerName, orderNotes, pax,
+                timestamp: now, items: ticketItems, isModification,
               });
-              const rasterBuffer = await pngToEscposRaster(pngBuffer, template.canvasWidth ?? 576);
-              const result       = await printerService.printDirect({ printerId: printer.id, contentBuffer: rasterBuffer, type: "kitchen", printerConfig });
+              logPrint(db, { ...logBase, event: "sent", bytes: rasterBuffer.length });
+              const result = await printWithKitchenRetry(printerService, { printerId: printer.id, contentBuffer: rasterBuffer, type: "kitchen", printerConfig }, logger, db, logBase);
               if (!result.success) {
-                eventBus.emit("PRINTER_OFFLINE", { traceId: randomUUID(), printerId: printer.id, printerName: printer.name, reason: result.message, timestamp: new Date() });
+                emitOffline(result.message);
+                logger.error({ printerId: printer.id, orderId, centerName, mode: "image" }, "Kitchen ticket failed after retries");
+              } else {
+                logger.info({ printerId: printer.id, orderId, centerName, mode: "image" }, "Kitchen ticket printed");
               }
-              logger.info({ printerId: printer.id, orderId, centerName, mode: "image" }, "Kitchen ticket printed");
-              continue;
+              return;
             }
           }
         }
 
         const content = formatKitchenTicket({
           orderId,
-          ...(receiptDisplay !== undefined ? { receiptDisplay } : {}),
+          ...(effectiveReceiptDisplay !== undefined ? { receiptDisplay: effectiveReceiptDisplay } : {}),
           ...(tableId      ? { tableId }      : {}),
           ...(customerName ? { customerName } : {}),
           ...(orderNotes   ? { orderNotes }   : {}),
           ...(pax          ? { pax }          : {}),
-          centerName, timestamp: now, items: ticketItems,
+          centerName, timestamp: now, items: ticketItems, isModification,
         });
-        const result = await printerService.printDirect({ printerId: printer.id, content, type: "kitchen", printerConfig });
+        logPrint(db, { ...logBase, event: "sent", bytes: content.length });
+        const result = await printWithKitchenRetry(printerService, { printerId: printer.id, content, type: "kitchen", printerConfig }, logger, db, logBase);
         if (!result.success) {
-          eventBus.emit("PRINTER_OFFLINE", { traceId: randomUUID(), printerId: printer.id, printerName: printer.name, reason: result.message, timestamp: new Date() });
+          emitOffline(result.message);
+          logger.error({ printerId: printer.id, orderId, centerName, mode: "text" }, "Kitchen ticket failed after retries");
+        } else {
+          logger.info({ printerId: printer.id, orderId, centerName, mode: "text" }, "Kitchen ticket printed");
         }
-        logger.info({ printerId: printer.id, orderId, centerName, mode: "text" }, "Kitchen ticket printed");
       } catch (err) {
         logger.error({ err, printerId: printer.id, orderId, centerName }, "Kitchen ticket print failed");
-        eventBus.emit("PRINTER_OFFLINE", { traceId: randomUUID(), printerId: printer.id, printerName: printer.name, reason: err instanceof Error ? err.message : "Print failed", timestamp: new Date() });
+        logPrint(db, { ...logBase, event: "failed", errorMsg: err instanceof Error ? err.message : "Print failed" });
+        emitOffline(err instanceof Error ? err.message : "Print failed");
       }
-    }
+    }));
   }
 }

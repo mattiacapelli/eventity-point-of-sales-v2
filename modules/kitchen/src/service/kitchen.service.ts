@@ -21,7 +21,7 @@ export class KitchenService {
     return this.repo.findQueue();
   }
 
-  async getOrder(id: string): Promise<Order> {
+  async getOrder(id: number): Promise<Order> {
     const order = await this.repo.findById(id);
     if (!order) throw new KitchenValidationError(`Order ${id} not found`);
     return order;
@@ -32,7 +32,7 @@ export class KitchenService {
    * OrderService is the sole entity that will write the new status and emit ORDER_UPDATED.
    * Returns the current order snapshot (pre-transition) so the HTTP response is immediate.
    */
-  async requestTransition(id: string, newStatus: OrderStatus): Promise<Order> {
+  async requestTransition(id: number, newStatus: OrderStatus): Promise<Order> {
     const order = await this.getOrder(id);
 
     const allowed = ALLOWED_TRANSITIONS[order.status];

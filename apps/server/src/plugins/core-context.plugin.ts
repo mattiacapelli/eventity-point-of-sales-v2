@@ -28,7 +28,6 @@ const coreContextPlugin: FastifyPluginAsync<{ config: AppConfig }> = async (fast
   fastify.decorate("ctx", ctx);
 
   fastify.addHook("onClose", async () => {
-    await printerService.flush();
     printerService.destroyAdapterPool();
     eventBus.removeAllListeners();
   });

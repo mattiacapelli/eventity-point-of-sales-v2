@@ -1,8 +1,11 @@
 export interface Terminal {
-  id: string;
+  id: number;
   name: string;
   active: boolean;
   createdAt: number;
   lastSeenAt: number | null;
   defaultViewMode: string | null;
+  disableTableInput: boolean;
+  disablePreOrderModal: boolean;
+  tableInputOptional: boolean;
 }

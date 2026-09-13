@@ -59,7 +59,7 @@ class WsClient {
     const terminalId = this._terminalId ?? useTerminalStore.getState().terminalId;
     const qs = new URLSearchParams();
     if (this.token) qs.set("token", this.token);
-    if (terminalId) qs.set("terminalId", terminalId);
+    if (terminalId !== null) qs.set("terminalId", String(terminalId));
     const wsUrl = qs.toString() ? `${this.url}?${qs}` : this.url;
 
     this.ws = new WebSocket(wsUrl);

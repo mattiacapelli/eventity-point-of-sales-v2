@@ -1,7 +1,6 @@
 import "@fastify/swagger";
 import type { FastifyPluginAsync } from "fastify";
 import { eq, inArray, appSettings, shiftReportTemplates } from "@pos/db";
-import { randomUUID } from "node:crypto";
 import { requireRole, AuthError, renderShiftReportImage } from "@pos/core";
 import { mkdirSync, unlinkSync, existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
@@ -104,18 +103,15 @@ const shiftReportTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
       canvasWidth?: number;
       blocks?: ShiftReportBlock[];
     };
-    const id = randomUUID();
     const blocks = body.blocks ?? DEFAULT_BLOCKS;
-    await fastify.ctx.db.insert(shiftReportTemplates).values({
-      id,
+    const [row] = await fastify.ctx.db.insert(shiftReportTemplates).values({
       name: body.name,
       active: true,
       printMode: body.printMode ?? "image",
       canvasWidth: body.canvasWidth ?? 576,
       blocks: JSON.stringify(blocks),
       logoPath: null,
-    });
-    const [row] = await fastify.ctx.db.select().from(shiftReportTemplates).where(eq(shiftReportTemplates.id, id));
+    }).returning();
     return reply.status(201).send(row);
   });
 
@@ -123,6 +119,7 @@ const shiftReportTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["shift-report-templates"], summary: "Update a shift report template" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const numId = parseInt(id, 10);
     const body = request.body as Partial<{
       name: string;
       active: boolean;
@@ -131,7 +128,7 @@ const shiftReportTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
       blocks: ShiftReportBlock[];
     }>;
 
-    const [existing] = await fastify.ctx.db.select().from(shiftReportTemplates).where(eq(shiftReportTemplates.id, id));
+    const [existing] = await fastify.ctx.db.select().from(shiftReportTemplates).where(eq(shiftReportTemplates.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     const update: {
@@ -148,9 +145,9 @@ const shiftReportTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
     if (body.blocks !== undefined) update.blocks = JSON.stringify(body.blocks);
 
     if (Object.keys(update).length > 0) {
-      await fastify.ctx.db.update(shiftReportTemplates).set(update).where(eq(shiftReportTemplates.id, id));
+      await fastify.ctx.db.update(shiftReportTemplates).set(update).where(eq(shiftReportTemplates.id, numId));
     }
-    const [row] = await fastify.ctx.db.select().from(shiftReportTemplates).where(eq(shiftReportTemplates.id, id));
+    const [row] = await fastify.ctx.db.select().from(shiftReportTemplates).where(eq(shiftReportTemplates.id, numId));
     return reply.send(row);
   });
 
@@ -158,7 +155,7 @@ const shiftReportTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["shift-report-templates"], summary: "Delete a shift report template" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    await fastify.ctx.db.delete(shiftReportTemplates).where(eq(shiftReportTemplates.id, id));
+    await fastify.ctx.db.delete(shiftReportTemplates).where(eq(shiftReportTemplates.id, parseInt(id, 10)));
     return reply.status(204).send();
   });
 
@@ -196,7 +193,8 @@ const shiftReportTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["shift-report-templates"], summary: "Upload logo for a shift report template" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const [existing] = await fastify.ctx.db.select().from(shiftReportTemplates).where(eq(shiftReportTemplates.id, id));
+    const numId = parseInt(id, 10);
+    const [existing] = await fastify.ctx.db.select().from(shiftReportTemplates).where(eq(shiftReportTemplates.id, numId));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     const data = await request.file();
@@ -211,14 +209,14 @@ const shiftReportTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
 
     const LOGOS_DIR = resolve(shiftReportLogosDir(fastify.ctx.config.dataDir));
     ensureDir(LOGOS_DIR);
-    const filename = `${id}${ext}`;
+    const filename = `${numId}${ext}`;
     const relPath = `logos/shift-report/${filename}`;
     const absPath = join(LOGOS_DIR, filename);
     const buffer = await data.toBuffer();
     await writeFile(absPath, buffer);
 
-    await fastify.ctx.db.update(shiftReportTemplates).set({ logoPath: relPath }).where(eq(shiftReportTemplates.id, id));
-    const [row] = await fastify.ctx.db.select().from(shiftReportTemplates).where(eq(shiftReportTemplates.id, id));
+    await fastify.ctx.db.update(shiftReportTemplates).set({ logoPath: relPath }).where(eq(shiftReportTemplates.id, numId));
+    const [row] = await fastify.ctx.db.select().from(shiftReportTemplates).where(eq(shiftReportTemplates.id, numId));
     return reply.send(row);
   });
 
@@ -226,14 +224,15 @@ const shiftReportTemplatesRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { tags: ["shift-report-templates"], summary: "Remove logo from a shift report template" },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const [existing] = await fastify.ctx.db.select().from(shiftReportTemplates).where(eq(shiftReportTemplates.id, id));
+    const numId2 = parseInt(id, 10);
+    const [existing] = await fastify.ctx.db.select().from(shiftReportTemplates).where(eq(shiftReportTemplates.id, numId2));
     if (!existing) return reply.status(404).send({ error: "Not found" });
 
     if (existing.logoPath) {
       const absPath = resolve(join(fastify.ctx.config.dataDir, existing.logoPath));
       if (existsSync(absPath)) { try { unlinkSync(absPath); } catch { /* ignore */ } }
     }
-    await fastify.ctx.db.update(shiftReportTemplates).set({ logoPath: null }).where(eq(shiftReportTemplates.id, id));
+    await fastify.ctx.db.update(shiftReportTemplates).set({ logoPath: null }).where(eq(shiftReportTemplates.id, numId2));
     return reply.status(204).send();
   });
 };

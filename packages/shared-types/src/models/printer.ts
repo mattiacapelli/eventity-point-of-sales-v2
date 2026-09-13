@@ -1,10 +1,13 @@
 export interface Printer {
-  id: string;
+  id: number;
   name: string;
   type: string;
   connectionType: string;
   host: string | null;
   port: number | null;
+  usbVendorId: number | null;
+  usbProductId: number | null;
+  winPrinterName: string | null;
   active: boolean;
   receiptEnabled: boolean;
   kitchenEnabled: boolean;

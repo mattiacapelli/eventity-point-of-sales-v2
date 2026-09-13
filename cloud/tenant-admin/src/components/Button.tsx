@@ -9,14 +9,22 @@ const VARIANT_STYLES: Record<Variant, React.CSSProperties> = {
   ghost: { background: "transparent", color: "var(--color-gray-500)" },
 };
 
+const VARIANT_CLASS: Record<Variant, string> = {
+  primary: "btn-primary",
+  secondary: "btn-outline",
+  danger: "",
+  ghost: "",
+};
+
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   loading?: boolean;
 }
 
-export function Button({ variant = "primary", loading = false, disabled, children, style, ...rest }: ButtonProps) {
+export function Button({ variant = "primary", loading = false, disabled, children, style, className, ...rest }: ButtonProps) {
   return (
     <button
+      className={[VARIANT_CLASS[variant], className].filter(Boolean).join(" ")}
       disabled={disabled || loading}
       style={{
         height: "40px",
@@ -35,7 +43,13 @@ export function Button({ variant = "primary", loading = false, disabled, childre
       }}
       {...rest}
     >
-      {loading ? "..." : children}
+      {loading && (
+        <span
+          className="spinner"
+          style={variant === "secondary" || variant === "ghost" ? { borderTopColor: "var(--color-gray-600)", borderColor: "rgba(107,114,128,0.25)" } : undefined}
+        />
+      )}
+      {!loading && children}
     </button>
   );
 }

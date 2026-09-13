@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-const MAX_INTERKEY_MS = 40;   // HID scanners type far faster than any human — pause above this resets the buffer
+const MAX_INTERKEY_MS = 80;   // HID scanners type far faster than any human — pause above this resets the buffer
 const MIN_PAYLOAD_LENGTH = 8; // ignore accidental short bursts (e.g. a few fast keystrokes while typing)
 
 function isEditableTarget(target: EventTarget | null): boolean {

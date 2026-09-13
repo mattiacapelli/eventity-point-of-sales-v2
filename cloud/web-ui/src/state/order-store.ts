@@ -55,12 +55,12 @@ export function useOrderStore() {
     setState((s) => ({ ...s, screen }));
   }, []);
 
-  function cartLineKey(productId: string, selectedOptionIds: string[]): string {
-    return `${productId}::${[...selectedOptionIds].sort().join(",")}`;
+  function cartLineKey(productId: number, selectedOptionIds: number[]): string {
+    return `${productId}::${[...selectedOptionIds].sort((a, b) => a - b).join(",")}`;
   }
 
   /** Simple products (no options): quantity stepper on the product card. */
-  const setQuantity = useCallback((productId: string, quantity: number) => {
+  const setQuantity = useCallback((productId: number, quantity: number) => {
     setState((s) => {
       const existing = s.cart.find((l) => l.productId === productId && l.selectedOptionIds.length === 0);
       if (quantity <= 0) {
@@ -77,7 +77,7 @@ export function useOrderStore() {
   }, []);
 
   /** Products with options: each distinct option combination is its own cart line. */
-  const addItemWithOptions = useCallback((productId: string, selectedOptionIds: string[], quantity: number) => {
+  const addItemWithOptions = useCallback((productId: number, selectedOptionIds: number[], quantity: number) => {
     setState((s) => {
       const key = cartLineKey(productId, selectedOptionIds);
       const existing = s.cart.find((l) => cartLineKey(l.productId, l.selectedOptionIds) === key);
@@ -91,7 +91,7 @@ export function useOrderStore() {
     });
   }, []);
 
-  const removeCartLine = useCallback((productId: string, selectedOptionIds: string[]) => {
+  const removeCartLine = useCallback((productId: number, selectedOptionIds: number[]) => {
     setState((s) => {
       const key = cartLineKey(productId, selectedOptionIds);
       return { ...s, cart: s.cart.filter((l) => cartLineKey(l.productId, l.selectedOptionIds) !== key) };
@@ -104,7 +104,7 @@ export function useOrderStore() {
 
   /** Drops cart lines referencing product ids no longer present in the fetched menu
    *  (e.g. stale session left over from a previous/mock menu, or menu re-sync). */
-  const pruneCart = useCallback((validProductIds: Set<string>) => {
+  const pruneCart = useCallback((validProductIds: Set<number>) => {
     setState((s) => {
       const pruned = s.cart.filter((l) => validProductIds.has(l.productId));
       if (pruned.length === s.cart.length) return s;
