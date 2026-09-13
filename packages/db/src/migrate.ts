@@ -771,14 +771,17 @@ function migrateUuidToInt(sqlite: Database.Database): void {
       connection_type  TEXT NOT NULL DEFAULT 'network',
       host             TEXT,
       port             INTEGER,
+      usb_vendor_id    INTEGER,
+      usb_product_id   INTEGER,
+      win_printer_name TEXT,
       active           INTEGER NOT NULL DEFAULT 1,
       receipt_enabled  INTEGER NOT NULL DEFAULT 0,
       kitchen_enabled  INTEGER NOT NULL DEFAULT 0,
       print_mode       TEXT NOT NULL DEFAULT 'text'
     )
   `);
-  sqlite.exec(`INSERT INTO printers(name, type, connection_type, host, port, active, receipt_enabled, kitchen_enabled, print_mode)
-    SELECT name, COALESCE(type,'escpos'), COALESCE(connection_type,'network'), host, port, active, COALESCE(receipt_enabled,0), COALESCE(kitchen_enabled,0), COALESCE(print_mode,'text') FROM _pr_old`);
+  sqlite.exec(`INSERT INTO printers(name, type, connection_type, host, port, usb_vendor_id, usb_product_id, win_printer_name, active, receipt_enabled, kitchen_enabled, print_mode)
+    SELECT name, COALESCE(type,'escpos'), COALESCE(connection_type,'network'), host, port, usb_vendor_id, usb_product_id, win_printer_name, active, COALESCE(receipt_enabled,0), COALESCE(kitchen_enabled,0), COALESCE(print_mode,'text') FROM _pr_old`);
   sqlite.exec(`CREATE TEMP TABLE _pr_name_map AS
     SELECT old.id AS old_uuid, new.id AS new_int
     FROM _pr_old old JOIN printers new ON new.name = old.name`);
