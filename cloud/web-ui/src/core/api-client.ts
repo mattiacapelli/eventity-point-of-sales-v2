@@ -4,7 +4,7 @@ export const API_BASE = import.meta.env["VITE_API_BASE"] ?? "http://localhost:40
 
 export function getTenantSlug(): string {
   const params = new URLSearchParams(window.location.search);
-  return params.get("t") ?? import.meta.env["VITE_DEFAULT_TENANT"] ?? "";
+  return params.get("t") ?? "";
 }
 
 export interface MenuResponse {
@@ -21,9 +21,16 @@ export interface MenuResponse {
   products: Product[];
 }
 
+export class FetchMenuError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+    this.name = "FetchMenuError";
+  }
+}
+
 export async function fetchMenu(slug: string): Promise<MenuResponse> {
   const res = await fetch(`${API_BASE}/api/tenants/${encodeURIComponent(slug)}/menu`);
-  if (!res.ok) throw new Error(`Impossibile caricare il menu (HTTP ${res.status})`);
+  if (!res.ok) throw new FetchMenuError(`Impossibile caricare il menu (HTTP ${res.status})`, res.status);
   return res.json() as Promise<MenuResponse>;
 }
 

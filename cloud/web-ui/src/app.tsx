@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useOrderStore } from "./state/order-store.js";
-import { fetchMenu, createOrder, getTenantSlug, API_BASE, type MenuResponse } from "./core/api-client.js";
+import { fetchMenu, createOrder, getTenantSlug, API_BASE, FetchMenuError, type MenuResponse } from "./core/api-client.js";
 import { InfoScreen } from "./screens/InfoScreen.js";
 import { MenuScreen } from "./screens/MenuScreen.js";
 import { ReviewScreen } from "./screens/ReviewScreen.js";
@@ -20,7 +20,7 @@ export function App() {
 
   const loadMenu = useCallback(() => {
     if (!slug) {
-      setMenuError("Nessun locale specificato nel link. Scansiona il QR sul tavolo.");
+      window.location.href = "https://eventity.app";
       return;
     }
     setMenuError(null);
@@ -39,7 +39,13 @@ export function App() {
         if (m.tenant.colorAccent) root.setProperty("--color-accent", m.tenant.colorAccent);
         if (!localStorage.getItem(ONBOARDING_SEEN_KEY)) setShowOnboarding(true);
       })
-      .catch((err) => setMenuError(err instanceof Error ? err.message : "Errore nel caricamento del menu"))
+      .catch((err) => {
+        if (err instanceof FetchMenuError && err.status === 404) {
+          window.location.href = "https://eventity.app";
+          return;
+        }
+        setMenuError(err instanceof Error ? err.message : "Errore nel caricamento del menu");
+      })
       .finally(() => setRetrying(false));
   }, [slug]);
 
@@ -113,6 +119,7 @@ export function App() {
         info={info}
         cart={cart}
         onBack={() => goTo("menu")}
+        onQuantityChange={setQuantity}
         onConfirm={async () => {
           const result = await createOrder(slug, {
             tableId: info.tableId,
@@ -133,6 +140,9 @@ export function App() {
     <ConfirmedScreen
       orderCode={orderCode ?? "—"}
       qrPayload={qrPayload ?? ""}
+      info={info}
+      cart={cart}
+      products={menu.products}
       onNewOrder={resetOrder}
     />
   );

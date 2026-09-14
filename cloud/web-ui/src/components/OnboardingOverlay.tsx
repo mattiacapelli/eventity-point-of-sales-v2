@@ -40,7 +40,7 @@ export function OnboardingOverlay({ onClose }: { onClose: () => void }) {
                 <div
                   style={{
                     flexShrink: 0, width: "40px", height: "40px", borderRadius: "50%",
-                    background: "rgba(48,107,52,0.08)",
+                    background: "rgba(23,102,60,0.08)",
                     display: "flex", alignItems: "center", justifyContent: "center",
                   }}
                 >

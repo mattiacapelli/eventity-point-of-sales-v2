@@ -103,7 +103,7 @@ export function ProductOptionsModal({ product, onClose, onConfirm }: {
                         display: "flex", alignItems: "center", justifyContent: "space-between",
                         padding: "12px 14px", borderRadius: "var(--radius-md)",
                         border: `1.5px solid ${isSelected ? "var(--color-brand)" : "var(--color-gray-200)"}`,
-                        background: isSelected ? "rgba(48,107,52,0.06)" : "var(--color-white)",
+                        background: isSelected ? "rgba(23,102,60,0.06)" : "var(--color-white)",
                         textAlign: "left",
                       }}
                     >

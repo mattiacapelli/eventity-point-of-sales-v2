@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Header } from "../components/Header.js";
 import { Footer } from "../components/Footer.js";
 import { Button } from "../components/Button.js";
 import type { OrderInfo } from "../core/types.js";
@@ -37,33 +36,47 @@ export function InfoScreen({ initial, logoUrl, requireTableId = true, requireCus
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-      <Header />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "var(--sp-xl) var(--sp-lg)", gap: "var(--sp-xl)" }}>
-        <div
-          style={{
-            width: "180px",
-            height: "180px",
-            borderRadius: "50%",
-            background: logoUrl ? "var(--color-white)" : "linear-gradient(160deg, var(--color-brand) 0%, var(--color-brand-dark) 100%)",
-            boxShadow: "var(--shadow-lg)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: logoUrl ? "var(--sp-md)" : "var(--sp-lg)",
-            overflow: "hidden",
-          }}
-        >
-          {logoUrl ? (
-            <img src={logoUrl} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-          ) : (
-            <img src="/logo.svg" alt="epos" style={{ width: "100%", height: "auto" }} />
-          )}
+      <div style={{
+        padding: "calc(var(--sp-lg) + var(--safe-top)) var(--sp-lg) var(--sp-xl)",
+        background: "var(--color-brand)", display: "flex", flexDirection: "column", gap: "6px", flexShrink: 0,
+      }}>
+        <span style={{ fontSize: "24px", fontWeight: 700, letterSpacing: "-0.04em", color: "var(--color-white)" }}>epos</span>
+        <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-brand-light)" }}>Ordina dal tavolo</span>
+      </div>
+
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "22px", padding: "26px var(--sp-lg) var(--sp-md)" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "14px", textAlign: "center" }}>
+          <div
+            style={{
+              width: "132px", height: "132px", borderRadius: "30px", flexShrink: 0,
+              background: logoUrl ? "var(--color-white)" : "repeating-linear-gradient(135deg, var(--color-gray-100) 0 8px, var(--color-white) 8px 16px)",
+              border: "1px solid var(--color-gray-200)",
+              display: "grid", placeItems: "center", overflow: "hidden",
+              padding: logoUrl ? "var(--sp-md)" : 0,
+            }}
+          >
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+            ) : (
+              <img src="/logo.svg" alt="epos" style={{ width: "72px", height: "auto" }} />
+            )}
+          </div>
         </div>
 
-        <div style={{ width: "100%", maxWidth: "360px", display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
+        <div style={{
+          padding: "16px 18px", borderRadius: "14px", background: "#E8F0EA",
+          display: "flex", flexDirection: "column", gap: "4px",
+        }}>
+          <span style={{ fontSize: "14.5px", fontWeight: 700, color: "var(--color-brand)" }}>Come funziona</span>
+          <span style={{ fontSize: "14px", lineHeight: 1.5, color: "#2F5C43" }}>
+            Scegli i piatti, conferma l'ordine e mostra il codice in cassa per pagare e ritirare.
+          </span>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div>
             <label style={labelStyle} htmlFor="tableId">
-              Tavolo{requireTableId && <span style={{ color: "var(--color-danger)" }}> *</span>}
+              Tavolo o postazione{requireTableId && <span style={{ color: "var(--color-danger)" }}> *</span>}
             </label>
             <input
               id="tableId"
@@ -78,7 +91,7 @@ export function InfoScreen({ initial, logoUrl, requireTableId = true, requireCus
           </div>
           <div>
             <label style={labelStyle} htmlFor="customerName">
-              Nome e Cognome{requireCustomerName && <span style={{ color: "var(--color-danger)" }}> *</span>}
+              Nome per la chiamata{requireCustomerName && <span style={{ color: "var(--color-danger)" }}> *</span>}
             </label>
             <input
               id="customerName"
@@ -86,9 +99,14 @@ export function InfoScreen({ initial, logoUrl, requireTableId = true, requireCus
               style={inputStyle}
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
-              placeholder={requireCustomerName ? "Es. Mario Rossi" : "Facoltativo"}
+              placeholder={requireCustomerName ? "Es. Mario Rossi" : "Es. Mario"}
               maxLength={100}
             />
+            {!requireCustomerName && (
+              <span style={{ fontSize: "13px", color: "var(--color-gray-500)", marginTop: "6px", display: "block" }}>
+                Serve solo per chiamarti al ritiro.
+              </span>
+            )}
           </div>
         </div>
       </div>

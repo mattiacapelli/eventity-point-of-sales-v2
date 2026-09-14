@@ -29,7 +29,7 @@ export function Button({ variant = "primary", disabled, loading, style, children
       style={{ ...base, ...variantStyle, ...style }}
       {...rest}
     >
-      {loading && <span className="spinner" style={variant === "outline" ? { borderTopColor: "var(--color-brand)", borderColor: "rgba(48,107,52,0.25)" } : undefined} />}
+      {loading && <span className="spinner" style={variant === "outline" ? { borderTopColor: "var(--color-brand)", borderColor: "rgba(23,102,60,0.25)" } : undefined} />}
       {children}
     </button>
   );
