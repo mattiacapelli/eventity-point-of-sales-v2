@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { PosLayout } from "../../layout/PosLayout.js";
 import { adminApi } from "../../core/admin-api.js";
 import { useAdminStore } from "../../state/admin-store.js";
 import {
@@ -18,7 +18,6 @@ import {
   ListBulletIcon,
   UserGroupIcon,
   ShieldCheckIcon,
-  ChevronDownIcon,
   CloudArrowUpIcon,
 } from "../../components/ui/icons.js";
 import { BackupTab } from "./BackupTab.js";
@@ -40,7 +39,6 @@ import { TerminalsTab } from "./TerminalsTab.js";
 import { UsersTab } from "./UsersTab.js";
 import { LicenseTab } from "./LicenseTab.js";
 import { InterfaceTab } from "./InterfaceTab.js";
-import { NavMenuFab } from "../../components/NavMenu.js";
 
 // ─── Tab types ───────────────────────────────────────────────────────────────
 
@@ -112,155 +110,40 @@ const MODULE_TAB_MAP: Record<string, Tab[]> = {
   inventory: ["inventory", "movements"],
 };
 
-function GroupMenu({ group, activeTab, isTabVisible, onSelect }: {
+function SidebarGroup({ group, activeTab, isTabVisible, onSelect }: {
   group: Group;
   activeTab: Tab;
   isTabVisible: (key: Tab) => boolean;
   onSelect: (key: Tab) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const visibleTabs = group.tabs.filter((t) => isTabVisible(t.key));
-  const isActiveGroup = visibleTabs.some((t) => t.key === activeTab);
-  const singleTab = visibleTabs.length === 1 ? visibleTabs[0] : null;
-
-  useEffect(() => {
-    if (!open) return;
-    function handleClickOutside(e: MouseEvent) {
-      const target = e.target as Node;
-      if (buttonRef.current?.contains(target)) return;
-      if (menuRef.current?.contains(target)) return;
-      setOpen(false);
-    }
-    function handleScrollOrResize() {
-      setOpen(false);
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    window.addEventListener("scroll", handleScrollOrResize, true);
-    window.addEventListener("resize", handleScrollOrResize);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      window.removeEventListener("scroll", handleScrollOrResize, true);
-      window.removeEventListener("resize", handleScrollOrResize);
-    };
-  }, [open]);
-
-  function handleToggle() {
-    if (!open && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setMenuPos({ top: rect.bottom + 6, left: rect.left });
-    }
-    setOpen((v) => !v);
-  }
-
   if (visibleTabs.length === 0) return null;
 
-  if (singleTab) {
-    const active = activeTab === singleTab.key;
-    return (
-      <button
-        onClick={() => onSelect(singleTab.key)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "7px",
-          padding: "8px 16px",
-          borderRadius: "999px",
-          flexShrink: 0,
-          border: active ? "none" : "1.5px solid var(--color-gray-200)",
-          background: active ? "var(--color-brand)" : "var(--color-white)",
-          cursor: "pointer",
-          fontSize: "var(--text-sm)",
-          fontWeight: 600,
-          color: active ? "var(--color-white)" : "var(--color-gray-500)",
-          fontFamily: "var(--font)",
-        }}
-      >
-        <group.Icon style={{ width: "15px", height: "15px" }} />
-        {group.label}
-      </button>
-    );
-  }
-
   return (
-    <>
-      <button
-        ref={buttonRef}
-        onClick={handleToggle}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "7px",
-          padding: "8px 14px",
-          borderRadius: "999px",
-          flexShrink: 0,
-          border: isActiveGroup ? "none" : "1.5px solid var(--color-gray-200)",
-          background: isActiveGroup ? "var(--color-brand)" : "var(--color-white)",
-          cursor: "pointer",
-          fontSize: "var(--text-sm)",
-          fontWeight: 600,
-          color: isActiveGroup ? "var(--color-white)" : "var(--color-gray-500)",
-          fontFamily: "var(--font)",
-        }}
-      >
-        <group.Icon style={{ width: "15px", height: "15px" }} />
+    <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+      <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-gray-400)", padding: "4px 10px 6px" }}>
         {group.label}
-        <ChevronDownIcon style={{ width: "13px", height: "13px", transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-      </button>
-
-      {open && menuPos && createPortal(
-        <div
-          ref={menuRef}
-          style={{
-            position: "fixed",
-            top: `${menuPos.top}px`,
-            left: `${menuPos.left}px`,
-            minWidth: "220px",
-            background: "var(--color-white)",
-            border: "1px solid var(--color-gray-200)",
-            borderRadius: "var(--radius-lg)",
-            boxShadow: "var(--shadow-lg)",
-            padding: "6px",
-            zIndex: 1000,
-            display: "flex",
-            flexDirection: "column",
-            gap: "2px",
-          }}
-        >
-          {visibleTabs.map(({ key, label, Icon }) => {
-            const active = activeTab === key;
-            return (
-              <button
-                key={key}
-                onClick={() => { onSelect(key); setOpen(false); }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  padding: "9px 12px",
-                  borderRadius: "var(--radius-md)",
-                  border: "none",
-                  background: active ? "var(--color-gray-100)" : "transparent",
-                  cursor: "pointer",
-                  fontSize: "var(--text-sm)",
-                  fontWeight: active ? 700 : 500,
-                  color: active ? "var(--color-brand)" : "var(--color-gray-700)",
-                  fontFamily: "var(--font)",
-                  textAlign: "left",
-                  width: "100%",
-                }}
-              >
-                <Icon style={{ width: "16px", height: "16px", flexShrink: 0 }} />
-                {label}
-              </button>
-            );
-          })}
-        </div>,
-        document.body,
-      )}
-    </>
+      </span>
+      {visibleTabs.map(({ key, label }) => {
+        const active = activeTab === key;
+        return (
+          <button
+            key={key}
+            onClick={() => onSelect(key)}
+            style={{
+              display: "flex", alignItems: "center", width: "100%",
+              minHeight: "44px", padding: "0 12px", borderRadius: "10px", border: "none",
+              fontSize: "14.5px", fontWeight: 600, textAlign: "left", fontFamily: "var(--font)",
+              background: active ? "#E8F0EA" : "transparent",
+              color: active ? "var(--color-brand)" : "var(--color-gray-700)",
+              cursor: "pointer",
+            }}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -316,71 +199,15 @@ export function AdminScreen() {
   const activeTab_ = visibleTabs.find((t) => t.key === resolvedActiveTab) ?? visibleTabs[0]!
 
   return (
-    <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "var(--color-gray-50)", overflow: "hidden" }}>
-
-      {/* ── Top header ── */}
-      <div style={{
-        background: "var(--color-white)",
-        borderBottom: "1px solid var(--color-gray-200)",
-        flexShrink: 0,
-      }}>
-        {/* Title row */}
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "12px",
-          padding: "0 32px",
-          height: "60px",
-        }}>
-          <button
-            onClick={() => navigate("/pos")}
-            title="Torna al POS"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "34px",
-              height: "34px",
-              borderRadius: "var(--radius-md)",
-              border: "1px solid var(--color-gray-200)",
-              background: "var(--color-white)",
-              cursor: "pointer",
-              color: "var(--color-gray-500)",
-              flexShrink: 0,
-            }}
-          >
-            <ArrowLeftIcon style={{ width: "16px", height: "16px" }} />
-          </button>
-          <div style={{ width: "1px", height: "20px", background: "var(--color-gray-200)" }} />
-          <WrenchScrewdriverIcon style={{ width: "18px", height: "18px", color: "var(--color-brand)", flexShrink: 0 }} />
-          <span style={{ fontSize: "var(--text-md)", fontWeight: 700, color: "var(--color-gray-800)" }}>
-            Amministrazione
-          </span>
-          <span style={{ color: "var(--color-gray-300)", fontSize: "var(--text-sm)" }}>/</span>
-          <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-500)" }}>
-            {activeTab_.label}
-          </span>
-          {lowStockCount > 0 && (
-            <button
-              onClick={() => setActiveTab("inventory")}
-              title={`${lowStockCount} prodott${lowStockCount === 1 ? "o" : "i"} sotto scorta`}
-              style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "6px", padding: "5px 12px", borderRadius: "999px", background: "#fef2f2", border: "1px solid #fca5a5", cursor: "pointer", color: "#dc2626", fontSize: "var(--text-xs)", fontWeight: 700 }}
-            >
-              ⚠ {lowStockCount} sotto scorta
-            </button>
-          )}
-        </div>
-
-        {/* Group nav */}
-        <div style={{
-          display: "flex",
-          gap: "6px",
-          padding: "0 32px 14px",
-          overflowX: "auto",
-          scrollbarWidth: "none",
+    <PosLayout>
+      <div style={{ display: "flex", alignItems: "stretch", height: "100%" }}>
+        <aside style={{
+          width: "232px", flex: "none", background: "var(--color-white)",
+          borderRight: "1px solid var(--color-gray-200)", padding: "18px 12px",
+          display: "flex", flexDirection: "column", gap: "18px", overflowY: "auto",
         }}>
           {GROUPS.map((group) => (
-            <GroupMenu
+            <SidebarGroup
               key={group.key}
               group={group}
               activeTab={resolvedActiveTab}
@@ -388,41 +215,75 @@ export function AdminScreen() {
               onSelect={setActiveTab}
             />
           ))}
-        </div>
-      </div>
+        </aside>
 
-      {/* ── Content ── */}
-      <div className="scrollable" style={{ flex: 1, overflowY: "auto" }}>
-        {loading ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "200px" }}>
-            <span style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>Caricamento...</span>
-          </div>
-        ) : (
-          <div style={{ maxWidth: "960px", margin: "0 auto", padding: "32px 24px" }}>
-            {resolvedActiveTab === "restaurant" && <RestaurantTab />}
-            {resolvedActiveTab === "products" && <ProductsTab />}
-            {resolvedActiveTab === "categories" && <CategoriesTab />}
-            {resolvedActiveTab === "production-centers" && <ProductionCentersTab />}
-            {resolvedActiveTab === "cloud-sync" && <CloudSyncTab />}
-            {resolvedActiveTab === "payment-methods" && <PaymentMethodsTab />}
-            {resolvedActiveTab === "printers" && <PrintersTab />}
-            {resolvedActiveTab === "receipt-template" && <ReceiptTemplateTab />}
-            {resolvedActiveTab === "kitchen-template" && <KitchenTemplateTab />}
-            {resolvedActiveTab === "shift-report-template" && <ShiftReportTemplateTab />}
-            {resolvedActiveTab === "shifts" && <ShiftsTab />}
-            {resolvedActiveTab === "interface" && <InterfaceTab />}
-            {resolvedActiveTab === "backup" && <BackupTab />}
-            {resolvedActiveTab === "advanced" && <AdvancedTab onModuleToggle={refreshEnabledModules} />}
-            {resolvedActiveTab === "inventory" && <InventoryTab />}
-            {resolvedActiveTab === "movements" && <MovementsTab />}
-            {resolvedActiveTab === "terminals" && <TerminalsTab onMultiTerminalChange={setMultiTerminalEnabled} />}
-            {resolvedActiveTab === "users" && <UsersTab />}
-            {resolvedActiveTab === "license" && <LicenseTab />}
-          </div>
-        )}
-      </div>
+        <main className="scrollable" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "24px 28px 40px" }}>
+          <div style={{ maxWidth: "940px", display: "flex", flexDirection: "column", gap: "18px" }}>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: "16px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 700, letterSpacing: "-0.025em", color: "var(--color-gray-900)" }}>
+                  {activeTab_.label}
+                </h1>
+                <p style={{ margin: 0, fontSize: "14.5px", color: "var(--color-gray-700)" }}>Amministrazione</p>
+              </div>
+              <div style={{ flex: 1 }} />
+              {lowStockCount > 0 && (
+                <button
+                  onClick={() => setActiveTab("inventory")}
+                  title={`${lowStockCount} prodott${lowStockCount === 1 ? "o" : "i"} sotto scorta`}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "6px", height: "38px", padding: "0 14px",
+                    borderRadius: "999px", background: "rgba(154,44,34,0.08)", border: "1px solid rgba(154,44,34,0.25)",
+                    cursor: "pointer", color: "var(--color-danger)", fontSize: "13px", fontWeight: 700, fontFamily: "var(--font)",
+                  }}
+                >
+                  ⚠ {lowStockCount} sotto scorta
+                </button>
+              )}
+              <button
+                onClick={() => navigate("/pos")}
+                title="Torna al POS"
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: "38px", height: "38px", borderRadius: "10px",
+                  border: "1px solid var(--color-gray-200)", background: "var(--color-white)",
+                  cursor: "pointer", color: "var(--color-gray-600)", flexShrink: 0,
+                }}
+              >
+                <ArrowLeftIcon style={{ width: "16px", height: "16px" }} />
+              </button>
+            </div>
 
-      <NavMenuFab />
-    </div>
+            {loading ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "200px" }}>
+                <span style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>Caricamento...</span>
+              </div>
+            ) : (
+              <>
+                {resolvedActiveTab === "restaurant" && <RestaurantTab />}
+                {resolvedActiveTab === "products" && <ProductsTab />}
+                {resolvedActiveTab === "categories" && <CategoriesTab />}
+                {resolvedActiveTab === "production-centers" && <ProductionCentersTab />}
+                {resolvedActiveTab === "cloud-sync" && <CloudSyncTab />}
+                {resolvedActiveTab === "payment-methods" && <PaymentMethodsTab />}
+                {resolvedActiveTab === "printers" && <PrintersTab />}
+                {resolvedActiveTab === "receipt-template" && <ReceiptTemplateTab />}
+                {resolvedActiveTab === "kitchen-template" && <KitchenTemplateTab />}
+                {resolvedActiveTab === "shift-report-template" && <ShiftReportTemplateTab />}
+                {resolvedActiveTab === "shifts" && <ShiftsTab />}
+                {resolvedActiveTab === "interface" && <InterfaceTab />}
+                {resolvedActiveTab === "backup" && <BackupTab />}
+                {resolvedActiveTab === "advanced" && <AdvancedTab onModuleToggle={refreshEnabledModules} />}
+                {resolvedActiveTab === "inventory" && <InventoryTab />}
+                {resolvedActiveTab === "movements" && <MovementsTab />}
+                {resolvedActiveTab === "terminals" && <TerminalsTab onMultiTerminalChange={setMultiTerminalEnabled} />}
+                {resolvedActiveTab === "users" && <UsersTab />}
+                {resolvedActiveTab === "license" && <LicenseTab />}
+              </>
+            )}
+          </div>
+        </main>
+      </div>
+    </PosLayout>
   );
 }
