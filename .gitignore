@@ -148,3 +148,10 @@ dist
 
 # Internal-only docs (not for the public repo)
 /BRAND_IDENTITY.md
+
+# Stress test output (apps/server/stress-print-test.mjs)
+/stress-print-log-*.csv
+
+# Manual backup archives
+*.backup-*
+Archivio.zip
