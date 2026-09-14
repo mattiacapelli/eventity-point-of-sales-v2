@@ -1,10 +1,10 @@
 type Tone = "success" | "danger" | "neutral" | "brand";
 
 const TONE_STYLES: Record<Tone, React.CSSProperties> = {
-  success: { background: "rgba(34,197,94,0.12)", color: "#16a34a" },
-  danger: { background: "rgba(239,68,68,0.1)", color: "var(--color-danger)" },
+  success: { background: "var(--color-brand-wash)", color: "var(--color-brand)" },
+  danger: { background: "var(--color-danger-wash)", color: "var(--color-danger)" },
   neutral: { background: "var(--color-gray-100)", color: "var(--color-gray-600)" },
-  brand: { background: "rgba(48,107,52,0.1)", color: "var(--color-brand)" },
+  brand: { background: "var(--color-brand-wash)", color: "var(--color-brand)" },
 };
 
 export function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: Tone }) {
@@ -16,6 +16,7 @@ export function Badge({ children, tone = "neutral" }: { children: React.ReactNod
         fontSize: "var(--text-xs)",
         fontWeight: 700,
         display: "inline-block",
+        whiteSpace: "nowrap",
         ...TONE_STYLES[tone],
       }}
     >

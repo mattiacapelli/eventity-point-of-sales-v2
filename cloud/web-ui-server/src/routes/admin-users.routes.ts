@@ -97,6 +97,39 @@ const adminUsersRoutes: FastifyPluginAsync<{ db: DbClient }> = async (fastify, o
     },
   );
 
+  fastify.patch(
+    "/admin/tenants/:id/users/:userId",
+    { onRequest: [requireTenantRole(db, "owner")] },
+    async (request, reply) => {
+      const { id: tenantId, userId } = request.params as { id: string; userId: string };
+      const body = request.body as { role?: TenantRole };
+      const currentUser = request.currentUser!;
+
+      if (body.role !== "owner" && body.role !== "operator") {
+        return reply.status(400).send({ error: "role (owner|operator) is required" });
+      }
+
+      const [membership] = await db
+        .select()
+        .from(tenantUsers)
+        .where(and(eq(tenantUsers.tenantId, tenantId), eq(tenantUsers.userId, userId)));
+      if (!membership) return reply.status(404).send({ error: "Not found" });
+
+      if (!currentUser.isSuperAdmin && membership.role === "owner" && body.role !== "owner") {
+        return reply.status(403).send({ error: "Owners cannot demote other owners" });
+      }
+
+      await db.update(tenantUsers).set({ role: body.role }).where(eq(tenantUsers.id, membership.id));
+      await writeAuditLog(db, {
+        userId: currentUser.id,
+        tenantId,
+        action: "tenant_user.update_role",
+        metadata: { targetUserId: userId, previousRole: membership.role, newRole: body.role },
+      });
+      return reply.send({ id: membership.id, userId, role: body.role });
+    },
+  );
+
   fastify.delete(
     "/admin/tenants/:id/users/:userId",
     { onRequest: [requireTenantRole(db, "owner")] },

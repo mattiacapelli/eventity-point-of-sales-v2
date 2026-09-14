@@ -12,8 +12,8 @@ const VARIANT_STYLES: Record<Variant, React.CSSProperties> = {
 const VARIANT_CLASS: Record<Variant, string> = {
   primary: "btn-primary",
   secondary: "btn-outline",
-  danger: "",
-  ghost: "",
+  danger: "btn-danger",
+  ghost: "btn-ghost",
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

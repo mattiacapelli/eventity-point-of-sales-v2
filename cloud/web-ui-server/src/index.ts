@@ -13,6 +13,7 @@ import { seedSuperAdmin } from "./auth/seed-superadmin.js";
 import adminAuthRoutes from "./routes/admin-auth.routes.js";
 import adminTenantsRoutes from "./routes/admin-tenants.routes.js";
 import adminUsersRoutes from "./routes/admin-users.routes.js";
+import adminGlobalUsersRoutes from "./routes/admin-global-users.routes.js";
 import adminAuditRoutes from "./routes/admin-audit.routes.js";
 import adminExportRoutes from "./routes/admin-export.routes.js";
 import adminMenuImportRoutes from "./routes/admin-menu-import.routes.js";
@@ -54,6 +55,7 @@ async function main() {
   await fastify.register(adminAuthRoutes, { db });
   await fastify.register(adminTenantsRoutes, { db });
   await fastify.register(adminUsersRoutes, { db });
+  await fastify.register(adminGlobalUsersRoutes, { db });
   await fastify.register(adminAuditRoutes, { db });
   await fastify.register(adminExportRoutes, { db });
   await fastify.register(adminMenuImportRoutes, { db });

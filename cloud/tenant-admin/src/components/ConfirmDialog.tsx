@@ -29,7 +29,7 @@ export function ConfirmDialog({ title, description, confirmLabel = "Conferma", d
     <Modal onClose={onCancel}>
       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
         {danger && (
-          <div style={{ flexShrink: 0, width: "36px", height: "36px", borderRadius: "50%", background: "rgba(239,68,68,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ flexShrink: 0, width: "36px", height: "36px", borderRadius: "50%", background: "var(--color-danger-wash)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <ExclamationTriangleIcon width={20} height={20} color="var(--color-danger)" />
           </div>
         )}

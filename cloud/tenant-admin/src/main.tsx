@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 import { App } from "./app.js";
 import { ToastProvider } from "./components/Toast.js";
 import "./styles/globals.css";
@@ -11,8 +12,10 @@ if (rootEl === null) {
 
 createRoot(rootEl).render(
   <StrictMode>
-    <ToastProvider>
-      <App />
-    </ToastProvider>
+    <BrowserRouter>
+      <ToastProvider>
+        <App />
+      </ToastProvider>
+    </BrowserRouter>
   </StrictMode>
 );

@@ -63,6 +63,17 @@ const adminTenantsRoutes: FastifyPluginAsync<{ db: DbClient }> = async (fastify,
     return reply.send({ items: rows, total: count, page, pageSize });
   });
 
+  fastify.get(
+    "/admin/tenants/:id",
+    { onRequest: [requireTenantRole(db, "operator")] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const [row] = await db.select().from(tenants).where(eq(tenants.id, id));
+      if (!row) return reply.status(404).send({ error: "Not found" });
+      return reply.send(row);
+    },
+  );
+
   fastify.post(
     "/admin/tenants",
     { onRequest: [requireSuperAdmin()] },

@@ -28,6 +28,11 @@ const emojiBodySchema = z.object({
   emoji: z.string().trim().max(8).nullable(),
 });
 
+const createCategoryBodySchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  emoji: z.string().trim().max(8).nullable().optional(),
+});
+
 const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD");
 const availabilityBodySchema = z.object({
   availableDates: z.array(isoDateSchema).nullable(),
@@ -140,6 +145,111 @@ const adminCatalogRoutes: FastifyPluginAsync<{ db: DbClient; dataDir: string }> 
 
       const [updated] = await db.select().from(categories).where(eq(categories.id, categoryId));
       return reply.send(updated);
+    },
+  );
+
+  fastify.post(
+    "/admin/tenants/:id/categories",
+    { onRequest: [requireTenantRole(db, "owner")] },
+    async (request, reply) => {
+      const { id: tenantId } = request.params as { id: string };
+      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+      if (!tenant) return reply.status(404).send({ error: "Tenant not found" });
+
+      const parsed = createCategoryBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid payload", details: parsed.error.flatten() });
+      }
+
+      const existing = await db.select().from(categories).where(eq(categories.tenantId, tenantId));
+      const nextSortOrder = existing.reduce((max, c) => Math.max(max, c.sortOrder), -1) + 1;
+
+      const [created] = await db.insert(categories).values({
+        tenantId,
+        name: parsed.data.name,
+        emoji: parsed.data.emoji?.trim() || null,
+        sortOrder: nextSortOrder,
+      }).returning();
+
+      await writeAuditLog(db, {
+        userId: request.currentUser!.id,
+        tenantId,
+        action: "category.create",
+        metadata: { categoryId: created!.id, name: created!.name },
+      });
+
+      return reply.status(201).send(created);
+    },
+  );
+
+  fastify.patch(
+    "/admin/tenants/:id/categories/:categoryId",
+    { onRequest: [requireTenantRole(db, "owner")] },
+    async (request, reply) => {
+      const { id: tenantId, categoryId: categoryIdParam } = request.params as { id: string; categoryId: string };
+      const categoryId = Number(categoryIdParam);
+      if (!Number.isInteger(categoryId) || categoryId <= 0) {
+        return reply.status(400).send({ error: "Invalid category id" });
+      }
+
+      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+      if (!tenant) return reply.status(404).send({ error: "Tenant not found" });
+
+      const parsed = renameBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid payload", details: parsed.error.flatten() });
+      }
+
+      const [category] = await db.select().from(categories).where(
+        and(eq(categories.id, categoryId), eq(categories.tenantId, tenantId)),
+      );
+      if (!category) return reply.status(404).send({ error: "Category not found" });
+
+      await db.update(categories)
+        .set({ name: parsed.data.name })
+        .where(and(eq(categories.id, categoryId), eq(categories.tenantId, tenantId)));
+
+      await writeAuditLog(db, {
+        userId: request.currentUser!.id,
+        tenantId,
+        action: "category.rename",
+        metadata: { categoryId, oldName: category.name, newName: parsed.data.name },
+      });
+
+      const [updated] = await db.select().from(categories).where(eq(categories.id, categoryId));
+      return reply.send(updated);
+    },
+  );
+
+  fastify.delete(
+    "/admin/tenants/:id/categories/:categoryId",
+    { onRequest: [requireTenantRole(db, "owner")] },
+    async (request, reply) => {
+      const { id: tenantId, categoryId: categoryIdParam } = request.params as { id: string; categoryId: string };
+      const categoryId = Number(categoryIdParam);
+      if (!Number.isInteger(categoryId) || categoryId <= 0) {
+        return reply.status(400).send({ error: "Invalid category id" });
+      }
+
+      const [category] = await db.select().from(categories).where(
+        and(eq(categories.id, categoryId), eq(categories.tenantId, tenantId)),
+      );
+      if (!category) return reply.status(404).send({ error: "Category not found" });
+
+      const productsInCategory = await db.select().from(products).where(
+        and(eq(products.categoryId, categoryId), eq(products.tenantId, tenantId)),
+      );
+
+      await db.delete(categories).where(and(eq(categories.id, categoryId), eq(categories.tenantId, tenantId)));
+
+      await writeAuditLog(db, {
+        userId: request.currentUser!.id,
+        tenantId,
+        action: "category.delete",
+        metadata: { categoryId, name: category.name, deletedProductsCount: productsInCategory.length },
+      });
+
+      return reply.status(204).send();
     },
   );
 

@@ -2,11 +2,15 @@ import { UserCircleIcon } from "@heroicons/react/24/outline";
 import type { CurrentUser } from "../core/types.js";
 import { Button } from "../components/Button.js";
 import { Badge } from "../components/Badge.js";
+import { PageHeader } from "../components/PageHeader.js";
 
 export function ProfileScreen({ currentUser, onLogout }: { currentUser: CurrentUser; onLogout: () => void }) {
   return (
-    <div style={{ maxWidth: "480px", padding: "var(--sp-lg)" }}>
-      <div style={{ fontSize: "var(--text-xl)", fontWeight: 700, marginBottom: "var(--sp-lg)" }}>Il mio profilo</div>
+    <div>
+      <PageHeader
+        title="Il mio profilo"
+        description="Informazioni sul tuo account e sessione."
+      />
 
       <div
         style={{
@@ -24,7 +28,7 @@ export function ProfileScreen({ currentUser, onLogout }: { currentUser: CurrentU
           <div
             style={{
               width: "48px", height: "48px", borderRadius: "50%",
-              background: "rgba(48,107,52,0.1)",
+              background: "var(--color-brand-wash)",
               display: "flex", alignItems: "center", justifyContent: "center",
               flexShrink: 0,
             }}

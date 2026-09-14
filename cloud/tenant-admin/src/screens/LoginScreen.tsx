@@ -34,14 +34,14 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: (user: CurrentUser) =>
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        background: "linear-gradient(160deg, var(--color-brand) 0%, #1a4a1e 100%)",
+        background: "var(--color-gray-50)",
         padding: "var(--sp-xl)",
         gap: "var(--sp-xl)",
       }}
     >
       <div style={{ textAlign: "center" }}>
-        <img src="/logo.svg" alt="epos" style={{ height: "64px", marginBottom: "8px" }} />
-        <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "var(--text-md)" }}>
+        <span style={{ fontSize: "34px", fontWeight: 700, letterSpacing: "-0.04em", color: "var(--color-brand)" }}>epos</span>
+        <div style={{ color: "var(--color-gray-500)", fontSize: "var(--text-md)", marginTop: "2px" }}>
           Cloud Dashboard
         </div>
       </div>
@@ -52,8 +52,9 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: (user: CurrentUser) =>
           width: "100%",
           maxWidth: "340px",
           background: "var(--color-white)",
+          border: "1px solid var(--color-gray-200)",
           borderRadius: "var(--radius-xl)",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+          boxShadow: "var(--shadow-lg)",
           padding: "var(--sp-xl)",
           display: "flex",
           flexDirection: "column",
@@ -80,7 +81,7 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: (user: CurrentUser) =>
         </div>
         {error && (
           <div style={{
-            background: "rgba(239,68,68,0.1)", color: "var(--color-danger)",
+            background: "var(--color-danger-wash)", color: "var(--color-danger)",
             padding: "10px 14px", borderRadius: "var(--radius-md)",
             fontSize: "var(--text-sm)", fontWeight: 500, textAlign: "center",
           }}>

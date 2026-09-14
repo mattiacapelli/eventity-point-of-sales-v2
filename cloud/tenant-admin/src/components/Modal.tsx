@@ -9,7 +9,7 @@ export function Modal({ onClose, children, maxWidth = "420px" }: {
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(17,24,39,0.4)",
+        background: "var(--overlay)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

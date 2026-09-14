@@ -78,6 +78,12 @@ export async function listTenants(params: { search?: string; page?: number; page
   return res.json() as Promise<Paginated<Tenant>>;
 }
 
+export async function getTenant(id: string): Promise<Tenant> {
+  const res = await authedFetch(`/admin/tenants/${id}`);
+  await throwIfNotOk(res, "Tenant non trovato");
+  return res.json() as Promise<Tenant>;
+}
+
 export async function createTenant(name: string): Promise<Tenant> {
   const res = await authedFetch("/admin/tenants", { method: "POST", body: JSON.stringify({ name }) });
   await throwIfNotOk(res, "Impossibile creare il tenant");
@@ -125,6 +131,34 @@ export async function inviteTenantUser(tenantId: string, email: string, role: Te
 export async function removeTenantUser(tenantId: string, userId: string): Promise<void> {
   const res = await authedFetch(`/admin/tenants/${tenantId}/users/${userId}`, { method: "DELETE" });
   await throwIfNotOk(res, "Impossibile rimuovere l'utente");
+}
+
+export async function updateTenantUserRole(tenantId: string, userId: string, role: TenantUserRole): Promise<{ id: string; userId: string; role: TenantUserRole }> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/users/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ role }),
+  });
+  await throwIfNotOk(res, "Impossibile aggiornare il ruolo");
+  return res.json();
+}
+
+export interface GlobalUser {
+  id: string;
+  email: string;
+  isSuperAdmin: boolean;
+  active: boolean;
+  createdAt: number;
+  tenants: { tenantId: string; tenantName: string; tenantSlug: string; role: TenantUserRole }[];
+}
+
+export async function listGlobalUsers(params: { search?: string; page?: number; pageSize?: number } = {}): Promise<Paginated<GlobalUser>> {
+  const query = new URLSearchParams();
+  if (params.search) query.set("search", params.search);
+  if (params.page) query.set("page", String(params.page));
+  if (params.pageSize) query.set("pageSize", String(params.pageSize));
+  const res = await authedFetch(`/admin/users?${query.toString()}`);
+  await throwIfNotOk(res, "Impossibile caricare gli utenti");
+  return res.json() as Promise<Paginated<GlobalUser>>;
 }
 
 export async function fetchAuditLog(tenantId: string, page = 1, pageSize = 20): Promise<Paginated<AuditLogEntry>> {
@@ -191,6 +225,29 @@ export async function reorderCategories(tenantId: string, order: number[]): Prom
     body: JSON.stringify({ order }),
   });
   await throwIfNotOk(res, "Impossibile riordinare le categorie");
+}
+
+export async function createCategory(tenantId: string, name: string, emoji?: string | null): Promise<CategoryRecord> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/categories`, {
+    method: "POST",
+    body: JSON.stringify({ name, emoji: emoji ?? null }),
+  });
+  await throwIfNotOk(res, "Impossibile creare la categoria");
+  return res.json() as Promise<CategoryRecord>;
+}
+
+export async function renameCategory(tenantId: string, categoryId: number, name: string): Promise<CategoryRecord> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/categories/${categoryId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ name }),
+  });
+  await throwIfNotOk(res, "Impossibile rinominare la categoria");
+  return res.json() as Promise<CategoryRecord>;
+}
+
+export async function deleteCategory(tenantId: string, categoryId: number): Promise<void> {
+  const res = await authedFetch(`/admin/tenants/${tenantId}/categories/${categoryId}`, { method: "DELETE" });
+  await throwIfNotOk(res, "Impossibile eliminare la categoria");
 }
 
 export async function listProducts(tenantId: string): Promise<ProductRecord[]> {
