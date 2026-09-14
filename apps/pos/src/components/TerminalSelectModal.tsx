@@ -120,7 +120,7 @@ export function TerminalSelectModal({ onSelected }: Props) {
                   padding: "12px 14px",
                   borderRadius: "var(--radius-md)",
                   border: `2px solid ${selected === t.id ? "var(--color-brand)" : "var(--color-gray-200)"}`,
-                  background: selected === t.id ? "rgba(48,107,52,0.06)" : "var(--color-white)",
+                  background: selected === t.id ? "rgba(23,102,60,0.06)" : "var(--color-white)",
                   cursor: "pointer", textAlign: "left", width: "100%",
                   transition: "border-color 0.15s",
                 }}

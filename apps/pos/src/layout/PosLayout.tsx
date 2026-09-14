@@ -1,17 +1,25 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useStore } from "../state/global-store.js";
 import { useShiftStore } from "../state/shift-store.js";
 import { useTerminalStore } from "../state/terminal-store.js";
 import { authClient } from "../core/auth-client.js";
 import { apiClient } from "../core/api-client.js";
 import { ClockIcon, WifiIcon, SignalSlashIcon } from "../components/ui/icons.js";
-import { NavMenuFab } from "../components/NavMenu.js";
 import { TerminalSelectModal } from "../components/TerminalSelectModal.js";
 
 interface PosLayoutProps {
   children: React.ReactNode;
 }
+
+const NAV_ITEMS = [
+  { path: "/pos",       label: "Cassa" },
+  { path: "/kitchen",   label: "Comande" },
+  { path: "/history",   label: "Storico" },
+  { path: "/stats",     label: "Statistiche" },
+  { path: "/admin",     label: "Admin",  roles: ["admin"] },
+] as const;
 
 function ShiftBadge({ openedAt }: { openedAt: number }) {
   const [elapsed, setElapsed] = useState(() => {
@@ -34,11 +42,11 @@ function ShiftBadge({ openedAt }: { openedAt: number }) {
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: "5px",
-      background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.18)",
+      background: "var(--color-gray-100)", border: "1px solid var(--color-gray-200)",
       borderRadius: "var(--radius-md)", padding: "4px 10px",
     }}>
-      <ClockIcon style={{ width: "13px", height: "13px", color: "rgba(255,255,255,0.7)" }} />
-      <span style={{ color: "rgba(255,255,255,0.85)", fontSize: "var(--text-xs)", fontWeight: 600 }}>{elapsed}</span>
+      <ClockIcon style={{ width: "13px", height: "13px", color: "var(--color-gray-600)" }} />
+      <span style={{ color: "var(--color-gray-700)", fontSize: "var(--text-xs)", fontWeight: 600 }}>{elapsed}</span>
     </div>
   );
 }
@@ -182,6 +190,8 @@ export function PosLayout({ children }: PosLayoutProps) {
   const { session, isOffline, wsStatus, setSession, multiTerminalEnabled } = useStore();
   const { currentShift, setShiftModalOpen } = useShiftStore();
   const { terminalName } = useTerminalStore();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [terminalModalOpen, setTerminalModalOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileBtnRef = useRef<HTMLButtonElement>(null);
@@ -198,40 +208,64 @@ export function PosLayout({ children }: PosLayoutProps) {
     setSession(null);
   };
 
+  const visibleNavItems = NAV_ITEMS.filter((item) => !("roles" in item) || (item.roles as readonly string[]).includes(session?.role ?? ""));
+
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--color-gray-50)" }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--color-gray-100)" }}>
 
       <header
         style={{
-          height: "52px",
-          background: "var(--color-brand)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 var(--sp-lg)",
-          flexShrink: 0,
-          zIndex: 10,
+          display: "flex", alignItems: "center", gap: "26px",
+          padding: "0 18px", height: "64px",
+          background: "var(--color-white)", borderBottom: "1px solid var(--color-gray-200)",
+          flexShrink: 0, zIndex: 10,
         }}
       >
         {/* Left: logo */}
-        <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-          <img src="/logo.svg" alt="Eventity" style={{ height: "24px", display: "block" }} />
+        <div style={{ flex: "none", display: "flex", alignItems: "baseline", gap: "10px" }}>
+          <span style={{ fontSize: "24px", fontWeight: 700, letterSpacing: "-0.04em", color: "var(--color-brand)" }}>epos</span>
         </div>
 
-        {/* Center: optional chips — allowed to shrink/disappear */}
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-sm)", overflow: "hidden", flex: 1, justifyContent: "flex-end", marginRight: "var(--sp-sm)" }}>
+        {/* Nav */}
+        <nav style={{
+          flex: "1 1 auto", minWidth: 0, display: "flex", alignItems: "center", gap: "4px",
+          overflowX: "auto", overflowY: "hidden", scrollbarWidth: "none",
+        }}>
+          {visibleNavItems.map((item) => {
+            const active = location.pathname === item.path;
+            return (
+              <button
+                key={item.path}
+                onClick={() => navigate(item.path)}
+                style={{
+                  height: "42px", padding: "0 15px", borderRadius: "11px",
+                  fontSize: "15px", fontWeight: 600, letterSpacing: "-0.005em",
+                  flex: "none", whiteSpace: "nowrap", fontFamily: "var(--font)",
+                  background: active ? "#E8F0EA" : "transparent",
+                  color: active ? "var(--color-brand)" : "var(--color-gray-700)",
+                  cursor: "pointer",
+                }}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Right: status chips + profile */}
+        <div style={{ flex: "none", display: "flex", alignItems: "center", gap: "8px" }}>
           {connectionState !== "online" && (
             <div style={{
               display: "flex", alignItems: "center", gap: "5px", flexShrink: 0,
-              background: connectionState === "offline" ? "rgba(239,68,68,0.2)" : "rgba(245,158,11,0.2)",
-              border: `1px solid ${connectionState === "offline" ? "rgba(239,68,68,0.4)" : "rgba(245,158,11,0.4)"}`,
+              background: connectionState === "offline" ? "rgba(154,44,34,0.1)" : "rgba(201,138,22,0.12)",
+              border: `1px solid ${connectionState === "offline" ? "rgba(154,44,34,0.25)" : "rgba(201,138,22,0.3)"}`,
               borderRadius: "var(--radius-md)", padding: "4px 10px",
             }}>
               {connectionState === "offline"
-                ? <SignalSlashIcon style={{ width: "13px", height: "13px", color: "rgba(255,180,180,0.9)", flexShrink: 0 }} />
-                : <WifiIcon style={{ width: "13px", height: "13px", color: "rgba(255,220,130,0.9)", flexShrink: 0 }} />
+                ? <SignalSlashIcon style={{ width: "13px", height: "13px", color: "var(--color-danger)", flexShrink: 0 }} />
+                : <WifiIcon style={{ width: "13px", height: "13px", color: "var(--color-warning)", flexShrink: 0 }} />
               }
-              <span style={{ color: connectionState === "offline" ? "rgba(255,180,180,0.9)" : "rgba(255,220,130,0.9)", fontSize: "var(--text-xs)", fontWeight: 600 }}>
+              <span style={{ color: connectionState === "offline" ? "var(--color-danger)" : "var(--color-warning)", fontSize: "var(--text-xs)", fontWeight: 600 }}>
                 {connectionState === "offline" ? "Offline" : "Segnale debole"}
               </span>
             </div>
@@ -242,13 +276,13 @@ export function PosLayout({ children }: PosLayoutProps) {
               title={isAdmin ? "Cambia terminale" : undefined}
               style={{
                 display: "flex", alignItems: "center", gap: "5px", flexShrink: 0,
-                background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.18)",
+                background: "var(--color-gray-100)", border: "1px solid var(--color-gray-200)",
                 borderRadius: "var(--radius-md)", padding: "4px 10px",
                 cursor: isAdmin ? "pointer" : "default",
               }}
             >
-              <span style={{ color: "rgba(255,255,255,0.85)", fontSize: "var(--text-xs)", fontWeight: 600 }}>{terminalName}</span>
-              {isAdmin && <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "10px" }}>✎</span>}
+              <span style={{ color: "var(--color-gray-700)", fontSize: "var(--text-xs)", fontWeight: 600 }}>{terminalName}</span>
+              {isAdmin && <span style={{ color: "var(--color-gray-400)", fontSize: "10px" }}>✎</span>}
             </div>
           )}
           {currentShift && <ShiftBadge openedAt={currentShift.openedAt} />}
@@ -256,56 +290,56 @@ export function PosLayout({ children }: PosLayoutProps) {
             onClick={() => setShiftModalOpen(currentShift ? "close" : "open")}
             style={{
               display: "flex", alignItems: "center", gap: "6px", flexShrink: 0,
-              borderRadius: "var(--radius-md)",
-              border: currentShift ? "1px solid rgba(239,68,68,0.5)" : "1px solid rgba(255,255,255,0.3)",
-              background: currentShift ? "rgba(239,68,68,0.18)" : "rgba(255,255,255,0.12)",
+              height: "42px", padding: "0 14px", borderRadius: "11px",
+              fontSize: "14px", fontWeight: 600, whiteSpace: "nowrap", fontFamily: "var(--font)",
+              border: currentShift ? "1px solid var(--color-gray-200)" : "none",
+              background: currentShift ? "var(--color-white)" : "var(--color-brand)",
+              color: currentShift ? "var(--color-gray-700)" : "var(--color-white)",
               cursor: "pointer",
-              color: "rgba(255,255,255,0.85)",
-              padding: "5px 10px",
-              fontFamily: "var(--font)", fontSize: "13px", fontWeight: 600,
             }}
           >
             <ClockIcon style={{ width: "14px", height: "14px", flexShrink: 0 }} />
-            {currentShift ? "Chiudi turno" : "Apri turno"}
+            {currentShift ? "Chiudi cassa" : "Apri cassa"}
           </button>
-        </div>
 
-        {/* Right: username — always visible */}
-        {session && (
-          <div style={{ flexShrink: 0 }}>
-            <button
-              ref={profileBtnRef}
-              onClick={() => setProfileOpen((v) => !v)}
-              title="Profilo"
-              style={{
-                display: "flex", alignItems: "center", gap: "5px",
-                background: "rgba(255,255,255,0.15)",
-                border: "1px solid rgba(255,255,255,0.3)",
-                borderRadius: "6px",
-                color: "#fff", cursor: "pointer",
-                fontFamily: "var(--font)", fontSize: "13px", fontWeight: 600,
-                whiteSpace: "nowrap", padding: "5px 10px",
-              }}
-            >
-              {session.name}
-              <span style={{ fontSize: "9px", opacity: 0.6, color: "#fff" }}>▾</span>
-            </button>
-            {profileOpen && (
-              <ProfilePopover
-                anchorRef={profileBtnRef}
-                onClose={() => setProfileOpen(false)}
-                onLogout={() => { setProfileOpen(false); handleLogout(); }}
-              />
-            )}
-          </div>
-        )}
+          {session && (
+            <div style={{ flexShrink: 0, position: "relative" }}>
+              <button
+                ref={profileBtnRef}
+                onClick={() => setProfileOpen((v) => !v)}
+                title="Profilo"
+                style={{
+                  display: "flex", alignItems: "center", gap: "9px",
+                  height: "42px", padding: "0 10px 0 8px", borderRadius: "11px",
+                  border: "1px solid var(--color-gray-200)", background: "var(--color-white)",
+                  color: "var(--color-gray-900)", cursor: "pointer",
+                  fontFamily: "var(--font)", fontSize: "14px", fontWeight: 600, whiteSpace: "nowrap",
+                }}
+              >
+                <span style={{
+                  width: "26px", height: "26px", borderRadius: "50%",
+                  background: "#E8F0EA", color: "var(--color-brand)",
+                  fontSize: "13px", fontWeight: 700, display: "grid", placeItems: "center", flexShrink: 0,
+                }}>
+                  {session.name.charAt(0)}
+                </span>
+                {session.name}
+              </button>
+              {profileOpen && (
+                <ProfilePopover
+                  anchorRef={profileBtnRef}
+                  onClose={() => setProfileOpen(false)}
+                  onLogout={() => { setProfileOpen(false); handleLogout(); }}
+                />
+              )}
+            </div>
+          )}
+        </div>
       </header>
 
       <div style={{ flex: 1, overflow: "hidden", position: "relative", minHeight: 0, height: 0 }}>
         {children}
       </div>
-
-      <NavMenuFab />
 
       {terminalModalOpen && (
         <TerminalSelectModal onSelected={() => setTerminalModalOpen(false)} />

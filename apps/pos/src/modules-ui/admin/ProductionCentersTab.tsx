@@ -285,7 +285,7 @@ export function ProductionCentersTab() {
                       gap: "5px",
                       padding: "3px 10px 3px 10px",
                       borderRadius: "20px",
-                      background: "rgba(48,107,52,0.1)",
+                      background: "rgba(23,102,60,0.1)",
                       color: "var(--color-brand)",
                       fontSize: "var(--text-xs)",
                       fontWeight: 600,

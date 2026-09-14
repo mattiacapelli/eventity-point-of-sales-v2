@@ -267,7 +267,7 @@ export function ProductConfigurator({ product, onClose }: Props) {
                             ? `2px solid ${activeColor}`
                             : "2px solid var(--color-gray-200)",
                           background: isSelected
-                            ? isNeg ? "rgba(239,68,68,0.08)" : isNote ? "rgba(107,114,128,0.08)" : "rgba(48,107,52,0.08)"
+                            ? isNeg ? "rgba(239,68,68,0.08)" : isNote ? "rgba(107,114,128,0.08)" : "rgba(23,102,60,0.08)"
                             : "var(--color-white)",
                           cursor: "pointer",
                           fontSize: "var(--text-sm)",

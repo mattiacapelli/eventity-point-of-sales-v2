@@ -46,7 +46,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
         padding: "4px 10px",
         borderRadius: "999px",
         border: `1.5px solid ${active ? "var(--color-brand)" : "var(--color-gray-200)"}`,
-        background: active ? "rgba(48,107,52,0.08)" : "transparent",
+        background: active ? "rgba(23,102,60,0.08)" : "transparent",
         fontFamily: "var(--font)",
         fontSize: "12px",
         fontWeight: active ? 700 : 500,
@@ -156,7 +156,7 @@ function ExtrasPopover(props: ExtrasPopoverProps) {
                 flex: 1, padding: "8px",
                 borderRadius: "var(--radius-md)",
                 border: `1.5px solid ${discountMode === m ? "var(--color-brand)" : "var(--color-gray-200)"}`,
-                background: discountMode === m ? "rgba(48,107,52,0.07)" : "white",
+                background: discountMode === m ? "rgba(23,102,60,0.07)" : "white",
                 fontFamily: "var(--font)", fontWeight: 700, fontSize: "var(--text-sm)",
                 color: discountMode === m ? "var(--color-brand)" : "var(--color-gray-500)", cursor: "pointer",
               }}>
@@ -350,7 +350,7 @@ function VariantDialog({ cartKey, productId, productName, unitPrice, existingNot
                         padding: "8px 16px",
                         borderRadius: "999px",
                         border: `2px solid ${on ? activeColor : "var(--color-gray-200)"}`,
-                        background: on ? (isNeg ? "rgba(239,68,68,0.08)" : isNote ? "rgba(107,114,128,0.08)" : "rgba(48,107,52,0.08)") : "var(--color-white)",
+                        background: on ? (isNeg ? "rgba(239,68,68,0.08)" : isNote ? "rgba(107,114,128,0.08)" : "rgba(23,102,60,0.08)") : "var(--color-white)",
                         fontFamily: "var(--font)", fontSize: "var(--text-sm)",
                         fontWeight: on ? 700 : 500,
                         color: on ? activeColor : "var(--color-gray-700)",
@@ -390,7 +390,7 @@ function VariantDialog({ cartKey, productId, productName, unitPrice, existingNot
                         width: "36px", height: "36px",
                         borderRadius: "var(--radius-md)",
                         border: `2px solid ${freeNotePrefix === p ? (p === "+" ? "var(--color-brand)" : "var(--color-danger)") : "var(--color-gray-200)"}`,
-                        background: freeNotePrefix === p ? (p === "+" ? "rgba(48,107,52,0.08)" : "rgba(239,68,68,0.08)") : "var(--color-white)",
+                        background: freeNotePrefix === p ? (p === "+" ? "rgba(23,102,60,0.08)" : "rgba(239,68,68,0.08)") : "var(--color-white)",
                         color: freeNotePrefix === p ? (p === "+" ? "var(--color-brand)" : "var(--color-danger)") : "var(--color-gray-400)",
                         fontFamily: "var(--font)", fontSize: "18px", fontWeight: 800,
                         cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
@@ -651,17 +651,17 @@ export function CartPanel() {
       {editingOrderId && (
         <div style={{
           padding: "7px var(--sp-md)",
-          background: "#fef3c7",
-          borderBottom: "1px solid #fcd34d",
+          background: "#FFF8EC",
+          borderBottom: "1px solid #F0DFBE",
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px",
           flexShrink: 0,
         }}>
-          <span style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "#92400e" }}>
+          <span style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "#6B4A0C" }}>
             ✏️ Modifica ordine #{editingOrderId}
           </span>
           <button
             onClick={() => { setEditingOrderId(null); clearCart(); }}
-            style={{ fontSize: "11px", fontWeight: 600, color: "#b45309", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font)" }}
+            style={{ fontSize: "11px", fontWeight: 600, color: "#8A6A2B", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font)" }}
           >
             Annulla
           </button>
@@ -670,25 +670,26 @@ export function CartPanel() {
 
       {/* Header */}
       <div style={{
-        padding: "11px var(--sp-md)",
+        padding: "18px 20px 14px",
         borderBottom: "1px solid var(--color-gray-100)",
-        display: "flex", alignItems: "center", justifyContent: "space-between",
+        display: "flex", alignItems: "center", gap: "10px",
         flexShrink: 0,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ fontSize: "var(--text-md)", fontWeight: 700, color: "var(--color-gray-900)" }}>Ordine</span>
-          {hasItems && (
-            <span style={{
-              background: "var(--color-brand)", color: "white",
-              borderRadius: "999px", fontSize: "11px", fontWeight: 700, padding: "1px 7px",
-            }}>
-              {cart.reduce((s, i) => s + i.quantity, 0)}
-            </span>
-          )}
-        </div>
+        <h2 style={{ margin: 0, fontSize: "19px", fontWeight: 700, letterSpacing: "-0.015em", color: "var(--color-gray-900)" }}>Ordine</h2>
+        {hasItems && (
+          <span style={{
+            minWidth: "28px", height: "28px", padding: "0 8px", borderRadius: "9px",
+            background: "#E8F0EA", color: "var(--color-brand)",
+            fontSize: "14px", fontWeight: 700, display: "grid", placeItems: "center",
+          }}>
+            {cart.reduce((s, i) => s + i.quantity, 0)}
+          </span>
+        )}
+        <span style={{ flex: 1 }} />
         {hasItems && (
           <button onClick={clearCart} disabled={loading} style={{
-            color: "var(--color-gray-400)", fontSize: "11px", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase",
+            height: "36px", padding: "0 10px", borderRadius: "9px",
+            color: "var(--color-gray-500)", fontSize: "13.5px", fontWeight: 600,
             cursor: loading ? "not-allowed" : "pointer", background: "none", border: "none", fontFamily: "var(--font)",
           }}>
             Svuota
@@ -713,8 +714,8 @@ export function CartPanel() {
               const isVariantOpen = variantTarget?.cartKey === item.cartKey;
 
               const btnBase: React.CSSProperties = {
-                height: "34px",
-                borderRadius: "var(--radius-md)",
+                height: "42px",
+                borderRadius: "9px",
                 border: "none", cursor: "pointer", fontWeight: 700, fontSize: "16px",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 flexShrink: 0, transition: "background 0.12s, color 0.12s",
@@ -771,21 +772,19 @@ export function CartPanel() {
                   {/* Row 2: controls */}
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     {/* − qty + stepper */}
-                    <div style={{ display: "flex", alignItems: "center", background: "var(--color-gray-100)", borderRadius: "var(--radius-md)", overflow: "hidden", flexShrink: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "2px", background: "var(--color-gray-100)", borderRadius: "11px", padding: "3px", flexShrink: 0 }}>
                       <button
                         onClick={() => updateCartQty(item.cartKey, item.quantity - 1)}
-                        style={{ ...btnBase, width: "34px", background: "transparent", color: "var(--color-gray-600)" }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-gray-200)"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                        style={{ ...btnBase, width: "42px", background: "var(--color-white)", color: "var(--color-brand)", fontSize: "22px" }}
                       >−</button>
-                      <span style={{ fontSize: "var(--text-md)", fontWeight: 700, minWidth: "28px", textAlign: "center", color: "var(--color-gray-900)" }}>
+                      <span style={{ fontSize: "17px", fontWeight: 700, minWidth: "30px", textAlign: "center", color: "var(--color-gray-900)" }}>
                         {item.quantity}
                       </span>
                       <button
                         onClick={() => updateCartQty(item.cartKey, item.quantity + 1)}
-                        style={{ ...btnBase, width: "34px", background: "var(--color-brand)", color: "white" }}
-                        onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.85"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+                        style={{ ...btnBase, width: "42px", background: "var(--color-brand)", color: "var(--color-white)", fontSize: "22px" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-brand-dark)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "var(--color-brand)"; }}
                       >+</button>
                     </div>
 
@@ -794,7 +793,7 @@ export function CartPanel() {
                     {/* Variante */}
                     <button
                       onClick={() => openVariant({ cartKey: item.cartKey, productId: item.productId, name: item.name, unitPrice: item.unitPrice })}
-                      style={{ ...btnBase, width: "34px", background: isVariantOpen ? "var(--color-brand)" : "var(--color-gray-100)", color: isVariantOpen ? "white" : "var(--color-gray-500)", fontSize: "14px" }}
+                      style={{ ...btnBase, width: "42px", background: isVariantOpen ? "var(--color-brand)" : "var(--color-gray-100)", color: isVariantOpen ? "var(--color-white)" : "var(--color-gray-500)", fontSize: "14px" }}
                       onMouseEnter={(e) => { e.currentTarget.style.background = isVariantOpen ? "var(--color-brand)" : "var(--color-gray-200)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = isVariantOpen ? "var(--color-brand)" : "var(--color-gray-100)"; }}
                       title="Variante / nota"
@@ -803,8 +802,8 @@ export function CartPanel() {
                     {/* Rimuovi */}
                     <button
                       onClick={() => updateCartQty(item.cartKey, 0)}
-                      style={{ ...btnBase, width: "34px", background: "var(--color-gray-100)", color: "var(--color-gray-400)", fontSize: "13px" }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-danger)"; e.currentTarget.style.color = "white"; }}
+                      style={{ ...btnBase, width: "42px", background: "var(--color-gray-100)", color: "var(--color-gray-400)", fontSize: "13px" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-danger)"; e.currentTarget.style.color = "var(--color-white)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = "var(--color-gray-100)"; e.currentTarget.style.color = "var(--color-gray-400)"; }}
                       title="Rimuovi"
                     >✕</button>
@@ -919,32 +918,33 @@ export function CartPanel() {
 
       {/* Footer */}
       <div style={{
-        padding: "var(--sp-md)",
-        borderTop: "1px solid var(--color-gray-100)",
-        display: "flex", flexDirection: "column", gap: "var(--sp-sm)", flexShrink: 0,
+        padding: "16px 20px 20px",
+        background: "#F7F9F7",
+        borderTop: "1px solid var(--color-gray-200)",
+        display: "flex", flexDirection: "column", gap: "12px", flexShrink: 0,
       }}>
         {error && (
-          <div style={{ background: "rgba(239,68,68,0.1)", color: "var(--color-danger)", borderRadius: "var(--radius-md)", padding: "8px 12px", fontSize: "var(--text-xs)", fontWeight: 500 }}>
+          <div style={{ background: "rgba(154,44,34,0.08)", color: "var(--color-danger)", borderRadius: "var(--radius-md)", padding: "8px 12px", fontSize: "var(--text-xs)", fontWeight: 500 }}>
             {error}
           </div>
         )}
 
         {hasItems && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             {discountAmount > 0 && (
               <>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
                   <span>Subtotale</span><span>€{subtotal.toFixed(2)}</span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-xs)", color: "#16a34a", fontWeight: 600 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-xs)", color: "var(--color-brand)", fontWeight: 600 }}>
                   <span>Sconto {discountMode === "pct" ? `${discountNum}%` : `€${discountNum.toFixed(2)}`}</span>
                   <span>−€{discountAmount.toFixed(2)}</span>
                 </div>
               </>
             )}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", fontWeight: 600 }}>Totale</span>
-              <span style={{ fontSize: "var(--text-xxl)", fontWeight: 800, color: "var(--color-gray-900)", letterSpacing: "-0.5px" }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "15px", fontWeight: 600, color: "var(--color-gray-700)" }}>Totale</span>
+              <span style={{ fontSize: "40px", fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1, color: "var(--color-gray-900)" }}>
                 €{total.toFixed(2)}
               </span>
             </div>

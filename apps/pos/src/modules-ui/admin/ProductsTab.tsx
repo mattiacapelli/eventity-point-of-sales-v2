@@ -723,7 +723,7 @@ function GridDefaultsSection() {
                 display: "flex", alignItems: "center", gap: "8px",
                 padding: "8px 14px", borderRadius: "var(--radius-md)", border: "1px solid",
                 borderColor: active ? "var(--color-brand)" : "var(--color-gray-200)",
-                background: active ? "rgba(48,107,52,0.07)" : "var(--color-white)",
+                background: active ? "rgba(23,102,60,0.07)" : "var(--color-white)",
                 color: active ? "var(--color-brand)" : "var(--color-gray-500)",
                 cursor: "pointer", fontSize: "var(--text-sm)", fontWeight: 600,
               }}>
@@ -1011,7 +1011,7 @@ export function ProductsTab() {
                           style={{
                             padding: "6px 10px", borderRadius: "var(--radius-md)",
                             border: isExpanded ? "1px solid var(--color-brand)" : "1px solid var(--color-gray-200)",
-                            background: isExpanded ? "rgba(48,107,52,0.06)" : "var(--color-white)",
+                            background: isExpanded ? "rgba(23,102,60,0.06)" : "var(--color-white)",
                             cursor: "pointer",
                             color: isExpanded ? "var(--color-brand)" : "var(--color-gray-500)",
                             display: "flex", alignItems: "center", gap: "4px",

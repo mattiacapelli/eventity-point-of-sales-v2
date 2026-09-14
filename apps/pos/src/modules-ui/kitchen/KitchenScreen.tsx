@@ -9,6 +9,17 @@ import { useStore } from "../../state/global-store.js";
 import { adminApi } from "../../core/admin-api.js";
 import { useToastStore } from "../../components/ui/Toast.js";
 
+const CENTER_HUES: Record<string, number> = {};
+let hueCursor = 0;
+function centerColor(name: string): string {
+  if (!(name in CENTER_HUES)) {
+    const hues = [40, 235, 145, 25, 330, 190, 95];
+    CENTER_HUES[name] = hues[hueCursor % hues.length]!;
+    hueCursor++;
+  }
+  return `hsl(${CENTER_HUES[name]}, 62%, 45%)`;
+}
+
 const KITCHEN_STATUSES = ["pending", "confirmed", "preparing", "ready"];
 
 function playBeep() {
@@ -157,104 +168,80 @@ export function KitchenScreen() {
 
   return (
     <KitchenLayout>
-      {/* Mute toggle — fixed top-right */}
-      <button
-        onClick={toggleMute}
-        title={muted ? "Attiva suoni" : "Silenzia"}
-        style={{
-          position: "fixed",
-          top: "12px",
-          right: "12px",
-          zIndex: 300,
-          width: "40px",
-          height: "40px",
-          borderRadius: "50%",
-          border: "2px solid var(--color-gray-300)",
-          background: muted ? "#fef2f2" : "var(--color-white)",
-          cursor: "pointer",
-          fontSize: "18px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
-        }}
-      >
-        {muted ? "🔇" : "🔔"}
-      </button>
+      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: "16px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+            <h1 style={{ margin: 0, fontSize: "28px", fontWeight: 700, letterSpacing: "-0.025em", color: "var(--color-gray-900)" }}>Comande</h1>
+            <p style={{ margin: 0, fontSize: "14.5px", color: "var(--color-gray-700)" }}>
+              {showCenterGroups ? "Centri di produzione · aggiornamento in tempo reale" : "Aggiornamento in tempo reale"}
+            </p>
+          </div>
+          <div style={{ flex: 1 }} />
+          <button
+            onClick={toggleMute}
+            title={muted ? "Attiva suoni" : "Silenzia"}
+            style={{
+              height: "44px", width: "44px", borderRadius: "11px",
+              border: "1px solid var(--color-gray-200)", background: "var(--color-white)",
+              cursor: "pointer", fontSize: "18px", display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            {muted ? "🔇" : "🔔"}
+          </button>
+        </div>
 
-      {loading ? (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "200px",
-            color: "var(--color-gray-500)",
-            fontSize: "var(--text-lg)",
-          }}
-        >
-          Caricamento coda...
-        </div>
-      ) : sortedOrders.length === 0 ? (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "40vh",
-            gap: "var(--sp-md)",
-            color: "var(--color-gray-600)",
-          }}
-        >
-          <span style={{ fontSize: "64px" }}>✓</span>
-          <span style={{ fontSize: "var(--text-xl)", fontWeight: 700 }}>Coda vuota</span>
-          <span style={{ fontSize: "var(--text-md)" }}>Nessun ordine in attesa</span>
-        </div>
-      ) : showCenterGroups ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
-          {[...ordersByCenter.entries()].map(([center, centerOrders]) => (
-            <div key={center}>
-              <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "var(--sp-sm)" }}>
-                {center}
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-                  gap: "var(--sp-md)",
-                }}
-              >
-                {centerOrders.map((order) => (
-                  <KitchenOrderCard
-                    key={order.id}
-                    order={order}
-                    onUpdated={handleOrderUpdated}
-                    centerNames={centerIdNameMap}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-            gap: "var(--sp-md)",
-          }}
-        >
-          {sortedOrders.map((order) => (
-            <KitchenOrderCard
-              key={order.id}
-              order={order}
-              onUpdated={handleOrderUpdated}
-              centerNames={centerIdNameMap}
-            />
-          ))}
-        </div>
-      )}
+        {loading ? (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "200px", color: "var(--color-gray-500)", fontSize: "var(--text-lg)" }}>
+            Caricamento coda...
+          </div>
+        ) : sortedOrders.length === 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "40vh", gap: "var(--sp-md)", color: "var(--color-gray-500)" }}>
+            <span style={{ fontSize: "64px" }}>✓</span>
+            <span style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-gray-900)" }}>Coda vuota</span>
+            <span style={{ fontSize: "var(--text-md)" }}>Nessun ordine in attesa</span>
+          </div>
+        ) : showCenterGroups ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "14px", alignItems: "start" }}>
+            {[...ordersByCenter.entries()].map(([center, centerOrders]) => (
+              <section key={center} style={{ background: "var(--color-white)", border: "1px solid var(--color-gray-200)", borderRadius: "16px", overflow: "hidden" }}>
+                <header style={{ display: "flex", alignItems: "center", gap: "10px", padding: "14px 16px", borderBottom: "1px solid var(--color-gray-100)" }}>
+                  <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: centerColor(center) }} />
+                  <span style={{ fontSize: "15px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--color-gray-900)" }}>{center}</span>
+                  <span style={{ flex: 1 }} />
+                  <span style={{
+                    minWidth: "26px", height: "26px", padding: "0 8px", borderRadius: "8px",
+                    background: "var(--color-gray-100)", color: "var(--color-gray-800)",
+                    fontSize: "13.5px", fontWeight: 700, display: "grid", placeItems: "center",
+                  }}>
+                    {centerOrders.length}
+                  </span>
+                </header>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {centerOrders.map((order) => (
+                    <KitchenOrderCard
+                      key={order.id}
+                      order={order}
+                      onUpdated={handleOrderUpdated}
+                      centerNames={centerIdNameMap}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {sortedOrders.map((order) => (
+              <KitchenOrderCard
+                key={order.id}
+                order={order}
+                onUpdated={handleOrderUpdated}
+                centerNames={centerIdNameMap}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </KitchenLayout>
   );
 }

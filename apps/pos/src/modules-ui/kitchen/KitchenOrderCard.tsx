@@ -17,13 +17,6 @@ const NEXT_LABEL: Partial<Record<OrderStatus, string>> = {
   preparing: "Pronto ✓",
 };
 
-const cardBorder: Partial<Record<OrderStatus, string>> = {
-  pending:   "var(--status-pending)",
-  confirmed: "var(--status-confirmed)",
-  preparing: "var(--status-preparing)",
-  ready:     "var(--status-ready)",
-};
-
 function elapsedMinutes(createdAt: Date | string): number {
   const diff = Date.now() - new Date(createdAt).getTime();
   return Math.floor(diff / 60_000);
@@ -37,8 +30,8 @@ function elapsedLabel(createdAt: Date | string): string {
 }
 
 function delayColor(mins: number): string | null {
-  if (mins >= 20) return "#dc2626"; // red — late
-  if (mins >= 10) return "#f59e0b"; // amber — approaching
+  if (mins >= 20) return "var(--color-danger)"; // late
+  if (mins >= 10) return "var(--color-warning)"; // approaching
   return null;
 }
 
@@ -67,77 +60,38 @@ export function KitchenOrderCard({ order, onUpdated, centerNames }: Props) {
 
   const isReady = order.status === "ready";
   const delay = isReady ? null : delayColor(elapsedMinutes(order.createdAt));
+  const code = order.centerNumbers && centerNames
+    ? Object.entries(order.centerNumbers).map(([cid, num]) => `${centerNames[Number(cid)] ?? `#${cid}`}: #${num}`).join(" · ")
+    : `#${order.id}`;
 
   return (
-    <div
-      style={{
-        background: isReady ? "rgba(34,197,94,0.06)" : "var(--color-gray-800)",
-        border: `2px solid ${delay ?? cardBorder[order.status] ?? "var(--color-gray-700)"}`,
-        boxShadow: delay ? `0 0 0 1px ${delay}` : undefined,
-        borderRadius: "var(--radius-xl)",
-        padding: "var(--sp-lg)",
-        display: "flex",
-        flexDirection: "column",
-        gap: "var(--sp-md)",
-      }}
-    >
+    <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--color-gray-100)", display: "flex", flexDirection: "column", gap: "9px" }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div>
-          <div style={{ color: delay ?? "var(--color-gray-400)", fontSize: "var(--text-xs)", fontWeight: delay ? 700 : 600 }}>
-            {elapsedLabel(order.createdAt)}
-          </div>
-          <div style={{ color: "var(--color-white)", fontSize: "var(--text-lg)", fontWeight: 700, marginTop: "2px" }}>
-            {order.centerNumbers && centerNames
-              ? Object.entries(order.centerNumbers).map(([cid, num]) => `${centerNames[Number(cid)] ?? `#${cid}`}: #${num}`).join(" · ")
-              : `#${order.id}`}
-          </div>
-          {order.tableId && (
-            <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>
-              Tavolo {order.tableId}
-            </div>
-          )}
-        </div>
-        <Badge variant={order.status as OrderStatus} />
+      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <span style={{ fontSize: "17px", fontWeight: 700, color: "var(--color-gray-900)" }}>{code}</span>
+        <span style={{
+          padding: "3px 8px", borderRadius: "7px", fontSize: "12.5px", fontWeight: 700,
+          background: delay ? "rgba(154,44,34,0.1)" : "var(--color-gray-100)",
+          color: delay ?? "var(--color-gray-700)",
+        }}>
+          {elapsedLabel(order.createdAt)}
+        </span>
+        <span style={{ flex: 1 }} />
+        <Badge variant={order.status as OrderStatus} size="sm" />
       </div>
+      {order.tableId && (
+        <div style={{ fontSize: "13px", color: "var(--color-gray-600)", marginTop: "-4px" }}>
+          Tavolo {order.tableId}
+        </div>
+      )}
 
       {/* Items */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "6px",
-          borderTop: "1px solid var(--color-gray-700)",
-          paddingTop: "var(--sp-sm)",
-        }}
-      >
-        {order.items.map((item) => (
-          <div
-            key={item.id}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "baseline",
-            }}
-          >
-            <span style={{ color: "var(--color-white)", fontSize: "var(--text-md)", fontWeight: 500 }}>
-              {item.name}
-            </span>
-            <span
-              style={{
-                background: "var(--color-gray-700)",
-                color: "var(--color-gray-200)",
-                borderRadius: "var(--radius-pill)",
-                padding: "1px 10px",
-                fontSize: "var(--text-sm)",
-                fontWeight: 700,
-              }}
-            >
-              ×{item.quantity}
-            </span>
-          </div>
-        ))}
-      </div>
+      {order.items.map((item) => (
+        <div key={item.id} style={{ display: "flex", gap: "10px", fontSize: "15px" }}>
+          <span style={{ fontWeight: 700, color: "var(--color-brand)", minWidth: "28px" }}>{item.quantity}×</span>
+          <span style={{ flex: 1, lineHeight: 1.35, color: "var(--color-gray-900)" }}>{item.name}</span>
+        </div>
+      ))}
 
       {/* Action */}
       {nextStatus && (
@@ -152,17 +106,10 @@ export function KitchenOrderCard({ order, onUpdated, centerNames }: Props) {
         </Button>
       )}
       {isReady && (
-        <div
-          style={{
-            textAlign: "center",
-            color: "var(--color-success)",
-            fontWeight: 700,
-            fontSize: "var(--text-lg)",
-            padding: "var(--sp-sm)",
-            background: "rgba(34,197,94,0.1)",
-            borderRadius: "var(--radius-lg)",
-          }}
-        >
+        <div style={{
+          textAlign: "center", color: "var(--color-brand)", fontWeight: 700, fontSize: "var(--text-md)",
+          padding: "10px", background: "#E8F0EA", borderRadius: "11px",
+        }}>
           ✓ Pronto per il ritiro
         </div>
       )}

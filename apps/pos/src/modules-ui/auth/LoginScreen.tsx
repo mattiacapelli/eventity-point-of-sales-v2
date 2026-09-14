@@ -93,12 +93,10 @@ export function LoginScreen() {
       style={{
         height: "100%",
         display: "flex",
-        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        background: "linear-gradient(160deg, var(--color-brand) 0%, #1a4a1e 100%)",
-        padding: "var(--sp-xl)",
-        gap: "var(--sp-xl)",
+        background: "var(--color-brand)",
+        padding: "40px",
         position: "relative",
       }}
     >
@@ -129,113 +127,135 @@ export function LoginScreen() {
         ✕
       </button>
 
-      {/* Logo */}
-      <div style={{ textAlign: "center" }}>
-        <img src="/logo.svg" alt="Eventity" style={{ height: "64px", marginBottom: "8px" }} />
-        <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "var(--text-md)" }}>
-          Point of Sale
-        </div>
-      </div>
-
-      {/* Card */}
       <div
         style={{
-          background: "var(--color-white)",
-          borderRadius: "var(--radius-xl)",
-          padding: "var(--sp-xl)",
           width: "100%",
-          maxWidth: "340px",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+          maxWidth: "420px",
           display: "flex",
           flexDirection: "column",
-          gap: "var(--sp-lg)",
+          gap: "24px",
         }}
       >
-        <div>
-          <div style={{ fontSize: "var(--text-xl)", fontWeight: 700, marginBottom: "4px" }}>
-            Inserisci PIN
-          </div>
-          <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>
-            Minimo {MIN_PIN} cifre · premi ✓ per confermare
-          </div>
+        {/* Brand header */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "0 4px" }}>
+          <span style={{ fontSize: "30px", fontWeight: 700, letterSpacing: "-0.04em", color: "#FFFFFF" }}>
+            epos
+          </span>
+          <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-brand-light)" }}>
+            Point of Sale
+          </span>
         </div>
 
-        {/* PIN dots — show actual entered length, min MIN_PIN slots */}
-        <div style={{ display: "flex", gap: "10px", justifyContent: "center", minHeight: "24px", alignItems: "center" }}>
-          {Array.from({ length: Math.max(pin.length, MIN_PIN) }).map((_, i) => (
-            <div
-              key={i}
+        {/* Card */}
+        <div
+          style={{
+            background: "var(--color-white)",
+            borderRadius: "var(--radius-xl)",
+            padding: "30px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "18px",
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <h1 style={{ margin: 0, fontSize: "24px", fontWeight: 700, letterSpacing: "-0.02em" }}>
+              Inserisci il PIN
+            </h1>
+            <p style={{ margin: 0, fontSize: "15px", color: "var(--color-gray-700)" }}>
+              Minimo {MIN_PIN} cifre · premi ✓ per confermare
+            </p>
+          </div>
+
+          {/* PIN display */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              height: "56px",
+              padding: "0 18px",
+              borderRadius: "12px",
+              background: "var(--color-gray-100)",
+              border: "1px solid var(--color-gray-200)",
+            }}
+          >
+            <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-gray-700)" }}>PIN</span>
+            <span
               style={{
-                width: "14px",
-                height: "14px",
-                borderRadius: "50%",
-                background: i < pin.length ? "var(--color-brand)" : "var(--color-gray-200)",
-                transition: "background var(--transition)",
-                flexShrink: 0,
+                flex: 1,
+                fontSize: "26px",
+                fontWeight: 700,
+                letterSpacing: "0.3em",
+                color: "var(--color-gray-900)",
               }}
-            />
-          ))}
-        </div>
-
-        {error && (
-          <div style={{
-            background: "rgba(239,68,68,0.1)", color: "var(--color-danger)",
-            padding: "10px 14px", borderRadius: "var(--radius-md)",
-            fontSize: "var(--text-sm)", fontWeight: 500, textAlign: "center",
-          }}>
-            {error}
+            >
+              {pin ? "•".repeat(pin.length) : "– – – –"}
+            </span>
           </div>
-        )}
 
-        {/* Keypad */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
-          {KEYPAD.flat().map((key, i) => {
-            const isConfirm = key === "✓";
-            const isActive = isConfirm ? canSubmit : !!key;
-            return (
-              <button
-                key={i}
-                onClick={() => { if (key) handleKeypad(key); }}
-                disabled={!key || loading || (isConfirm && !canSubmit)}
-                style={{
-                  height: "64px",
-                  borderRadius: "var(--radius-lg)",
-                  background: isConfirm
-                    ? (canSubmit ? "var(--color-brand)" : "var(--color-gray-100)")
-                    : (key ? "var(--color-gray-50)" : "transparent"),
-                  border: isConfirm
-                    ? "none"
-                    : (key ? "2px solid var(--color-gray-200)" : "none"),
-                  fontSize: (key === "⌫" || key === "✓") ? "var(--text-lg)" : "var(--text-xl)",
-                  fontWeight: 600,
-                  color: isConfirm
-                    ? (canSubmit ? "var(--color-white)" : "var(--color-gray-300)")
-                    : "var(--color-gray-900)",
-                  cursor: (key && isActive) ? "pointer" : "default",
-                  fontFamily: "var(--font)",
-                  transition: "background var(--transition)",
-                  opacity: loading ? 0.6 : 1,
-                }}
-                onPointerDown={(e) => {
-                  if (!key || !isActive) return;
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    isConfirm ? "var(--color-brand-dark, #1a4a1e)" : "var(--color-gray-100)";
-                }}
-                onPointerUp={(e) => {
-                  if (!key || !isActive) return;
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    isConfirm ? "var(--color-brand)" : "var(--color-gray-50)";
-                }}
-                onPointerLeave={(e) => {
-                  if (!key || !isActive) return;
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    isConfirm ? "var(--color-brand)" : "var(--color-gray-50)";
-                }}
-              >
-                {loading && key === "✓" ? "…" : key}
-              </button>
-            );
-          })}
+          {error && (
+            <div style={{
+              background: "rgba(154,44,34,0.08)", color: "var(--color-danger)",
+              padding: "10px 14px", borderRadius: "var(--radius-md)",
+              fontSize: "14px", fontWeight: 500, textAlign: "center",
+            }}>
+              {error}
+            </div>
+          )}
+
+          {/* Keypad */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+            {KEYPAD.flat().map((key, i) => {
+              const isConfirm = key === "✓";
+              const isMuted = key === "⌫";
+              const isActive = isConfirm ? canSubmit : !!key;
+              return (
+                <button
+                  key={i}
+                  onClick={() => { if (key) handleKeypad(key); }}
+                  disabled={!key || loading || (isConfirm && !canSubmit)}
+                  style={{
+                    height: "62px",
+                    borderRadius: "12px",
+                    background: isConfirm
+                      ? "transparent"
+                      : isMuted ? "var(--color-gray-100)" : (key ? "var(--color-white)" : "transparent"),
+                    border: isConfirm || isMuted || !key ? "none" : "1px solid var(--color-gray-200)",
+                    fontSize: (key === "⌫" || key === "✓") ? "22px" : "24px",
+                    fontWeight: isMuted ? 600 : 700,
+                    color: isConfirm
+                      ? "var(--color-gray-700)"
+                      : isMuted ? "var(--color-gray-700)" : "var(--color-gray-900)",
+                    cursor: (key && isActive) ? "pointer" : "default",
+                    fontFamily: "var(--font)",
+                    transition: "background var(--transition)",
+                    opacity: loading ? 0.6 : 1,
+                  }}
+                >
+                  {loading && key === "✓" ? "…" : key}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={() => { void handleLogin(pin); }}
+            disabled={!canSubmit}
+            style={{
+              height: "60px",
+              borderRadius: "14px",
+              background: canSubmit ? "var(--color-brand)" : "var(--color-gray-100)",
+              color: canSubmit ? "var(--color-white)" : "var(--color-gray-400)",
+              fontSize: "19px",
+              fontWeight: 700,
+              cursor: canSubmit ? "pointer" : "default",
+              transition: "background var(--transition)",
+            }}
+            onMouseEnter={(e) => { if (canSubmit) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-brand-dark)"; }}
+            onMouseLeave={(e) => { if (canSubmit) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-brand)"; }}
+          >
+            {loading ? "Accesso…" : "Accedi"}
+          </button>
         </div>
       </div>
     </div>

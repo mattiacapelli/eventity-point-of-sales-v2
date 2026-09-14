@@ -13,25 +13,26 @@ import type { Shift, Terminal } from "@pos/shared-types";
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  pending:    { bg: "#f3f4f6", text: "#374151", label: "In attesa" },
-  confirmed:  { bg: "#dbeafe", text: "#1d4ed8", label: "Confermato" },
-  preparing:  { bg: "#fef3c7", text: "#92400e", label: "In preparazione" },
-  ready:      { bg: "#d1fae5", text: "#065f46", label: "Pronto" },
-  completed:  { bg: "#d1fae5", text: "#065f46", label: "Completato" },
-  cancelled:  { bg: "#fee2e2", text: "#991b1b", label: "Annullato" },
-  refunded:   { bg: "#ede9fe", text: "#5b21b6", label: "Rimborsato" },
+  pending:    { bg: "#FFF4E2", text: "#8A5A0B", label: "In attesa" },
+  confirmed:  { bg: "#FFF4E2", text: "#8A5A0B", label: "Confermato" },
+  preparing:  { bg: "#FFF4E2", text: "#8A5A0B", label: "In preparazione" },
+  ready:      { bg: "#E8F0EA", text: "#17663C", label: "Pronto" },
+  completed:  { bg: "#E8F0EA", text: "#17663C", label: "Completato" },
+  cancelled:  { bg: "#F0F3F0", text: "#7C8A81", label: "Annullato" },
+  refunded:   { bg: "#F0F3F0", text: "#7C8A81", label: "Rimborsato" },
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_COLORS[status] ?? { bg: "#f3f4f6", text: "#374151", label: status };
+  const s = STATUS_COLORS[status] ?? { bg: "#F0F3F0", text: "#7C8A81", label: status };
   return (
     <span style={{
-      padding: "3px 10px",
-      borderRadius: "999px",
+      display: "inline-flex", alignItems: "center", flex: "none", whiteSpace: "nowrap",
+      padding: "5px 11px",
+      borderRadius: "8px",
       background: s.bg,
       color: s.text,
-      fontWeight: 600,
-      fontSize: "12px",
+      fontWeight: 700,
+      fontSize: "13px",
     }}>
       {s.label}
     </span>
@@ -88,11 +89,11 @@ function CancelModal({
           Confermi l'annullamento dell'ordine <strong>#{order?.id ?? ""}</strong>?
         </p>
         {isPaid && (
-          <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: "var(--radius-md)", padding: "12px 14px" }}>
-            <div style={{ fontWeight: 700, fontSize: "var(--text-sm)", color: "#92400E", marginBottom: "8px" }}>
+          <div style={{ background: "#FFF8EC", border: "1px solid #F0DFBE", borderRadius: "var(--radius-md)", padding: "12px 14px" }}>
+            <div style={{ fontWeight: 700, fontSize: "var(--text-sm)", color: "#6B4A0C", marginBottom: "8px" }}>
               Ordine già pagato — €{paymentAmount.toFixed(2)}
             </div>
-            <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "var(--text-sm)", color: "#78350F" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "var(--text-sm)", color: "#8A6A2B" }}>
               <input type="checkbox" checked={withRefund} onChange={(e) => setWithRefund(e.target.checked)}
                 style={{ width: "16px", height: "16px", cursor: "pointer" }} />
               Effettua rimborso contestuale
@@ -294,52 +295,46 @@ function OrderRow({
 
   return (
     <div style={{
-      background: "var(--color-white)",
-      borderRadius: "var(--radius-lg)",
-      border: "1px solid var(--color-gray-100)",
-      padding: "var(--sp-md)",
-      display: "flex",
-      flexDirection: "column",
-      gap: "8px",
+      display: "flex", flexWrap: "wrap", gap: "10px 14px",
+      padding: "15px 18px", borderBottom: "1px solid var(--color-gray-100)", alignItems: "center",
     }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--sp-sm)" }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "var(--color-gray-900)" }}>
-            #{displayOrderNum(order, receiptPrefix, receiptPadding)}
+      <div style={{ width: "132px", flex: "none", display: "flex", flexDirection: "column", gap: "5px" }}>
+        <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-gray-900)" }}>
+          #{displayOrderNum(order, receiptPrefix, receiptPadding)}
+        </span>
+        <span style={{ fontSize: "12.5px", color: "var(--color-gray-500)" }}>
+          {new Date(order.createdAt).toLocaleString("it-IT")}
+          {terminalName && ` · ${terminalName}`}
+        </span>
+      </div>
+
+      <div style={{ flex: "1 1 240px", minWidth: 0, display: "flex", flexDirection: "column", gap: "5px" }}>
+        <span style={{ fontSize: "14.5px", lineHeight: 1.4, color: "var(--color-gray-800)" }}>
+          {itemSummary}
+        </span>
+        {chips.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+            {chips.map((c) => (
+              <span key={c.label} style={{
+                display: "inline-flex", alignItems: "center", gap: "4px",
+                background: "var(--color-gray-50)", border: "1px solid var(--color-gray-200)",
+                borderRadius: "6px", padding: "2px 8px",
+                fontSize: "12px", color: "var(--color-gray-700)",
+              }}>
+                <span style={{ color: "var(--color-gray-500)", fontWeight: 600 }}>{c.label}</span>
+                {c.value}
+              </span>
+            ))}
           </div>
-          <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginTop: "2px" }}>
-            {new Date(order.createdAt).toLocaleString("it-IT")}
-            {terminalName && ` · ${terminalName}`}
-          </div>
-        </div>
+        )}
+      </div>
+
+      <div style={{ flex: "none", display: "flex", alignItems: "center", gap: "12px", marginLeft: "auto" }}>
         <StatusBadge status={order.status} />
-      </div>
-
-      {chips.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-          {chips.map((c) => (
-            <span key={c.label} style={{
-              display: "inline-flex", alignItems: "center", gap: "4px",
-              background: "var(--color-gray-50)", border: "1px solid var(--color-gray-200)",
-              borderRadius: "6px", padding: "2px 8px",
-              fontSize: "var(--text-xs)", color: "var(--color-gray-700)",
-            }}>
-              <span style={{ color: "var(--color-gray-400)", fontWeight: 600 }}>{c.label}</span>
-              {c.value}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-600)" }}>
-        {itemSummary}
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: "var(--text-lg)", fontWeight: 700, color: "var(--color-brand)" }}>
+        <span style={{ minWidth: "82px", textAlign: "right", fontSize: "18px", fontWeight: 700, color: "var(--color-gray-900)" }}>
           €{order.totalAmount.toFixed(2)}
         </span>
-        <div style={{ display: "flex", gap: "var(--sp-sm)" }}>
+        <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end", flexWrap: "wrap" }}>
           <Button size="sm" variant="ghost" onClick={() => onReprint(order.id)}>
             Scontrino
           </Button>
@@ -355,7 +350,7 @@ function OrderRow({
           )}
           {canRefund && (
             <Button size="sm" variant="ghost" onClick={() => onRefund(order)}
-              style={{ color: "#b45309", borderColor: "#fcd34d" }}>
+              style={{ color: "#8A6A2B", borderColor: "#F0DFBE" }}>
               Rimborsa
             </Button>
           )}
@@ -565,33 +560,42 @@ export function HistoryScreen() {
   }
 
   const selectStyle: React.CSSProperties = {
-    height: "40px",
-    padding: "0 10px",
-    borderRadius: "var(--radius-md)",
-    border: "2px solid var(--color-gray-200)",
+    height: "46px",
+    padding: "0 14px",
+    borderRadius: "10px",
+    border: "1px solid var(--color-gray-200)",
     fontFamily: "var(--font)",
-    fontSize: "var(--text-sm)",
+    fontSize: "14.5px",
+    fontWeight: 500,
     background: "var(--color-white)",
     color: "var(--color-gray-700)",
   };
 
   const dateInputStyle: React.CSSProperties = {
-    height: "40px",
-    padding: "0 10px",
-    borderRadius: "var(--radius-md)",
-    border: "2px solid var(--color-gray-200)",
+    height: "46px",
+    padding: "0 12px",
+    borderRadius: "10px",
+    border: "1px solid var(--color-gray-200)",
     fontFamily: "var(--font)",
-    fontSize: "var(--text-sm)",
+    fontSize: "14.5px",
   };
+
+  const hasActiveFilters = !!(filterStatus || filterShiftId || filterTerminalId || filterFrom || filterTo || searchQuery);
 
   return (
     <PosLayout>
       <div style={{ height: "100%", overflowY: "auto", boxSizing: "border-box" }}>
-      <div style={{ maxWidth: "720px", margin: "0 auto", padding: "var(--sp-lg)", display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h1 style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-gray-900)", margin: 0 }}>
-            Storico ordini
-          </h1>
+      <div style={{ maxWidth: "1080px", margin: "0 auto", padding: "22px 20px 40px", display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: "16px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+            <h1 style={{ margin: 0, fontSize: "28px", fontWeight: 700, letterSpacing: "-0.025em", color: "var(--color-gray-900)" }}>
+              Storico ordini
+            </h1>
+            <p style={{ margin: 0, fontSize: "14.5px", color: "var(--color-gray-700)" }}>
+              {orders.length} ordin{orders.length === 1 ? "e" : "i"} caricat{orders.length === 1 ? "o" : "i"}
+            </p>
+          </div>
+          <div style={{ flex: 1 }} />
           <div style={{ display: "flex", gap: "8px" }}>
             <Button size="sm" variant="ghost" onClick={handleExportCsv} disabled={orders.length === 0} title="Esporta solo gli ordini attualmente caricati">
               Esporta CSV
@@ -600,24 +604,19 @@ export function HistoryScreen() {
           </div>
         </div>
 
-        {/* Search */}
-        <input
-          type="search"
-          placeholder="Cerca per numero, cliente, tavolo, cassa, note…"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          style={{
-            width: "100%", boxSizing: "border-box",
-            height: "40px", padding: "0 12px",
-            borderRadius: "var(--radius-md)",
-            border: "2px solid var(--color-gray-200)",
-            fontFamily: "var(--font)", fontSize: "var(--text-sm)",
-            background: "var(--color-white)", color: "var(--color-gray-900)",
-          }}
-        />
+        {/* Search + filters */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center", padding: "12px", background: "var(--color-white)", border: "1px solid var(--color-gray-200)", borderRadius: "14px" }}>
+          <div style={{ flex: 1, minWidth: "240px", display: "flex", alignItems: "center", gap: "10px", height: "46px", padding: "0 14px", borderRadius: "10px", background: "var(--color-gray-50)" }}>
+            <span style={{ width: "10px", height: "10px", borderRadius: "50%", border: "2.5px solid var(--color-gray-400)", flexShrink: 0 }} />
+            <input
+              type="search"
+              placeholder="Numero, prodotto, tavolo, nota…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontSize: "15px", fontFamily: "var(--font)", color: "var(--color-gray-900)" }}
+            />
+          </div>
 
-        {/* Filters */}
-        <div style={{ display: "flex", gap: "var(--sp-sm)", flexWrap: "wrap", alignItems: "center" }}>
           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={selectStyle}>
             {ORDER_STATUSES.map((s) => (
               <option key={s.value} value={s.value}>{s.label}</option>
@@ -647,7 +646,7 @@ export function HistoryScreen() {
           <input type="date" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)} style={dateInputStyle} placeholder="Da" />
           <input type="date" value={filterTo} onChange={(e) => setFilterTo(e.target.value)} style={dateInputStyle} placeholder="A" />
 
-          {(filterStatus || filterShiftId || filterTerminalId || filterFrom || filterTo || searchQuery) && (
+          {hasActiveFilters && (
             <Button size="sm" variant="ghost" onClick={() => {
               setFilterStatus(""); setFilterShiftId(""); setFilterTerminalId(""); setFilterFrom(""); setFilterTo(""); setSearchQuery("");
             }}>
@@ -664,35 +663,48 @@ export function HistoryScreen() {
         )}
 
         {error && (
-          <div style={{ padding: "var(--sp-md)", background: "#fef2f2", borderRadius: "var(--radius-lg)", color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>
+          <div style={{ padding: "var(--sp-md)", background: "rgba(154,44,34,0.08)", borderRadius: "var(--radius-lg)", color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>
             {error}
           </div>
         )}
 
         {!loading && !error && orders.length === 0 && (
-          <div style={{ textAlign: "center", padding: "var(--sp-xl)", color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>
+          <div style={{ textAlign: "center", padding: "var(--sp-xl)", color: "var(--color-gray-500)", fontSize: "var(--text-sm)" }}>
             {debouncedSearch ? `Nessun risultato per "${debouncedSearch}"` : "Nessun ordine trovato"}
           </div>
         )}
 
-        {!loading && orders.map((order) => {
-          const terminalName = terminals.length > 1 ? terminals.find((t) => t.id === order.terminalId)?.name : undefined;
-          return (
-            <OrderRow
-              key={order.id}
-              order={order}
-              isAdmin={isAdmin}
-              onReprint={handleReprint}
-              onReprintKitchen={handleReprintKitchen}
-              onCancel={setCancelOrder}
-              onRefund={handleRefundClick}
-              onEdit={handleEditOrder}
-              receiptPrefix={receiptPrefix}
-              receiptPadding={receiptPadding}
-              {...(terminalName ? { terminalName } : {})}
-            />
-          );
-        })}
+        {!loading && orders.length > 0 && (
+          <div style={{ background: "var(--color-white)", border: "1px solid var(--color-gray-200)", borderRadius: "16px", overflow: "hidden" }}>
+            <div style={{
+              display: "flex", alignItems: "center", gap: "14px", padding: "12px 18px",
+              borderBottom: "1px solid var(--color-gray-200)", background: "var(--color-gray-50)",
+              fontSize: "11.5px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-gray-500)",
+            }}>
+              <span style={{ width: "132px", flex: "none" }}>Ordine</span>
+              <span style={{ flex: 1, minWidth: 0 }}>Prodotti</span>
+              <span>Totale e azioni</span>
+            </div>
+            {orders.map((order) => {
+              const terminalName = terminals.length > 1 ? terminals.find((t) => t.id === order.terminalId)?.name : undefined;
+              return (
+                <OrderRow
+                  key={order.id}
+                  order={order}
+                  isAdmin={isAdmin}
+                  onReprint={handleReprint}
+                  onReprintKitchen={handleReprintKitchen}
+                  onCancel={setCancelOrder}
+                  onRefund={handleRefundClick}
+                  onEdit={handleEditOrder}
+                  receiptPrefix={receiptPrefix}
+                  receiptPadding={receiptPadding}
+                  {...(terminalName ? { terminalName } : {})}
+                />
+              );
+            })}
+          </div>
+        )}
 
         {hasMore && !loading && (
           <div style={{ textAlign: "center", paddingBottom: "var(--sp-md)" }}>
@@ -728,7 +740,7 @@ export function HistoryScreen() {
           bottom: "var(--sp-lg)",
           left: "50%",
           transform: "translateX(-50%)",
-          background: toast.type === "success" ? "#065f46" : "var(--color-danger)",
+          background: toast.type === "success" ? "var(--color-brand-dark)" : "var(--color-danger)",
           color: "white",
           padding: "12px 24px",
           borderRadius: "var(--radius-lg)",

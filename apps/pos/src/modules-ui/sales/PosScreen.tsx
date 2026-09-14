@@ -73,7 +73,7 @@ function CashCalculator({ total, received, onChange }: { total: number; received
       {/* Banknote shortcuts */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "5px" }}>
         {CALC_BANKNOTES.map((note) => (
-          <button key={note} onClick={() => onChange(String(note))} style={{ height: "36px", borderRadius: "var(--radius-md)", border: `1.5px solid ${receivedNum === note ? "var(--color-brand)" : "var(--color-gray-300)"}`, background: receivedNum === note ? "rgba(48,107,52,0.08)" : "var(--color-white)", fontFamily: "var(--font)", fontSize: "var(--text-xs)", fontWeight: 700, color: receivedNum === note ? "var(--color-brand)" : "var(--color-gray-700)", cursor: "pointer" }}>
+          <button key={note} onClick={() => onChange(String(note))} style={{ height: "36px", borderRadius: "var(--radius-md)", border: `1.5px solid ${receivedNum === note ? "var(--color-brand)" : "var(--color-gray-300)"}`, background: receivedNum === note ? "rgba(23,102,60,0.08)" : "var(--color-white)", fontFamily: "var(--font)", fontSize: "var(--text-xs)", fontWeight: 700, color: receivedNum === note ? "var(--color-brand)" : "var(--color-gray-700)", cursor: "pointer" }}>
             €{note}
           </button>
         ))}
@@ -90,8 +90,8 @@ function CashCalculator({ total, received, onChange }: { total: number; received
       {/* Change / insufficient */}
       {change !== null && (
         <div style={{ padding: "10px 14px", borderRadius: "var(--radius-md)", background: "rgba(34,197,94,0.12)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontWeight: 600, color: "#166534" }}>Resto</span>
-          <span style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "#166534" }}>€{change.toFixed(2)}</span>
+          <span style={{ fontWeight: 600, color: "var(--color-brand-dark)" }}>Resto</span>
+          <span style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-brand-dark)" }}>€{change.toFixed(2)}</span>
         </div>
       )}
       {insufficient && (
@@ -257,7 +257,7 @@ function CheckoutModal() {
                 Nessun metodo di pagamento attivo — configurali in Amministrazione.
               </div>
             ) : singleMethod ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 14px", borderRadius: "var(--radius-lg)", border: "2px solid var(--color-brand)", background: "rgba(48,107,52,0.06)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 14px", borderRadius: "var(--radius-lg)", border: "2px solid var(--color-brand)", background: "rgba(23,102,60,0.06)" }}>
                 <PaymentIcon type={singleMethod.type} style={{ width: "20px", height: "20px", color: "var(--color-brand)", flexShrink: 0 }} />
                 <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-brand)" }}>{singleMethod.name}</span>
               </div>
@@ -269,7 +269,7 @@ function CheckoutModal() {
                     <button
                       key={m.id}
                       onClick={() => { setSelectedMethodId(m.id); setReceived(""); }}
-                      style={{ padding: "14px 12px", borderRadius: "var(--radius-lg)", border: `2px solid ${active ? "var(--color-brand)" : "var(--color-gray-200)"}`, background: active ? "rgba(48,107,52,0.06)" : "var(--color-white)", fontFamily: "var(--font)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", minHeight: "72px", transition: "all var(--transition)" }}
+                      style={{ padding: "14px 12px", borderRadius: "var(--radius-lg)", border: `2px solid ${active ? "var(--color-brand)" : "var(--color-gray-200)"}`, background: active ? "rgba(23,102,60,0.06)" : "var(--color-white)", fontFamily: "var(--font)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", minHeight: "72px", transition: "all var(--transition)" }}
                     >
                       <PaymentIcon type={m.type} style={{ width: "22px", height: "22px", color: active ? "var(--color-brand)" : "var(--color-gray-400)" }} />
                       <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: active ? "var(--color-brand)" : "var(--color-gray-700)" }}>{m.name}</span>
@@ -594,7 +594,7 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
               </div>
               <div style={{ fontSize: "26px", fontWeight: 800, color: "var(--color-gray-900)", marginBottom: "2px" }}>{currentInvItem.name}</div>
               {currentInvItem.resetOnShiftOpen ? (
-                <div style={{ fontSize: "var(--text-sm)", color: "#b45309" }}>Inserisci la quantità iniziale del turno</div>
+                <div style={{ fontSize: "var(--text-sm)", color: "#8A6A2B" }}>Inserisci la quantità iniziale del turno</div>
               ) : (
                 <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)" }}>Stock precedente: {currentInvItem.currentStock} {currentInvItem.unit}</div>
               )}
@@ -672,7 +672,7 @@ function OpenShiftModal({ onDone }: { onDone: () => void }) {
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontWeight: 600, color: "var(--color-gray-800)", fontSize: "var(--text-sm)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
                         {delta !== 0 && (
-                          <div style={{ fontSize: "var(--text-xs)", color: delta > 0 ? "#16a34a" : "#dc2626", fontWeight: 600, marginTop: "1px" }}>
+                          <div style={{ fontSize: "var(--text-xs)", color: delta > 0 ? "var(--color-brand)" : "var(--color-danger)", fontWeight: 600, marginTop: "1px" }}>
                             {delta > 0 ? `+${delta}` : delta} {item.unit}
                           </div>
                         )}
@@ -780,13 +780,13 @@ function CloseShiftModal({ onDone }: { onDone: () => void }) {
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
 
           {/* Header verde */}
-          <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "var(--radius-lg)", padding: "14px 16px", display: "flex", alignItems: "center", gap: "10px" }}>
-            <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ background: "#EAF4EC", border: "1px solid #C7E3CE", borderRadius: "var(--radius-lg)", padding: "14px 16px", display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "var(--color-brand)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <span style={{ color: "white", fontSize: "16px" }}>✓</span>
             </div>
             <div>
-              <div style={{ fontWeight: 700, color: "#15803d", fontSize: "var(--text-base)" }}>Turno chiuso correttamente</div>
-              <div style={{ fontSize: "var(--text-xs)", color: "#16a34a" }}>
+              <div style={{ fontWeight: 700, color: "var(--color-brand-dark)", fontSize: "var(--text-base)" }}>Turno chiuso correttamente</div>
+              <div style={{ fontSize: "var(--text-xs)", color: "var(--color-brand)" }}>
                 {formatDate(shiftStats.shift.openedAt)} · {formatTime(shiftStats.shift.openedAt)} → {formatTime(shiftStats.shift.closedAt)}
               </div>
             </div>
@@ -876,7 +876,7 @@ function CloseShiftModal({ onDone }: { onDone: () => void }) {
           </div>
         )}
         {error && (
-          <div style={{ background: "var(--color-red-50, #fef2f2)", color: "var(--color-red-700, #b91c1c)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: "var(--text-sm)" }}>
+          <div style={{ background: "rgba(154,44,34,0.08)", color: "var(--color-danger)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: "var(--text-sm)" }}>
             {error}
           </div>
         )}
@@ -1003,7 +1003,7 @@ export function PosScreen() {
 
   return (
     <PosLayout>
-      <div style={{ height: "100%", display: "grid", gridTemplateColumns: "1fr 320px" }}>
+      <div style={{ height: "100%", display: "grid", gridTemplateColumns: "1fr 400px" }}>
         <ProductGrid />
         <div style={{ height: "100%", overflow: "hidden" }}>
           <CartPanel />

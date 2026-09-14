@@ -484,7 +484,7 @@ export function InterfaceTab() {
                           style={{
                             padding: "10px 12px", borderRadius: "var(--radius-md)", cursor: "pointer",
                             border: `2px solid ${tableInputMode === mode ? "var(--color-brand)" : "var(--color-gray-200)"}`,
-                            background: tableInputMode === mode ? "rgba(48,107,52,0.06)" : "var(--color-white)",
+                            background: tableInputMode === mode ? "rgba(23,102,60,0.06)" : "var(--color-white)",
                             fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 600,
                             color: tableInputMode === mode ? "var(--color-brand)" : "var(--color-gray-700)",
                             textAlign: "left",

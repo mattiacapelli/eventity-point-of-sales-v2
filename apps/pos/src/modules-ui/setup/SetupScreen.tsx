@@ -440,7 +440,7 @@ function StepLicense({ onNext }: { onNext: () => void }) {
         display: "flex", alignItems: "flex-start", gap: "12px", cursor: "pointer",
         padding: "14px", borderRadius: "12px",
         border: `2px solid ${accepted ? "var(--color-brand)" : "var(--color-gray-200)"}`,
-        background: accepted ? "rgba(48,107,52,0.04)" : "transparent",
+        background: accepted ? "rgba(23,102,60,0.04)" : "transparent",
         transition: "all 0.2s",
       }}>
         <div style={{
@@ -651,7 +651,7 @@ function StepPrinter({ onNext, onBack }: { onNext: (d: PrinterData | null) => vo
       <StepHeading title="Stampante" sub="Connetti la stampante ESC/POS per gli scontrini. Puoi aggiungerla anche in seguito dall'admin." />
 
       {/* Discovery toggle */}
-      <button type="button" onClick={() => { setShowDisc((v) => !v); if (!showDisc) void handleDiscover(); }} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "14px 16px", borderRadius: "12px", border: `1.5px solid ${showDisc ? "var(--color-brand)" : "var(--color-gray-200)"}`, background: showDisc ? "rgba(48,107,52,0.04)" : "var(--color-white)", cursor: "pointer", fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-700)", textAlign: "left", width: "100%" }}>
+      <button type="button" onClick={() => { setShowDisc((v) => !v); if (!showDisc) void handleDiscover(); }} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "14px 16px", borderRadius: "12px", border: `1.5px solid ${showDisc ? "var(--color-brand)" : "var(--color-gray-200)"}`, background: showDisc ? "rgba(23,102,60,0.04)" : "var(--color-white)", cursor: "pointer", fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-700)", textAlign: "left", width: "100%" }}>
         <span style={{ fontSize: "20px", flexShrink: 0 }}>🔍</span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div>Cerca stampanti sulla rete</div>
@@ -715,7 +715,7 @@ function StepDone({ username, storeName, onDone }: { username: string; storeName
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "24px", textAlign: "center" }}>
-      <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "linear-gradient(135deg, var(--color-brand), var(--color-brand-dark))", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 32px rgba(48,107,52,0.3)", transform: vis ? "scale(1)" : "scale(0.5)", opacity: vis ? 1 : 0, transition: "transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.4s ease" }}>
+      <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "linear-gradient(135deg, var(--color-brand), var(--color-brand-dark))", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 32px rgba(23,102,60,0.3)", transform: vis ? "scale(1)" : "scale(0.5)", opacity: vis ? 1 : 0, transition: "transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.4s ease" }}>
         <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
           <path d="M9 19.5L15.5 26L29 12" stroke="var(--color-accent)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"
             style={{ strokeDasharray: 40, strokeDashoffset: vis ? 0 : 40, transition: "stroke-dashoffset 0.5s ease 0.3s" }} />
@@ -747,7 +747,7 @@ function StepDone({ username, storeName, onDone }: { username: string; storeName
           { icon: "🖨️", text: "Configura i template di stampa in Admin → Scontrini" },
           { icon: "👥", text: "Crea altri utenti in Admin → Utenti" },
         ].map(({ icon, text }) => (
-          <div key={text} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "10px", background: "rgba(48,107,52,0.05)", textAlign: "left", fontSize: "var(--text-xs)", color: "var(--color-gray-600)", fontWeight: 500 }}>
+          <div key={text} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "10px", background: "rgba(23,102,60,0.05)", textAlign: "left", fontSize: "var(--text-xs)", color: "var(--color-gray-600)", fontWeight: 500 }}>
             <span style={{ fontSize: "16px", flexShrink: 0 }}>{icon}</span>
             {text}
           </div>
@@ -840,7 +840,7 @@ export function SetupScreen({ onDone }: { onDone: () => void }) {
         boxSizing: "border-box",
       }}>
         {/* Decorazioni di sfondo */}
-        <div style={{ position: "fixed", top: "-100px", right: "-100px", width: "350px", height: "350px", borderRadius: "50%", background: "radial-gradient(circle, rgba(48,107,52,0.07) 0%, transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ position: "fixed", top: "-100px", right: "-100px", width: "350px", height: "350px", borderRadius: "50%", background: "radial-gradient(circle, rgba(23,102,60,0.07) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ position: "fixed", bottom: "-60px", left: "-60px", width: "250px", height: "250px", borderRadius: "50%", background: "radial-gradient(circle, rgba(194,232,18,0.09) 0%, transparent 70%)", pointerEvents: "none" }} />
 
         <div className="setup-card">

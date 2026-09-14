@@ -45,16 +45,32 @@ interface CardProps {
   cardRowHeight: number;
   loading?: boolean;
   stockCount: number | null;
+  cartQty: number;
   onClick: () => void;
   onDragStart: (e: React.DragEvent, productId: number) => void;
   onResizeStart: (e: React.PointerEvent, productId: number, scope: string) => void;
   scope: string;
 }
 
-function ProductCard({ product, slot, locked, editMode, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, loading, stockCount, onClick, onDragStart, onResizeStart, scope }: CardProps) {
+// Converts a product's custom hex color into a very light pastel tint for the card background,
+// mirroring the mockup's oklch(0.965 ...) tint approach without requiring oklch support.
+function tintFromHex(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return "var(--color-gray-100)";
+  const r = parseInt(m[1]!.slice(0, 2), 16);
+  const g = parseInt(m[1]!.slice(2, 4), 16);
+  const b = parseInt(m[1]!.slice(4, 6), 16);
+  // Blend heavily toward white (92%) to approximate a pastel tint.
+  const mix = (c: number) => Math.round(c * 0.08 + 255 * 0.92);
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+}
+
+function ProductCard({ product, slot, locked, editMode, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, loading, stockCount, cartQty, onClick, onDragStart, onResizeStart, scope }: CardProps) {
   const hasColor = !!product.color;
   const hasImage = showImage && !!product.imageData;
   const imageUrl = hasImage ? `/api/static/${product.imageData}` : null;
+  const accentColor = product.color ?? "var(--color-brand)";
+  const tint = hasColor ? tintFromHex(product.color!) : "var(--color-white)";
   const isResizingRef = useRef(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -98,19 +114,19 @@ function ProductCard({ product, slot, locked, editMode, showPrice, showDescripti
         style={{
           width: "100%",
           height: "100%",
-          background: hasImage ? "var(--color-white)" : (product.color ?? "var(--color-white)"),
+          background: hasImage ? "var(--color-white)" : tint,
           borderRadius: "var(--radius-lg)",
-          border: editMode ? "2px dashed var(--color-brand)" : "2px solid transparent",
-          padding: hasImage ? "0" : "16px 12px",
+          border: editMode ? "2px dashed var(--color-brand)" : (cartQty > 0 ? "2px solid var(--color-brand)" : "2px solid transparent"),
+          padding: 0,
           display: "flex",
           flexDirection: "column",
-          alignItems: hasImage ? "stretch" : "center",
-          justifyContent: hasImage ? "flex-start" : "center",
-          gap: hasImage ? "0" : "6px",
-          boxShadow: "var(--shadow-sm)",
+          alignItems: "stretch",
+          justifyContent: "flex-start",
+          boxShadow: cartQty > 0 ? "none" : "0 0 0 1px var(--color-gray-200)",
           transition: "transform var(--transition), filter var(--transition)",
           fontFamily: "var(--font)",
           overflow: "hidden",
+          textAlign: "left",
         }}
         onPointerDown={(e) => { if (!locked && !editMode) (e.currentTarget as HTMLButtonElement).style.transform = "scale(0.96)"; }}
         onPointerUp={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)"; }}
@@ -127,21 +143,24 @@ function ProductCard({ product, slot, locked, editMode, showPrice, showDescripti
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "3px",
-          padding: hasImage ? "8px 10px" : "0",
+          alignItems: "flex-start",
+          justifyContent: "flex-start",
+          gap: "7px",
+          padding: hasImage ? "12px 13px 13px" : "14px",
+          width: "100%",
         }}>
+          {!hasImage && (
+            <span style={{ width: "22px", height: "5px", borderRadius: "3px", background: accentColor, flexShrink: 0 }} />
+          )}
           {showCategory && product.categoryName && (
             <span style={{
               fontSize: `${Math.max(8, cardTextSize - 4)}px`,
               fontWeight: 600,
-              color: hasImage ? "var(--color-gray-400)" : (hasColor ? "rgba(255,255,255,0.6)" : "var(--color-gray-400)"),
-              textAlign: "center",
+              color: "var(--color-gray-500)",
+              textAlign: "left",
               textTransform: "uppercase",
               letterSpacing: "0.04em",
               lineHeight: 1.2,
-              textShadow: (!hasImage && hasColor) ? "0 1px 2px rgba(0,0,0,0.2)" : "none",
             }}>
               {product.categoryName}
             </span>
@@ -149,10 +168,10 @@ function ProductCard({ product, slot, locked, editMode, showPrice, showDescripti
           <span style={{
             fontSize: `${cardTextSize}px`,
             fontWeight: 600,
-            color: hasImage ? "var(--color-gray-800)" : (hasColor ? "rgba(255,255,255,0.95)" : "var(--color-gray-800)"),
-            textAlign: "center",
-            lineHeight: 1.3,
-            textShadow: (!hasImage && hasColor) ? "0 1px 2px rgba(0,0,0,0.25)" : "none",
+            color: "var(--color-gray-900)",
+            textAlign: "left",
+            lineHeight: 1.25,
+            letterSpacing: "-0.01em",
           }}>
             {product.name}
           </span>
@@ -160,10 +179,9 @@ function ProductCard({ product, slot, locked, editMode, showPrice, showDescripti
             <span style={{
               fontSize: `${Math.max(8, cardTextSize - 3)}px`,
               fontWeight: 400,
-              color: hasImage ? "var(--color-gray-500)" : (hasColor ? "rgba(255,255,255,0.7)" : "var(--color-gray-500)"),
-              textAlign: "center",
-              lineHeight: 1.3,
-              textShadow: (!hasImage && hasColor) ? "0 1px 2px rgba(0,0,0,0.2)" : "none",
+              color: "var(--color-gray-600)",
+              textAlign: "left",
+              lineHeight: 1.35,
               overflow: "hidden",
               display: "-webkit-box",
               WebkitLineClamp: 2,
@@ -172,16 +190,23 @@ function ProductCard({ product, slot, locked, editMode, showPrice, showDescripti
               {product.description}
             </span>
           )}
-          {showPrice && (
-            <span style={{
-              fontSize: `${cardTextSize}px`,
-              fontWeight: 700,
-              color: hasImage ? "var(--color-brand)" : (hasColor ? "rgba(255,255,255,0.9)" : "var(--color-brand)"),
-              textShadow: (!hasImage && hasColor) ? "0 1px 2px rgba(0,0,0,0.25)" : "none",
-            }}>
-              €{product.price.toFixed(2)}
-            </span>
-          )}
+          <span style={{ flex: 1 }} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: "8px" }}>
+            {showPrice ? (
+              <span style={{ fontSize: `${cardTextSize + 3}px`, fontWeight: 700, letterSpacing: "-0.01em", color: "var(--color-brand)" }}>
+                €{product.price.toFixed(2)}
+              </span>
+            ) : <span />}
+            {cartQty > 0 && (
+              <span style={{
+                minWidth: "30px", height: "30px", padding: "0 8px", borderRadius: "9px",
+                background: "var(--color-brand)", color: "var(--color-white)",
+                fontSize: "15px", fontWeight: 700, display: "grid", placeItems: "center",
+              }}>
+                {cartQty}
+              </span>
+            )}
+          </div>
         </div>
       </button>
 
@@ -249,7 +274,7 @@ function DropSlot({ x, y, onDrop }: { x: number; y: number; onDrop: (x: number, 
         gridColumn: `${x + 1} / span 1`, gridRow: `${y + 1} / span 1`,
         borderRadius: "var(--radius-lg)",
         border: `2px dashed ${over ? "var(--color-brand)" : "var(--color-gray-200)"}`,
-        background: over ? "rgba(48,107,52,0.06)" : "transparent",
+        background: over ? "rgba(23,102,60,0.06)" : "transparent",
         transition: "border-color 0.15s, background 0.15s",
       }}
       onDragOver={(e) => { e.preventDefault(); setOver(true); }}
@@ -276,13 +301,14 @@ interface GridAreaProps {
   cardRowHeight: number;
   loadingProductId: number | null;
   stockMap: Map<number, number>;
+  cartQtyMap: Map<number, number>;
   onProductClick: (p: Product) => void;
   onDragStart: (e: React.DragEvent, productId: number, scope: string) => void;
   onDrop: (scope: string, x: number, y: number) => void;
   onResizeStart: (e: React.PointerEvent, productId: number, scope: string) => void;
 }
 
-function GridArea({ products, slots, scope, baseCols, editMode, locked, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, loadingProductId, stockMap, onProductClick, onDragStart, onDrop, onResizeStart }: GridAreaProps) {
+function GridArea({ products, slots, scope, baseCols, editMode, locked, showPrice, showDescription, showCategory, showImage, cardTextSize, cardRowHeight, loadingProductId, stockMap, cartQtyMap, onProductClick, onDragStart, onDrop, onResizeStart }: GridAreaProps) {
   const slotMap = new Map(slots.map((s) => [s.productId, s]));
   const positioned = products.filter((p) => slotMap.has(p.id));
   const floating = products.filter((p) => !slotMap.has(p.id));
@@ -320,6 +346,7 @@ function GridArea({ products, slots, scope, baseCols, editMode, locked, showPric
           slot={slotMap.get(p.id)}
           {...cardProps}
           stockCount={stockMap.has(p.id) ? (stockMap.get(p.id) ?? null) : null}
+          cartQty={cartQtyMap.get(p.id) ?? 0}
           loading={loadingProductId === p.id}
           onClick={() => onProductClick(p)}
           onDragStart={(e, id) => onDragStart(e, id, scope)}
@@ -337,6 +364,7 @@ function GridArea({ products, slots, scope, baseCols, editMode, locked, showPric
           slot={undefined}
           {...cardProps}
           stockCount={stockMap.has(p.id) ? (stockMap.get(p.id) ?? null) : null}
+          cartQty={cartQtyMap.get(p.id) ?? 0}
           loading={loadingProductId === p.id}
           onClick={() => onProductClick(p)}
           onDragStart={(e, id) => onDragStart(e, id, scope)}
@@ -653,6 +681,11 @@ export function ProductGrid() {
 
   // ── Compute products for each view ──────────────────────────────────────────
 
+  const cartQtyMap = new Map<number, number>();
+  for (const item of cart) {
+    cartQtyMap.set(item.productId, (cartQtyMap.get(item.productId) ?? 0) + item.quantity);
+  }
+
   const searchLower = searchQuery.toLowerCase();
   const todayStr = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
   const activeProducts = products.filter((p) => {
@@ -735,10 +768,10 @@ export function ProductGrid() {
               onClick={() => setPreOrderTableId(preOrderTableId === "TAKEAWAY" ? "" : "TAKEAWAY")}
               style={{
                 height: "44px", borderRadius: "var(--radius-md)", cursor: "pointer",
-                border: `2px solid ${preOrderTableId === "TAKEAWAY" ? "#b45309" : "var(--color-gray-200)"}`,
-                background: preOrderTableId === "TAKEAWAY" ? "#fef3c7" : "var(--color-white)",
+                border: `2px solid ${preOrderTableId === "TAKEAWAY" ? "#8A6A2B" : "var(--color-gray-200)"}`,
+                background: preOrderTableId === "TAKEAWAY" ? "#FFF8EC" : "var(--color-white)",
                 fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 700,
-                color: preOrderTableId === "TAKEAWAY" ? "#92400e" : "var(--color-gray-600)",
+                color: preOrderTableId === "TAKEAWAY" ? "#6B4A0C" : "var(--color-gray-600)",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
                 transition: "all 0.12s",
               }}
@@ -835,7 +868,7 @@ export function ProductGrid() {
               fontFamily: "var(--font)",
               cursor: "pointer",
               display: "flex", alignItems: "center", gap: "8px",
-              boxShadow: "0 4px 16px rgba(48,107,52,0.35)",
+              boxShadow: "0 4px 16px rgba(23,102,60,0.35)",
             }}
           >
             <ClockIcon style={{ width: "18px", height: "18px" }} />
@@ -850,7 +883,7 @@ export function ProductGrid() {
         {showSidebar && (
           <div
             style={{
-              width: Math.max(56, sidebarTextSize * 6 + 24) + "px",
+              width: "176px",
               flexShrink: 0,
               display: "flex",
               flexDirection: "column",
@@ -859,11 +892,14 @@ export function ProductGrid() {
               zIndex: 60,
             }}
           >
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "2px", padding: "var(--sp-sm) 6px", overflowY: "auto", visibility: currentShift ? "visible" : "hidden" }}>
+            <span style={{
+              fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
+              color: "var(--color-gray-400)", padding: "12px 20px 8px",
+            }}>
+              {viewMode === "center" ? "Centri" : "Categorie"}
+            </span>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "3px", padding: "0 10px 12px", overflowY: "auto", visibility: currentShift ? "visible" : "hidden" }}>
               {(() => {
-                const iconSize = Math.max(14, sidebarTextSize + 4);
-                const minH = sidebarTextSize * 4 + 16 + "px";
-
                 if (viewMode === "center") {
                   const sorted = sidebarSortBy === "name"
                     ? [...productionCenters].sort((a, b) => a.name.localeCompare(b.name, "it"))
@@ -876,19 +912,19 @@ export function ProductGrid() {
                   return sorted.map((pc) => {
                     const active = activeCenterId === pc.id;
                     const accent = pc.color ?? "var(--color-brand)";
+                    const count = products.filter((p) => p.productionCenterId === pc.id).length;
                     return (
                       <button key={pc.id} onClick={() => setActiveCenterId(pc.id)} style={{
-                        width: "100%", display: "flex", flexDirection: "column",
-                        alignItems: "center", justifyContent: "center", gap: "4px",
-                        padding: "8px 4px", borderRadius: "10px", border: "none",
-                        background: active ? accent : "transparent",
-                        cursor: "pointer", transition: "background var(--transition)",
-                        minHeight: minH, fontFamily: "var(--font)",
+                        display: "flex", alignItems: "center", gap: "9px", width: "100%",
+                        minHeight: "44px", padding: "10px 11px", borderRadius: "12px", border: "none",
+                        fontSize: "14.5px", fontWeight: 600, textAlign: "left",
+                        background: active ? "var(--color-brand)" : "transparent",
+                        color: active ? "var(--color-white)" : "var(--color-gray-800)",
+                        cursor: "pointer", transition: "background var(--transition)", fontFamily: "var(--font)",
                       }}>
-                        <TagIcon style={{ width: iconSize + "px", height: iconSize + "px", color: active ? "var(--color-white)" : (pc.color ?? "var(--color-gray-400)"), flexShrink: 0 }} />
-                        <span style={{ fontSize: sidebarTextSize + "px", fontWeight: 700, color: active ? "var(--color-white)" : "var(--color-gray-500)", textAlign: "center", lineHeight: 1.2, wordBreak: "break-word", hyphens: "auto" }}>
-                          {pc.name}
-                        </span>
+                        <span style={{ width: "9px", height: "9px", borderRadius: "50%", flexShrink: 0, background: active ? "var(--color-white)" : accent }} />
+                        <span style={{ flex: 1, lineHeight: 1.25 }}>{pc.name}</span>
+                        <span style={{ fontSize: "12.5px", fontWeight: 600, color: active ? "var(--color-brand-light)" : "var(--color-gray-400)" }}>{count}</span>
                       </button>
                     );
                   });
@@ -906,19 +942,19 @@ export function ProductGrid() {
                 return sorted.map((cat) => {
                   const active = activeCategoryId === cat.id;
                   const accent = cat.color ?? "var(--color-brand)";
+                  const count = products.filter((p) => p.categoryId === cat.id).length;
                   return (
                     <button key={cat.id} onClick={() => setActiveCategoryId(cat.id)} style={{
-                      width: "100%", display: "flex", flexDirection: "column",
-                      alignItems: "center", justifyContent: "center", gap: "4px",
-                      padding: "8px 4px", borderRadius: "10px", border: "none",
-                      background: active ? accent : "transparent",
-                      cursor: "pointer", transition: "background var(--transition)",
-                      minHeight: minH, fontFamily: "var(--font)",
+                      display: "flex", alignItems: "center", gap: "9px", width: "100%",
+                      minHeight: "44px", padding: "10px 11px", borderRadius: "12px", border: "none",
+                      fontSize: "14.5px", fontWeight: 600, textAlign: "left",
+                      background: active ? "var(--color-brand)" : "transparent",
+                      color: active ? "var(--color-white)" : "var(--color-gray-800)",
+                      cursor: "pointer", transition: "background var(--transition)", fontFamily: "var(--font)",
                     }}>
-                      <TagIcon style={{ width: iconSize + "px", height: iconSize + "px", color: active ? "var(--color-white)" : (cat.color ?? "var(--color-gray-400)"), flexShrink: 0 }} />
-                      <span style={{ fontSize: sidebarTextSize + "px", fontWeight: 700, color: active ? "var(--color-white)" : "var(--color-gray-500)", textAlign: "center", lineHeight: 1.2, wordBreak: "break-word", hyphens: "auto" }}>
-                        {cat.name}
-                      </span>
+                      <span style={{ width: "9px", height: "9px", borderRadius: "50%", flexShrink: 0, background: active ? "var(--color-white)" : accent }} />
+                      <span style={{ flex: 1, lineHeight: 1.25 }}>{cat.name}</span>
+                      <span style={{ fontSize: "12.5px", fontWeight: 600, color: active ? "var(--color-brand-light)" : "var(--color-gray-400)" }}>{count}</span>
                     </button>
                   );
                 });
@@ -932,19 +968,31 @@ export function ProductGrid() {
 
           {/* Search bar */}
           {!editMode && (
-            <div style={{ padding: "8px 12px", flexShrink: 0, borderBottom: "1px solid var(--color-gray-100)" }}>
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cerca prodotto…"
-                style={{
-                  width: "100%", height: "36px", padding: "0 12px",
-                  borderRadius: "var(--radius-lg)", border: "1.5px solid var(--color-gray-200)",
-                  fontSize: "var(--text-sm)", fontFamily: "var(--font)", outline: "none",
-                  background: "var(--color-white)", color: "var(--color-gray-800)", boxSizing: "border-box",
-                }}
-              />
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "16px 20px 10px", flexShrink: 0 }}>
+              <div style={{
+                flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: "12px",
+                height: "54px", padding: "0 16px", background: "var(--color-white)",
+                border: "1px solid var(--color-gray-200)", borderRadius: "13px",
+              }}>
+                <span style={{ width: "11px", height: "11px", borderRadius: "50%", border: "2.5px solid var(--color-gray-400)", flexShrink: 0 }} />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cerca prodotto…"
+                  style={{
+                    flex: 1, minWidth: 0, border: "none", outline: "none",
+                    fontSize: "17px", fontWeight: 500, color: "var(--color-gray-900)",
+                    background: "transparent", fontFamily: "var(--font)",
+                  }}
+                />
+              </div>
+              <div style={{ flexShrink: 0, display: "flex", alignItems: "baseline", gap: "7px", whiteSpace: "nowrap" }}>
+                <span style={{ fontSize: "21px", fontWeight: 700, color: "var(--color-gray-900)" }}>
+                  {activeProducts.length}
+                </span>
+                <span style={{ fontSize: "13.5px", color: "var(--color-gray-600)" }}>prodotti</span>
+              </div>
             </div>
           )}
 
@@ -953,7 +1001,7 @@ export function ProductGrid() {
             <div style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
               padding: "8px 16px", flexShrink: 0,
-              background: "rgba(48,107,52,0.08)",
+              background: "rgba(23,102,60,0.08)",
               borderBottom: "1px solid var(--color-brand)",
             }}>
               <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-brand)" }}>
@@ -1005,6 +1053,7 @@ export function ProductGrid() {
                   onDrop={handleDrop}
                   loadingProductId={loadingProductId}
                   stockMap={stockMap}
+                  cartQtyMap={cartQtyMap}
                   onResizeStart={handleResizeStart}
                 />
               );
@@ -1041,6 +1090,7 @@ export function ProductGrid() {
                   onDrop={handleDrop}
                   loadingProductId={loadingProductId}
                   stockMap={stockMap}
+                  cartQtyMap={cartQtyMap}
                   onResizeStart={handleResizeStart}
                 />
               );
@@ -1063,6 +1113,7 @@ export function ProductGrid() {
                 cardRowHeight={cardRowHeight}
                 loadingProductId={loadingProductId}
                 stockMap={stockMap}
+                cartQtyMap={cartQtyMap}
                 onProductClick={(p) => void handleProductClick(p)}
                 onDragStart={handleDragStart}
                 onDrop={handleDrop}
@@ -1100,6 +1151,7 @@ export function ProductGrid() {
                   onDrop={handleDrop}
                   loadingProductId={loadingProductId}
                   stockMap={stockMap}
+                  cartQtyMap={cartQtyMap}
                   onResizeStart={handleResizeStart}
                 />
               </div>

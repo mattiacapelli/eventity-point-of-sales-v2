@@ -1,44 +1,44 @@
 export const tokens = {
   color: {
-    brand:        "#306B34",
-    brandDark:    "#234E26",
-    brandLight:   "#3D8A42",
-    accent:       "#C2E812",
-    accentDark:   "#A5C60F",
+    brand:        "#17663C",
+    brandDark:    "#0F3D25",
+    brandLight:   "#8FB79F",
+    accent:       "#17663C",
+    accentDark:   "#0F3D25",
 
     // Neutrals
     white:        "#FFFFFF",
-    gray50:       "#F9FAFB",
-    gray100:      "#F3F4F6",
-    gray200:      "#E5E7EB",
-    gray300:      "#D1D5DB",
-    gray400:      "#9CA3AF",
-    gray500:      "#6B7280",
-    gray600:      "#4B5563",
-    gray700:      "#374151",
-    gray800:      "#1F2937",
-    gray900:      "#111827",
+    gray50:       "#F7F9F7",
+    gray100:      "#F4F6F3",
+    gray200:      "#E2E7E1",
+    gray300:      "#D3DAD3",
+    gray400:      "#A3AFA7",
+    gray500:      "#8B978E",
+    gray600:      "#7C8A81",
+    gray700:      "#6B7A70",
+    gray800:      "#37493E",
+    gray900:      "#10281C",
 
     // Semantic
-    success:      "#22C55E",
-    warning:      "#F59E0B",
-    danger:       "#EF4444",
+    success:      "#17663C",
+    warning:      "#C98A16",
+    danger:       "#9A2C22",
     info:         "#3B82F6",
 
     // Status badges
-    pending:      "#F59E0B",
+    pending:      "#C98A16",
     confirmed:    "#3B82F6",
     preparing:    "#8B5CF6",
-    ready:        "#22C55E",
+    ready:        "#17663C",
     completed:    "#6B7280",
-    cancelled:    "#EF4444",
+    cancelled:    "#9A2C22",
   },
 
   radius: {
-    sm:    "8px",
+    sm:    "9px",
     md:    "12px",
-    lg:    "20px",
-    xl:    "28px",
+    lg:    "16px",
+    xl:    "20px",
     pill:  "999px",
   },
 
@@ -52,10 +52,10 @@ export const tokens = {
   },
 
   font: {
-    family: "'Lexend', sans-serif",
+    family: "'Archivo', Helvetica, sans-serif",
     size: {
-      xs:   "11px",
-      sm:   "13px",
+      xs:   "12px",
+      sm:   "14px",
       md:   "15px",
       lg:   "18px",
       xl:   "22px",
@@ -63,7 +63,7 @@ export const tokens = {
       hero: "36px",
     },
     weight: {
-      light:   300,
+      light:   400,
       regular: 400,
       medium:  500,
       semibold: 600,
@@ -72,10 +72,10 @@ export const tokens = {
   },
 
   shadow: {
-    sm:  "0 1px 3px rgba(0,0,0,0.08)",
-    md:  "0 4px 16px rgba(0,0,0,0.08)",
-    lg:  "0 8px 32px rgba(0,0,0,0.12)",
-    brand: "0 4px 20px rgba(48,107,52,0.25)",
+    sm:  "0 1px 3px rgba(16,40,28,0.08)",
+    md:  "0 4px 16px rgba(16,40,28,0.08)",
+    lg:  "0 8px 32px rgba(16,40,28,0.12)",
+    brand: "0 4px 20px rgba(23,102,60,0.25)",
   },
 
   transition: "150ms ease",

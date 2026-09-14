@@ -47,7 +47,7 @@ export function IconPickerField({ value, onChange }: { value: string; onChange: 
                 height: "36px",
                 borderRadius: "var(--radius-md)",
                 border: selected ? "2px solid var(--color-brand)" : "2px solid var(--color-gray-200)",
-                background: selected ? "rgba(48,107,52,0.08)" : "var(--color-white)",
+                background: selected ? "rgba(23,102,60,0.08)" : "var(--color-white)",
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",

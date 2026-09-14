@@ -50,34 +50,50 @@ function Spinner() {
 
 function ErrorBox({ msg }: { msg: string }) {
   return (
-    <div style={{ padding: "var(--sp-md)", background: "#fef2f2", borderRadius: "var(--radius-lg)", color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>
+    <div style={{ padding: "var(--sp-md)", background: "rgba(154,44,34,0.08)", borderRadius: "var(--radius-lg)", color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>
       {msg}
     </div>
   );
 }
 
-// KPI grande — headline number con label
-function KpiCard({ label, value, sub }: { label: string; value: string; sub?: string | undefined }) {
+// KPI grande — headline number con label. hero = card verde piena (usata per il totale vendite)
+function KpiCard({ label, value, sub, hero }: { label: string; value: string; sub?: string | undefined; hero?: boolean }) {
+  if (hero) {
+    return (
+      <div style={{
+        padding: "20px 22px", borderRadius: "16px", background: "var(--color-brand)",
+        display: "flex", flexDirection: "column", gap: "10px", flex: "1.4 1 200px", minWidth: 0,
+      }}>
+        <span style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-brand-light)" }}>
+          {label}
+        </span>
+        <span style={{ fontSize: "46px", fontWeight: 700, letterSpacing: "-0.035em", lineHeight: 1, color: "var(--color-white)" }}>
+          {value}
+        </span>
+        {sub && <span style={{ fontSize: "14px", color: "#C4DBCD" }}>{sub}</span>}
+      </div>
+    );
+  }
   return (
     <div style={{
       background: "var(--color-white)",
-      border: "1px solid var(--color-gray-100)",
-      borderRadius: "var(--radius-xl)",
-      padding: "var(--sp-md) var(--sp-lg)",
+      border: "1px solid var(--color-gray-200)",
+      borderRadius: "16px",
+      padding: "20px 20px",
       display: "flex",
       flexDirection: "column",
-      gap: "2px",
+      gap: "8px",
       flex: "1 1 140px",
       minWidth: 0,
     }}>
-      <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-gray-500)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+      <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--color-gray-500)", textTransform: "uppercase", letterSpacing: "0.12em" }}>
         {label}
       </div>
-      <div style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-brand)", lineHeight: 1.1 }}>
+      <div style={{ fontSize: "32px", fontWeight: 700, letterSpacing: "-0.03em", color: "var(--color-gray-900)", lineHeight: 1 }}>
         {value}
       </div>
       {sub && (
-        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginTop: "2px" }}>{sub}</div>
+        <div style={{ fontSize: "13.5px", color: "var(--color-gray-600)" }}>{sub}</div>
       )}
     </div>
   );
@@ -88,16 +104,16 @@ function Card({ title, children, style }: { title: string; children: React.React
   return (
     <div style={{
       background: "var(--color-white)",
-      border: "1px solid var(--color-gray-100)",
-      borderRadius: "var(--radius-xl)",
-      padding: "var(--sp-lg)",
+      border: "1px solid var(--color-gray-200)",
+      borderRadius: "16px",
+      padding: "18px 20px 20px",
       display: "flex",
       flexDirection: "column",
-      gap: "var(--sp-md)",
+      gap: "14px",
       minWidth: 0,
       ...style,
     }}>
-      <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-gray-500)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+      <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--color-gray-500)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
         {title}
       </div>
       {children}
@@ -137,43 +153,39 @@ function BarRow({
   );
 }
 
-// Tabella oraria — 24 celle compatte
+// Vendite per ora — bar chart verticale, solo fasce con almeno un ordine
 function HourGrid({ data }: { data: { hour: number; orders: number; amount: number }[] }) {
-  const maxAmt = Math.max(...data.map((h) => h.amount), 1);
   const active = data.filter((h) => h.orders > 0);
   if (active.length === 0) return <span style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)" }}>Nessun dato</span>;
 
+  const maxAmt = Math.max(...active.map((h) => h.amount), 1);
+  const peak = active.reduce((m, h) => (h.amount > m.amount ? h : m), active[0]!);
+
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: "4px" }}>
-      {data.map((h) => {
-        const intensity = h.amount / maxAmt;
-        const bg = h.orders > 0
-          ? `rgba(99,102,241,${0.12 + intensity * 0.88})`
-          : "var(--color-gray-50)";
-        const textColor = intensity > 0.55 ? "white" : h.orders > 0 ? "#4338ca" : "var(--color-gray-300)";
-        return (
-          <div
-            key={h.hour}
-            title={h.orders > 0 ? `${String(h.hour).padStart(2,"0")}:00 — ${h.orders} ordini — ${fmt(h.amount)}` : `${String(h.hour).padStart(2,"0")}:00`}
-            style={{
-              background: bg,
-              borderRadius: "6px",
-              padding: "6px 2px",
-              textAlign: "center",
-              cursor: h.orders > 0 ? "default" : undefined,
-            }}
-          >
-            <div style={{ fontSize: "10px", fontWeight: 600, color: textColor }}>
-              {String(h.hour).padStart(2, "0")}
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <span style={{ fontSize: "13.5px", color: "var(--color-gray-600)" }}>
+        picco {String(peak.hour).padStart(2, "0")}:00–{String((peak.hour + 1) % 24).padStart(2, "0")}:00 · {fmt(peak.amount)}
+      </span>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: "10px", height: "168px" }}>
+        {active.map((h) => {
+          const isPeak = h.hour === peak.hour;
+          const barHeight = Math.round((h.amount / maxAmt) * 118);
+          return (
+            <div key={h.hour} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", height: "100%", justifyContent: "flex-end" }}>
+              <span style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--color-gray-700)" }}>{fmt(h.amount)}</span>
+              <div
+                title={`${String(h.hour).padStart(2,"0")}:00 — ${h.orders} ordini — ${fmt(h.amount)}`}
+                style={{
+                  width: "100%", maxWidth: "54px", borderRadius: "8px 8px 3px 3px",
+                  height: `${barHeight}px`,
+                  background: isPeak ? "var(--color-brand)" : "#B6CEBE",
+                }}
+              />
+              <span style={{ fontSize: "12.5px", color: "var(--color-gray-500)" }}>{String(h.hour).padStart(2, "0")}</span>
             </div>
-            {h.orders > 0 && (
-              <div style={{ fontSize: "9px", color: textColor, opacity: 0.85, marginTop: "1px" }}>
-                {fmt(h.amount)}
-              </div>
-            )}
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -606,7 +618,7 @@ function ShiftTab({ terminalId }: { terminalId: number | null }) {
         <>
           {/* ── KPI strip ── */}
           <div style={{ display: "flex", gap: "var(--sp-md)", flexWrap: "wrap" }}>
-            <KpiCard label="Totale vendite" value={fmt(s.summary.totalSales)} />
+            <KpiCard hero label="Totale vendite" value={fmt(s.summary.totalSales)} />
             <KpiCard label="Ordini" value={String(s.summary.totalOrders)} sub={s.summary.cancelledOrders > 0 ? `${s.summary.cancelledOrders} annullati` : undefined} />
             <KpiCard label="Scontrino medio" value={fmt(s.summary.avgTicket)} />
             <KpiCard label="Netto" value={fmt(s.summary.netSales)} />
@@ -827,7 +839,7 @@ function PeriodTab({ terminalId }: { terminalId: number | null }) {
           <>
             {/* ── KPI strip ── */}
             <div style={{ display: "flex", gap: "var(--sp-md)", flexWrap: "wrap", alignItems: "center" }}>
-              <KpiCard label="Totale vendite" value={fmt(s.totalSales)} />
+              <KpiCard hero label="Totale vendite" value={fmt(s.totalSales)} />
               <KpiCard label="Ordini" value={String(s.totalOrders)} sub={s.cancelledOrders > 0 ? `${s.cancelledOrders} annullati` : undefined} />
               <KpiCard label="Scontrino medio" value={fmt(s.avgTicket)} />
               <KpiCard label="Netto" value={fmt(s.netSales)} />
@@ -959,18 +971,24 @@ export function StatsScreen() {
         className="scrollable"
         style={{ height: "100%", overflowY: "auto", boxSizing: "border-box" }}
       >
-        <div style={{ maxWidth: "1280px", margin: "0 auto", padding: "var(--sp-lg)", display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
+        <div style={{ maxWidth: "1280px", margin: "0 auto", padding: "22px 20px 40px", display: "flex", flexDirection: "column", gap: "16px" }}>
 
           {/* Header */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--sp-md)" }}>
-            <h1 style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-gray-900)", margin: 0 }}>
-              Statistiche
-            </h1>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: "16px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+              <h1 style={{ margin: 0, fontSize: "28px", fontWeight: 700, letterSpacing: "-0.025em", color: "var(--color-gray-900)" }}>
+                Statistiche
+              </h1>
+              <p style={{ margin: 0, fontSize: "14.5px", color: "var(--color-gray-700)" }}>
+                {tab === "shift" ? "Riepilogo del turno selezionato" : "Riepilogo del periodo selezionato"}
+              </p>
+            </div>
+            <div style={{ flex: 1 }} />
             {terminals.length > 1 && (
               <select
                 value={selectedTerminalId ?? ""}
                 onChange={(e) => setSelectedTerminalId(e.target.value ? parseInt(e.target.value, 10) : null)}
-                style={{ height: "36px", padding: "0 10px", borderRadius: "var(--radius-md)", border: "2px solid var(--color-gray-200)", fontFamily: "var(--font)", fontSize: "var(--text-sm)", minWidth: "160px" }}
+                style={{ height: "44px", padding: "0 14px", borderRadius: "11px", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", fontFamily: "var(--font)", fontSize: "14.5px", minWidth: "160px" }}
               >
                 <option value="">Tutti i terminali</option>
                 {terminals.map((t) => (
@@ -978,26 +996,22 @@ export function StatsScreen() {
                 ))}
               </select>
             )}
-          </div>
-
-          {/* Tabs */}
-          <div style={{ display: "flex", gap: "4px", background: "var(--color-gray-100)", borderRadius: "var(--radius-lg)", padding: "4px", width: "fit-content" }}>
-            {tabs.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                style={{
-                  padding: "8px 20px", borderRadius: "var(--radius-md)", border: "none",
-                  fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 600, cursor: "pointer",
-                  background: tab === t.key ? "var(--color-white)" : "transparent",
-                  color: tab === t.key ? "var(--color-brand)" : "var(--color-gray-500)",
-                  boxShadow: tab === t.key ? "var(--shadow-sm)" : "none",
-                  transition: "var(--transition)",
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
+            <div style={{ display: "flex", gap: "6px", padding: "4px", background: "var(--color-white)", border: "1px solid var(--color-gray-200)", borderRadius: "11px" }}>
+              {tabs.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  style={{
+                    height: "38px", padding: "0 14px", borderRadius: "9px", border: "none",
+                    fontFamily: "var(--font)", fontSize: "14px", fontWeight: 600, cursor: "pointer",
+                    background: tab === t.key ? "#E8F0EA" : "transparent",
+                    color: tab === t.key ? "var(--color-brand)" : "var(--color-gray-700)",
+                  }}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {tab === "shift" ? <ShiftTab terminalId={selectedTerminalId} /> : <PeriodTab terminalId={selectedTerminalId} />}
