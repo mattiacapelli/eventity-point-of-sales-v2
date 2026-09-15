@@ -97,8 +97,9 @@ function StepBar({ current }: { current: WizardStep }) {
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
-                background: done ? "rgba(255,255,255,0.9)" : active ? "var(--color-accent)" : "rgba(255,255,255,0.12)",
-                color: done ? "var(--color-brand-dark)" : active ? "var(--color-gray-900)" : "rgba(255,255,255,0.5)",
+                background: done ? "var(--color-white)" : active ? "var(--color-accent)" : "transparent",
+                border: done || active ? "none" : "2px solid rgba(255,255,255,0.7)",
+                color: done ? "var(--color-brand-dark)" : active ? "var(--color-gray-900)" : "var(--color-white)",
                 transition: "all 0.3s",
               }}>
                 {done ? <CheckIcon style={{ width: "16px", height: "16px" }} /> : <StepIcon style={{ width: "16px", height: "16px" }} />}
@@ -107,7 +108,7 @@ function StepBar({ current }: { current: WizardStep }) {
                 <div style={{
                   width: "2px",
                   height: "22px",
-                  background: done ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.15)",
+                  background: done ? "var(--color-white)" : "rgba(255,255,255,0.3)",
                   transition: "background 0.4s",
                 }} />
               )}
@@ -115,7 +116,7 @@ function StepBar({ current }: { current: WizardStep }) {
             <span style={{
               fontSize: "var(--text-sm)",
               fontWeight: active ? 700 : 500,
-              color: active ? "var(--color-white)" : "rgba(255,255,255,0.6)",
+              color: active ? "var(--color-white)" : "rgba(255,255,255,0.85)",
               transition: "color 0.3s",
               paddingBottom: i < STEPS.length - 1 ? "22px" : 0,
             }}>
@@ -683,7 +684,7 @@ export function SetupScreen({ onDone }: { onDone: () => void }) {
 
           <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: "var(--sp-xl, 32px)" }}>
             <div>
-              <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-accent)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "10px" }}>
+              <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-white)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "10px" }}>
                 Configurazione guidata
               </div>
               <h1 style={{ margin: 0, fontSize: "28px", lineHeight: 1.25, fontWeight: 700, letterSpacing: "-0.01em" }}>
