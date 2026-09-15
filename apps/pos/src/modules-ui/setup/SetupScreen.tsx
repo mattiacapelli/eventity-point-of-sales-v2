@@ -97,9 +97,10 @@ function StepBar({ current }: { current: WizardStep }) {
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
-                background: done ? "var(--color-white)" : active ? "var(--color-accent)" : "transparent",
+                background: done || active ? "var(--color-white)" : "transparent",
                 border: done || active ? "none" : "2px solid rgba(255,255,255,0.7)",
-                color: done ? "var(--color-brand-dark)" : active ? "var(--color-gray-900)" : "var(--color-white)",
+                boxShadow: active ? "0 0 0 3px rgba(255,255,255,0.35)" : "none",
+                color: done || active ? "var(--color-brand-dark)" : "var(--color-white)",
                 transition: "all 0.3s",
               }}>
                 {done ? <CheckIcon style={{ width: "16px", height: "16px" }} /> : <StepIcon style={{ width: "16px", height: "16px" }} />}
