@@ -3,46 +3,63 @@ import { bootstrapApi } from "../../core/bootstrap-api.js";
 import { adminApi } from "../../core/admin-api.js";
 import { authClient } from "../../core/auth-client.js";
 import { useStore } from "../../state/global-store.js";
+import { Button } from "../../components/ui/Button.js";
+import { inputStyle, labelStyle } from "../admin/shared.js";
+import {
+  ShieldCheckIcon,
+  BuildingStorefrontIcon,
+  UserGroupIcon,
+  PrinterIcon,
+  CheckCircleIcon,
+  CheckIcon,
+  ExclamationTriangleIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  MagnifyingGlassIcon,
+  TagIcon,
+  DocumentTextIcon,
+} from "../../components/ui/icons.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type WizardStep = "license" | "restaurant" | "admin" | "printer" | "done";
 
-const STEPS: { id: WizardStep; label: string; emoji: string }[] = [
-  { id: "license",    label: "Licenza",   emoji: "🔑" },
-  { id: "restaurant", label: "Locale",    emoji: "🏪" },
-  { id: "admin",      label: "Accesso",   emoji: "👤" },
-  { id: "printer",    label: "Stampante", emoji: "🖨️" },
-  { id: "done",       label: "Pronto",    emoji: "✅" },
+const STEPS: { id: WizardStep; label: string; Icon: React.ComponentType<React.SVGProps<SVGSVGElement>> }[] = [
+  { id: "license",    label: "Licenza",   Icon: ShieldCheckIcon },
+  { id: "restaurant", label: "Locale",    Icon: BuildingStorefrontIcon },
+  { id: "admin",      label: "Accesso",   Icon: UserGroupIcon },
+  { id: "printer",    label: "Stampante", Icon: PrinterIcon },
+  { id: "done",       label: "Pronto",    Icon: CheckCircleIcon },
 ];
 
 // ─── Responsive helpers ───────────────────────────────────────────────────────
 
 const RESPONSIVE = `
   @keyframes spin { to { transform: rotate(360deg); } }
-  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
 
   .setup-card {
     width: 100%;
     max-width: 520px;
     background: var(--color-white);
-    border-radius: 24px;
-    padding: 36px 40px;
-    box-shadow: 0 24px 80px rgba(0,0,0,0.10);
+    border-radius: var(--radius-xl);
+    padding: var(--sp-xl) var(--sp-xl);
+    box-shadow: var(--shadow-lg);
     position: relative;
     box-sizing: border-box;
   }
   @media (max-width: 600px) {
     .setup-card {
-      border-radius: 20px;
-      padding: 28px 20px;
+      border-radius: var(--radius-lg);
+      padding: var(--sp-lg) var(--sp-md);
     }
   }
 
   .setup-grid-2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 14px;
+    gap: var(--sp-sm);
   }
   @media (max-width: 480px) {
     .setup-grid-2 {
@@ -67,7 +84,7 @@ const RESPONSIVE = `
 
   .setup-printer-row {
     display: flex;
-    gap: 12px;
+    gap: var(--sp-sm);
   }
   @media (max-width: 480px) {
     .setup-printer-row {
@@ -75,63 +92,6 @@ const RESPONSIVE = `
     }
   }
 `;
-
-// ─── Shared styles ────────────────────────────────────────────────────────────
-
-const INPUT: React.CSSProperties = {
-  width: "100%",
-  height: "48px",
-  padding: "0 14px",
-  borderRadius: "12px",
-  border: "2px solid var(--color-gray-200)",
-  fontSize: "var(--text-md)",
-  fontFamily: "var(--font)",
-  color: "var(--color-gray-800)",
-  background: "var(--color-white)",
-  outline: "none",
-  boxSizing: "border-box",
-  transition: "border-color 0.15s",
-};
-
-const LABEL: React.CSSProperties = {
-  display: "block",
-  fontSize: "var(--text-sm)",
-  fontWeight: 600,
-  color: "var(--color-gray-600)",
-  marginBottom: "6px",
-};
-
-const BTN_PRIMARY: React.CSSProperties = {
-  width: "100%",
-  height: "52px",
-  background: "var(--color-brand)",
-  color: "var(--color-white)",
-  border: "none",
-  borderRadius: "14px",
-  fontSize: "var(--text-md)",
-  fontWeight: 700,
-  fontFamily: "var(--font)",
-  cursor: "pointer",
-  transition: "opacity 0.15s, transform 0.1s",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "8px",
-};
-
-const BTN_GHOST: React.CSSProperties = {
-  height: "44px",
-  padding: "0 20px",
-  background: "transparent",
-  color: "var(--color-gray-500)",
-  border: "none",
-  borderRadius: "12px",
-  fontSize: "var(--text-sm)",
-  fontWeight: 600,
-  fontFamily: "var(--font)",
-  cursor: "pointer",
-  flexShrink: 0,
-};
 
 // ─── Logo SVG reale (icona circolare) ────────────────────────────────────────
 // Path originale dal logo.svg con fill-rule="evenodd" — i 3 sub-path concatenati
@@ -195,7 +155,7 @@ function AnimatedLogo({ onDone }: { onDone: () => void }) {
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      gap: "32px",
+      gap: "var(--sp-xl)",
       opacity: phase === 4 ? 0 : 1,
       transition: phase === 4 ? "opacity 500ms ease" : "none",
       zIndex: 1000,
@@ -255,10 +215,10 @@ function AnimatedLogo({ onDone }: { onDone: () => void }) {
           </svg>
         </div>
         <div style={{
-          fontSize: "11px",
+          fontSize: "var(--text-xs)",
           color: "var(--color-accent)",
           fontWeight: 700,
-          marginTop: "8px",
+          marginTop: "var(--sp-sm)",
           letterSpacing: "0.12em",
           textTransform: "uppercase",
           opacity: phase >= 3 ? 1 : 0,
@@ -276,10 +236,11 @@ function AnimatedLogo({ onDone }: { onDone: () => void }) {
 function StepBar({ current }: { current: WizardStep }) {
   const idx = STEPS.findIndex((s) => s.id === current);
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", marginBottom: "32px" }}>
+    <div style={{ display: "flex", alignItems: "flex-start", marginBottom: "var(--sp-xl)" }}>
       {STEPS.map((s, i) => {
         const done   = i < idx;
         const active = i === idx;
+        const StepIcon = s.Icon;
         return (
           <React.Fragment key={s.id}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "5px", flexShrink: 0 }}>
@@ -290,14 +251,14 @@ function StepBar({ current }: { current: WizardStep }) {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: done ? "14px" : "var(--text-xs)",
+                fontSize: "var(--text-xs)",
                 fontWeight: 700,
                 background: done ? "var(--color-brand)" : active ? "var(--color-accent)" : "var(--color-gray-100)",
                 color: done ? "var(--color-white)" : active ? "var(--color-gray-900)" : "var(--color-gray-400)",
                 transition: "all 0.3s",
                 boxShadow: active ? "0 0 0 4px rgba(194,232,18,0.25)" : "none",
               }}>
-                {done ? "✓" : active ? s.emoji : String(i + 1)}
+                {done ? <CheckIcon style={{ width: "16px", height: "16px" }} /> : active ? <StepIcon style={{ width: "16px", height: "16px" }} /> : String(i + 1)}
               </div>
               <span className="setup-step-label" style={{
                 fontSize: "9px",
@@ -335,7 +296,7 @@ function ErrorBanner({ msg }: { msg: string }) {
     <div style={{
       background: "rgba(239,68,68,0.08)",
       color: "var(--color-danger)",
-      borderRadius: "10px",
+      borderRadius: "var(--radius-md)",
       padding: "12px 14px",
       fontSize: "var(--text-sm)",
       fontWeight: 500,
@@ -343,7 +304,7 @@ function ErrorBanner({ msg }: { msg: string }) {
       alignItems: "flex-start",
       gap: "8px",
     }}>
-      <span style={{ flexShrink: 0 }}>⚠️</span>
+      <ExclamationTriangleIcon style={{ width: "16px", height: "16px", flexShrink: 0, marginTop: "1px" }} />
       <span>{msg}</span>
     </div>
   );
@@ -352,7 +313,7 @@ function ErrorBanner({ msg }: { msg: string }) {
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label style={LABEL}>{label}</label>
+      <label style={labelStyle}>{label}</label>
       {children}
       {hint && <div style={{ marginTop: "4px", fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>{hint}</div>}
     </div>
@@ -361,8 +322,8 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 function StepHeading({ title, sub }: { title: string; sub: string }) {
   return (
-    <div style={{ marginBottom: "24px" }}>
-      <div style={{ fontSize: "clamp(20px, 5vw, 26px)", fontWeight: 800, color: "var(--color-gray-900)", marginBottom: "6px", lineHeight: 1.2 }}>
+    <div style={{ marginBottom: "var(--sp-lg)" }}>
+      <div style={{ fontSize: "var(--text-xl)", fontWeight: 800, color: "var(--color-gray-900)", marginBottom: "6px", lineHeight: 1.2 }}>
         {title}
       </div>
       <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", lineHeight: 1.6 }}>
@@ -380,14 +341,21 @@ function NavRow({ onBack, onNext, nextLabel = "Continua", nextDisabled = false }
 }) {
   return (
     <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
-      {onBack && <button style={BTN_GHOST} onClick={onBack}>← Indietro</button>}
-      <button
-        style={{ ...BTN_PRIMARY, flex: 1, opacity: nextDisabled ? 0.4 : 1, cursor: nextDisabled ? "not-allowed" : "pointer" }}
+      {onBack && (
+        <Button variant="ghost" size="md" onClick={onBack} icon={<ArrowLeftIcon style={{ width: "16px", height: "16px" }} />} style={{ flexShrink: 0 }}>
+          Indietro
+        </Button>
+      )}
+      <Button
+        variant="primary"
+        size="md"
         disabled={nextDisabled}
         onClick={onNext}
+        icon={<ArrowRightIcon style={{ width: "16px", height: "16px" }} />}
+        style={{ flexDirection: "row-reverse", flex: 1, minWidth: 0 }}
       >
-        {nextLabel} <span style={{ fontSize: "18px" }}>→</span>
-      </button>
+        {nextLabel}
+      </Button>
     </div>
   );
 }
@@ -397,12 +365,12 @@ function NavRow({ onBack, onNext, nextLabel = "Continua", nextDisabled = false }
 function StepLicense({ onNext }: { onNext: () => void }) {
   const [accepted, setAccepted] = useState(false);
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
       <StepHeading title="Contratto di licenza" sub="Leggi e accetta i termini per continuare con l'installazione." />
 
       <div style={{
         background: "var(--color-gray-50)",
-        borderRadius: "12px",
+        borderRadius: "var(--radius-md)",
         border: "1.5px solid var(--color-gray-200)",
         padding: "16px 18px",
         maxHeight: "180px",
@@ -418,14 +386,14 @@ function StepLicense({ onNext }: { onNext: () => void }) {
       {/* License status */}
       <div style={{
         background: "linear-gradient(135deg, var(--color-brand) 0%, var(--color-brand-dark) 100%)",
-        borderRadius: "14px",
+        borderRadius: "var(--radius-lg)",
         padding: "16px 20px",
         display: "flex",
         alignItems: "center",
         gap: "14px",
         color: "var(--color-white)",
       }}>
-        <div style={{ fontSize: "24px", flexShrink: 0 }}>🔑</div>
+        <ShieldCheckIcon style={{ width: "24px", height: "24px", flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: "var(--text-sm)" }}>Licenza di prova attiva</div>
           <div style={{ fontSize: "var(--text-xs)", opacity: 0.8, marginTop: "2px" }}>Funzionalità complete durante l'installazione.</div>
@@ -438,7 +406,7 @@ function StepLicense({ onNext }: { onNext: () => void }) {
       {/* Checkbox */}
       <label style={{
         display: "flex", alignItems: "flex-start", gap: "12px", cursor: "pointer",
-        padding: "14px", borderRadius: "12px",
+        padding: "14px", borderRadius: "var(--radius-md)",
         border: `2px solid ${accepted ? "var(--color-brand)" : "var(--color-gray-200)"}`,
         background: accepted ? "rgba(23,102,60,0.04)" : "transparent",
         transition: "all 0.2s",
@@ -450,7 +418,7 @@ function StepLicense({ onNext }: { onNext: () => void }) {
           display: "flex", alignItems: "center", justifyContent: "center",
           transition: "all 0.15s",
         }}>
-          {accepted && <span style={{ color: "white", fontSize: "12px" }}>✓</span>}
+          {accepted && <CheckIcon style={{ width: "12px", height: "12px", color: "white" }} />}
         </div>
         <input type="checkbox" style={{ display: "none" }} checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
         <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-700)", lineHeight: 1.5 }}>
@@ -491,18 +459,18 @@ function StepRestaurant({ onNext, onBack }: { onNext: (d: RestaurantData) => voi
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-md)" }}>
       <StepHeading title="Il tuo locale" sub="Questi dati appaiono sullo scontrino. Modificabili in qualsiasi momento." />
 
       {/* Layout a due colonne: logo sx, campi dx */}
-      <div style={{ display: "grid", gridTemplateColumns: "80px 1fr", gap: "16px", alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "80px 1fr", gap: "var(--sp-md)", alignItems: "start" }}>
 
         {/* Logo upload verticale */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
-          <div style={{ width: "72px", height: "72px", borderRadius: "12px", border: "2px solid var(--color-gray-200)", background: "var(--color-gray-50)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
-            {logoPreview ? <img src={logoPreview} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <span style={{ fontSize: "26px" }}>🏪</span>}
+          <div style={{ width: "72px", height: "72px", borderRadius: "var(--radius-md)", border: "2px solid var(--color-gray-200)", background: "var(--color-gray-50)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
+            {logoPreview ? <img src={logoPreview} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <BuildingStorefrontIcon style={{ width: "26px", height: "26px", color: "var(--color-gray-300)" }} />}
           </div>
-          <label style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "72px", padding: "5px 0", borderRadius: "8px", border: "1.5px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", fontSize: "10px", fontWeight: 600, color: "var(--color-gray-600)", textAlign: "center" }}>
+          <label style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "72px", padding: "5px 0", borderRadius: "var(--radius-sm)", border: "1.5px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", fontSize: "10px", fontWeight: 600, color: "var(--color-gray-600)", textAlign: "center" }}>
             Logo
             <input type="file" accept="image/png,image/jpeg" style={{ display: "none" }} onChange={handleLogo} />
           </label>
@@ -510,26 +478,26 @@ function StepRestaurant({ onNext, onBack }: { onNext: (d: RestaurantData) => voi
 
         {/* Nome (occupa tutta la colonna destra) */}
         <Field label="Nome del locale *">
-          <input style={INPUT} type="text" placeholder="Es. Trattoria Da Mario" value={form.name} onChange={set("name")} autoFocus />
+          <input style={inputStyle} type="text" placeholder="Es. Trattoria Da Mario" value={form.name} onChange={set("name")} autoFocus />
         </Field>
       </div>
 
       {/* Griglia 2 colonne per i campi secondari */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-sm)" }}>
         <Field label="Indirizzo">
-          <input style={INPUT} type="text" placeholder="Es. Via Roma 12" value={form.address} onChange={set("address")} />
+          <input style={inputStyle} type="text" placeholder="Es. Via Roma 12" value={form.address} onChange={set("address")} />
         </Field>
         <Field label="Città / CAP">
-          <input style={INPUT} type="text" placeholder="Es. Milano, 20121" value={form.city} onChange={set("city")} />
+          <input style={inputStyle} type="text" placeholder="Es. Milano, 20121" value={form.city} onChange={set("city")} />
         </Field>
         <Field label="P.IVA / C.F." hint="Appare sullo scontrino">
-          <input style={INPUT} type="text" placeholder="Es. IT01234567890" value={form.vat} onChange={set("vat")} />
+          <input style={inputStyle} type="text" placeholder="Es. IT01234567890" value={form.vat} onChange={set("vat")} />
         </Field>
         <Field label="Telefono">
-          <input style={INPUT} type="text" placeholder="Es. +39 02 1234567" value={form.phone} onChange={set("phone")} />
+          <input style={inputStyle} type="text" placeholder="Es. +39 02 1234567" value={form.phone} onChange={set("phone")} />
         </Field>
         <Field label="Sito web" hint="">
-          <input style={INPUT} type="text" placeholder="Es. www.esempio.it" value={form.website} onChange={set("website")} />
+          <input style={inputStyle} type="text" placeholder="Es. www.esempio.it" value={form.website} onChange={set("website")} />
         </Field>
       </div>
 
@@ -562,25 +530,25 @@ function StepAdmin({ onNext, onBack }: { onNext: (d: AdminData) => void; onBack:
   const strengthLabel = { weak: "Troppo corto", ok: "Accettabile", strong: "Sicuro" };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
       <StepHeading title="Account amministratore" sub="Crea il primo account con accesso completo al POS e all'area admin." />
 
       <Field label="Nome completo *">
-        <input style={INPUT} type="text" placeholder="Es. Mario Rossi" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} autoFocus />
+        <input style={inputStyle} type="text" placeholder="Es. Mario Rossi" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} autoFocus />
       </Field>
 
       <Field label="PIN di accesso *" hint="Solo numeri, minimo 4 cifre.">
         <div style={{ position: "relative" }}>
           <input
-            style={{ ...INPUT, paddingRight: "48px", letterSpacing: "0.15em" }}
+            style={{ ...inputStyle, paddingRight: "48px", letterSpacing: "0.15em" }}
             type={showPin ? "text" : "password"}
             inputMode="numeric"
             placeholder="••••"
             value={form.pin}
             onChange={(e) => setForm((f) => ({ ...f, pin: e.target.value.replace(/\D/g, "") }))}
           />
-          <button type="button" onClick={() => setShowPin((v) => !v)} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "16px", color: "var(--color-gray-400)", padding: "4px" }}>
-            {showPin ? "🙈" : "👁️"}
+          <button type="button" onClick={() => setShowPin((v) => !v)} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--color-gray-400)", padding: "4px", display: "flex" }}>
+            {showPin ? <EyeSlashIcon style={{ width: "18px", height: "18px" }} /> : <EyeIcon style={{ width: "18px", height: "18px" }} />}
           </button>
         </div>
         {strength && (
@@ -597,7 +565,7 @@ function StepAdmin({ onNext, onBack }: { onNext: (d: AdminData) => void; onBack:
 
       <Field label="Conferma PIN *">
         <input
-          style={{ ...INPUT, borderColor: form.pinConfirm && form.pin !== form.pinConfirm ? "var(--color-danger)" : undefined, letterSpacing: "0.15em" }}
+          style={{ ...inputStyle, borderColor: form.pinConfirm && form.pin !== form.pinConfirm ? "var(--color-danger)" : undefined, letterSpacing: "0.15em" }}
           type={showPin ? "text" : "password"}
           inputMode="numeric"
           placeholder="••••"
@@ -606,7 +574,9 @@ function StepAdmin({ onNext, onBack }: { onNext: (d: AdminData) => void; onBack:
           onKeyDown={(e) => { if (e.key === "Enter") handleNext(); }}
         />
         {form.pinConfirm && form.pin === form.pinConfirm && (
-          <div style={{ marginTop: "4px", fontSize: "var(--text-xs)", color: "var(--color-success)", fontWeight: 600 }}>✓ I PIN corrispondono</div>
+          <div style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: "4px", fontSize: "var(--text-xs)", color: "var(--color-success)", fontWeight: 600 }}>
+            <CheckIcon style={{ width: "12px", height: "12px" }} /> I PIN corrispondono
+          </div>
         )}
       </Field>
 
@@ -647,12 +617,12 @@ function StepPrinter({ onNext, onBack }: { onNext: (d: PrinterData | null) => vo
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
       <StepHeading title="Stampante" sub="Connetti la stampante ESC/POS per gli scontrini. Puoi aggiungerla anche in seguito dall'admin." />
 
       {/* Discovery toggle */}
-      <button type="button" onClick={() => { setShowDisc((v) => !v); if (!showDisc) void handleDiscover(); }} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "14px 16px", borderRadius: "12px", border: `1.5px solid ${showDisc ? "var(--color-brand)" : "var(--color-gray-200)"}`, background: showDisc ? "rgba(23,102,60,0.04)" : "var(--color-white)", cursor: "pointer", fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-700)", textAlign: "left", width: "100%" }}>
-        <span style={{ fontSize: "20px", flexShrink: 0 }}>🔍</span>
+      <button type="button" onClick={() => { setShowDisc((v) => !v); if (!showDisc) void handleDiscover(); }} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "14px 16px", borderRadius: "var(--radius-md)", border: `1.5px solid ${showDisc ? "var(--color-brand)" : "var(--color-gray-200)"}`, background: showDisc ? "rgba(23,102,60,0.04)" : "var(--color-white)", cursor: "pointer", fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-700)", textAlign: "left", width: "100%" }}>
+        <MagnifyingGlassIcon style={{ width: "20px", height: "20px", flexShrink: 0, color: "var(--color-gray-400)" }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div>Cerca stampanti sulla rete</div>
           <div style={{ fontWeight: 400, color: "var(--color-gray-400)", fontSize: "var(--text-xs)", marginTop: "1px" }}>Scansiona la rete locale automaticamente</div>
@@ -661,19 +631,24 @@ function StepPrinter({ onNext, onBack }: { onNext: (d: PrinterData | null) => vo
       </button>
 
       {showDisc && (
-        <div style={{ border: "1.5px solid var(--color-gray-200)", borderRadius: "12px", padding: "14px", display: "flex", flexDirection: "column", gap: "10px", background: "var(--color-gray-50)" }}>
+        <div style={{ border: "1.5px solid var(--color-gray-200)", borderRadius: "var(--radius-md)", padding: "14px", display: "flex", flexDirection: "column", gap: "10px", background: "var(--color-gray-50)" }}>
           <div className="setup-printer-row">
-            <input style={{ ...INPUT, flex: 1 }} placeholder="Subnet (es. 192.168.1) — lascia vuoto per auto" value={subnet} onChange={(e) => setSubnet(e.target.value)} />
-            <button onClick={() => void handleDiscover()} disabled={discovering} style={{ height: "48px", padding: "0 16px", borderRadius: "12px", border: "none", background: "var(--color-brand)", color: "var(--color-white)", fontWeight: 700, fontSize: "var(--text-sm)", fontFamily: "var(--font)", cursor: discovering ? "not-allowed" : "pointer", opacity: discovering ? 0.7 : 1, whiteSpace: "nowrap", flexShrink: 0 }}>
-              {discovering ? "⏳ Ricerca…" : "Cerca"}
-            </button>
+            <input style={{ ...inputStyle, flex: 1 }} placeholder="Subnet (es. 192.168.1) — lascia vuoto per auto" value={subnet} onChange={(e) => setSubnet(e.target.value)} />
+            <Button variant="primary" size="md" loading={discovering} onClick={() => void handleDiscover()}>
+              Cerca
+            </Button>
           </div>
           {discovered.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               {discovered.map((p) => (
-                <button key={`${p.host}:${p.port}`} onClick={() => { setForm((f) => ({ ...f, host: p.host, port: String(p.port) })); setShowDisc(false); }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderRadius: "10px", border: "1.5px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-800)" }}>
-                  <span>🖨️ {p.host}:{p.port}</span>
-                  <span style={{ color: "var(--color-brand)", fontSize: "var(--text-xs)" }}>Usa →</span>
+                <button key={`${p.host}:${p.port}`} onClick={() => { setForm((f) => ({ ...f, host: p.host, port: String(p.port) })); setShowDisc(false); }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderRadius: "var(--radius-sm)", border: "1.5px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", fontFamily: "var(--font)", fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-800)" }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <PrinterIcon style={{ width: "16px", height: "16px", color: "var(--color-gray-400)" }} />
+                    {p.host}:{p.port}
+                  </span>
+                  <span style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--color-brand)", fontSize: "var(--text-xs)" }}>
+                    Usa <ArrowRightIcon style={{ width: "12px", height: "12px" }} />
+                  </span>
                 </button>
               ))}
             </div>
@@ -683,14 +658,14 @@ function StepPrinter({ onNext, onBack }: { onNext: (d: PrinterData | null) => vo
 
       <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         <Field label="Nome stampante">
-          <input style={INPUT} type="text" placeholder="Es. Cassa principale" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+          <input style={inputStyle} type="text" placeholder="Es. Cassa principale" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
         </Field>
         <div className="setup-grid-2">
           <Field label="Indirizzo IP">
-            <input style={INPUT} type="text" placeholder="Es. 192.168.1.100" value={form.host} onChange={(e) => setForm((f) => ({ ...f, host: e.target.value }))} />
+            <input style={inputStyle} type="text" placeholder="Es. 192.168.1.100" value={form.host} onChange={(e) => setForm((f) => ({ ...f, host: e.target.value }))} />
           </Field>
           <Field label="Porta">
-            <input style={INPUT} type="text" inputMode="numeric" placeholder="9100" value={form.port} onChange={(e) => setForm((f) => ({ ...f, port: e.target.value }))} />
+            <input style={inputStyle} type="text" inputMode="numeric" placeholder="9100" value={form.port} onChange={(e) => setForm((f) => ({ ...f, port: e.target.value }))} />
           </Field>
         </div>
       </div>
@@ -698,10 +673,19 @@ function StepPrinter({ onNext, onBack }: { onNext: (d: PrinterData | null) => vo
       {error && <ErrorBanner msg={error} />}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        <button style={{ ...BTN_PRIMARY }} onClick={handleNext}>
-          {form.host.trim() ? <>Aggiungi stampante <span style={{ fontSize: "18px" }}>→</span></> : "Salta per ora →"}
-        </button>
-        <button style={BTN_GHOST} onClick={onBack}>← Indietro</button>
+        <Button
+          variant="primary"
+          size="md"
+          fullWidth
+          onClick={handleNext}
+          icon={form.host.trim() ? <ArrowRightIcon style={{ width: "16px", height: "16px" }} /> : undefined}
+          style={form.host.trim() ? { flexDirection: "row-reverse" } : undefined}
+        >
+          {form.host.trim() ? "Aggiungi stampante" : "Salta per ora"}
+        </Button>
+        <Button variant="ghost" size="md" onClick={onBack} icon={<ArrowLeftIcon style={{ width: "16px", height: "16px" }} />}>
+          Indietro
+        </Button>
       </div>
     </div>
   );
@@ -714,16 +698,13 @@ function StepDone({ username, storeName, onDone }: { username: string; storeName
   useEffect(() => { const t = setTimeout(() => setVis(true), 80); return () => clearTimeout(t); }, []);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "24px", textAlign: "center" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--sp-lg)", textAlign: "center" }}>
       <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "linear-gradient(135deg, var(--color-brand), var(--color-brand-dark))", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 32px rgba(23,102,60,0.3)", transform: vis ? "scale(1)" : "scale(0.5)", opacity: vis ? 1 : 0, transition: "transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.4s ease" }}>
-        <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
-          <path d="M9 19.5L15.5 26L29 12" stroke="var(--color-accent)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"
-            style={{ strokeDasharray: 40, strokeDashoffset: vis ? 0 : 40, transition: "stroke-dashoffset 0.5s ease 0.3s" }} />
-        </svg>
+        <CheckIcon style={{ width: "38px", height: "38px", color: "var(--color-accent)" }} />
       </div>
 
       <div style={{ opacity: vis ? 1 : 0, transform: vis ? "translateY(0)" : "translateY(10px)", transition: "all 0.4s ease 0.2s" }}>
-        <div style={{ fontSize: "clamp(18px, 5vw, 24px)", fontWeight: 800, color: "var(--color-gray-900)", marginBottom: "6px" }}>
+        <div style={{ fontSize: "var(--text-xl)", fontWeight: 800, color: "var(--color-gray-900)", marginBottom: "6px" }}>
           {storeName} è pronto!
         </div>
         <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", lineHeight: 1.6 }}>
@@ -731,32 +712,38 @@ function StepDone({ username, storeName, onDone }: { username: string; storeName
         </div>
       </div>
 
-      <div style={{ width: "100%", background: "var(--color-gray-50)", borderRadius: "14px", border: "1.5px solid var(--color-gray-200)", padding: "18px", opacity: vis ? 1 : 0, transition: "opacity 0.4s ease 0.4s" }}>
+      <div style={{ width: "100%", background: "var(--color-gray-50)", borderRadius: "var(--radius-lg)", border: "1.5px solid var(--color-gray-200)", padding: "18px", opacity: vis ? 1 : 0, transition: "opacity 0.4s ease 0.4s" }}>
         <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--color-gray-400)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "12px" }}>Credenziali di accesso</div>
         {[{ label: "Username", value: username, mono: true }, { label: "PIN", value: "Il PIN che hai scelto", mono: false }].map(({ label, value, mono }) => (
           <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
             <span style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)" }}>{label}</span>
-            <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-800)", fontFamily: mono ? "monospace" : "var(--font)", background: "var(--color-white)", border: "1.5px solid var(--color-gray-200)", borderRadius: "8px", padding: "3px 10px" }}>{value}</span>
+            <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-800)", fontFamily: mono ? "monospace" : "var(--font)", background: "var(--color-white)", border: "1.5px solid var(--color-gray-200)", borderRadius: "var(--radius-sm)", padding: "3px 10px" }}>{value}</span>
           </div>
         ))}
       </div>
 
       <div className="setup-done-tips" style={{ width: "100%", opacity: vis ? 1 : 0, transition: "opacity 0.4s ease 0.55s" }}>
         {[
-          { icon: "🏪", text: "Aggiungi prodotti e categorie dall'area Admin" },
-          { icon: "🖨️", text: "Configura i template di stampa in Admin → Scontrini" },
-          { icon: "👥", text: "Crea altri utenti in Admin → Utenti" },
-        ].map(({ icon, text }) => (
-          <div key={text} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "10px", background: "rgba(23,102,60,0.05)", textAlign: "left", fontSize: "var(--text-xs)", color: "var(--color-gray-600)", fontWeight: 500 }}>
-            <span style={{ fontSize: "16px", flexShrink: 0 }}>{icon}</span>
+          { Icon: TagIcon, text: "Aggiungi prodotti e categorie dall'area Admin" },
+          { Icon: DocumentTextIcon, text: "Configura i template di stampa in Admin → Scontrini" },
+          { Icon: UserGroupIcon, text: "Crea altri utenti in Admin → Utenti" },
+        ].map(({ Icon, text }) => (
+          <div key={text} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "var(--radius-sm)", background: "rgba(23,102,60,0.05)", textAlign: "left", fontSize: "var(--text-xs)", color: "var(--color-gray-600)", fontWeight: 500 }}>
+            <Icon style={{ width: "16px", height: "16px", flexShrink: 0, color: "var(--color-brand)" }} />
             {text}
           </div>
         ))}
       </div>
 
-      <button style={{ ...BTN_PRIMARY, width: "100%", opacity: vis ? 1 : 0, transition: "opacity 0.4s ease 0.7s" }} onClick={onDone}>
-        Vai al login 🚀
-      </button>
+      <Button
+        variant="primary"
+        size="md"
+        fullWidth
+        onClick={onDone}
+        style={{ opacity: vis ? 1 : 0, transition: "opacity 0.4s ease 0.7s" }}
+      >
+        Vai al login
+      </Button>
     </div>
   );
 }
@@ -832,21 +819,28 @@ export function SetupScreen({ onDone }: { onDone: () => void }) {
       <style>{RESPONSIVE}</style>
       <div style={{
         minHeight: "100dvh",
-        background: "linear-gradient(160deg, #f0fdf4 0%, #dcfce7 40%, #f9fafb 100%)",
+        background: "linear-gradient(160deg, var(--color-brand-dark) 0%, var(--color-brand) 100%)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: "clamp(12px, 4vw, 32px)",
         boxSizing: "border-box",
+        position: "relative",
+        overflow: "hidden",
       }}>
         {/* Decorazioni di sfondo */}
-        <div style={{ position: "fixed", top: "-100px", right: "-100px", width: "350px", height: "350px", borderRadius: "50%", background: "radial-gradient(circle, rgba(23,102,60,0.07) 0%, transparent 70%)", pointerEvents: "none" }} />
-        <div style={{ position: "fixed", bottom: "-60px", left: "-60px", width: "250px", height: "250px", borderRadius: "50%", background: "radial-gradient(circle, rgba(194,232,18,0.09) 0%, transparent 70%)", pointerEvents: "none" }} />
+        <div
+          aria-hidden
+          style={{
+            position: "absolute", inset: 0, pointerEvents: "none",
+            backgroundImage: "radial-gradient(circle at 15% 15%, rgba(255,255,255,0.08) 0%, transparent 45%), radial-gradient(circle at 85% 90%, rgba(255,255,255,0.06) 0%, transparent 40%)",
+          }}
+        />
 
         <div className="setup-card">
           {/* Header */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "28px" }}>
-            <div style={{ width: "36px", height: "36px", borderRadius: "9px", background: "var(--color-brand)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "var(--sp-xl)" }}>
+            <div style={{ width: "36px", height: "36px", borderRadius: "var(--radius-sm)", background: "var(--color-brand)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <svg width="20" height="20" viewBox="0 0 490 530" fill="none">
                 <path fillRule="evenodd" clipRule="evenodd" d="M266.087 527.204C214.215 527.204 168.106 516.281 127.76 494.434C88.0555 471.946 56.6757 441.425 33.6212 402.872C25.6925 389.235 19.1663 374.875 14.0423 359.79C12.9044 356.44 15.4234 353.014 18.9506 353.014H65.5305C66.6401 353.014 67.7209 352.66 68.6175 352.004L100.723 328.517C103.624 326.395 107.747 327.764 108.962 331.153C112.025 339.71 115.73 347.874 120.076 355.646C134.805 381.348 155.618 401.265 182.515 415.402C209.412 429.538 240.471 436.606 275.693 436.606C300.669 436.606 323.724 432.43 344.857 424.076C349.698 422.219 354.62 420.026 359.621 417.503C362.127 416.238 365.199 417.084 366.635 419.502L405.438 484.866C406.971 487.449 406.039 490.798 403.366 492.161C382.993 502.557 361.248 511.024 338.133 517.566C313.798 523.992 289.783 527.204 266.087 527.204ZM479.983 288.179C482.831 288.179 485.158 285.897 485.222 283.041L486.066 245.771C486.707 210.431 481.263 177.984 469.736 148.427C458.849 118.227 442.839 92.2045 421.705 70.3581C401.213 48.5117 376.877 31.4845 348.699 19.2762C320.522 6.42545 290.103 0 257.442 0C220.298 0 185.716 6.74666 153.697 20.24C122.317 33.0907 95.0998 51.7245 72.0453 76.141C49.6313 99.915 32.0201 128.187 19.2121 160.956C13.2345 176.249 8.65178 192.313 5.46397 209.147C1.82132 228.381 0 248.621 0 269.867C0 274.365 0.0902493 278.814 0.270747 283.22C0.38487 286.004 2.68463 288.179 5.46243 288.179H479.983ZM116.233 169.63C110.496 181.445 106.112 194.618 103.08 209.147H385.202V202.4C383.281 181.196 376.237 162.241 364.069 145.535C351.901 128.829 336.531 115.657 317.96 106.019C299.389 96.381 279.216 91.5619 257.442 91.5619C222.86 91.5619 193.722 98.3086 170.027 111.802C146.332 124.653 128.401 143.929 116.233 169.63Z" fill="var(--color-accent)" />
               </svg>
@@ -861,7 +855,7 @@ export function SetupScreen({ onDone }: { onDone: () => void }) {
 
           {/* Loading overlay */}
           {loading && (
-            <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.88)", borderRadius: "24px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px", zIndex: 10 }}>
+            <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.88)", borderRadius: "var(--radius-xl)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px", zIndex: 10 }}>
               <div style={{ width: "44px", height: "44px", border: "4px solid var(--color-gray-100)", borderTop: "4px solid var(--color-brand)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
               <div style={{ fontWeight: 600, color: "var(--color-gray-600)", fontSize: "var(--text-sm)" }}>Configurazione in corso…</div>
             </div>

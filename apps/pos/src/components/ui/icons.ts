@@ -44,6 +44,10 @@ export {
   MagnifyingGlassIcon,
   FunnelIcon,
   LockClosedIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  ExclamationTriangleIcon,
+  ArrowRightIcon,
 } from "@heroicons/react/24/outline";
 
 export {
