@@ -190,29 +190,23 @@ export function LoginScreen() {
             <label style={{ display: "block", fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-gray-700)", marginBottom: "6px" }}>
               PIN
             </label>
-            <div style={{ position: "relative" }}>
-              <LockClosedIcon width={18} height={18} color="var(--color-gray-400)" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
-              <input
-                value={pin}
-                onChange={(e) => {
-                  const digits = e.target.value.replace(/\D/g, "").slice(0, MAX_PIN);
-                  setPin(digits);
-                  setError(null);
-                }}
-                onKeyDown={(e) => { if (e.key === "Enter") void handleLogin(pin); }}
-                type="password"
-                inputMode="numeric"
-                autoComplete="off"
-                autoFocus
-                placeholder="••••"
+            <div
+              style={{
+                display: "flex", alignItems: "center", gap: "10px",
+                height: "48px", padding: "0 14px",
+                borderRadius: "var(--radius-md)", border: "1.5px solid var(--color-gray-200)",
+                background: "var(--color-white)",
+              }}
+            >
+              <LockClosedIcon width={18} height={18} color="var(--color-gray-400)" style={{ flexShrink: 0 }} />
+              <span
                 style={{
-                  width: "100%", height: "48px", padding: "0 14px 0 42px",
-                  borderRadius: "var(--radius-md)", border: "1.5px solid var(--color-gray-200)",
-                  fontSize: "20px", fontWeight: 700, letterSpacing: "0.3em",
-                  fontFamily: "var(--font)", color: "var(--color-gray-900)",
-                  background: "var(--color-white)", outline: "none", boxSizing: "border-box",
+                  flex: 1, fontSize: "20px", fontWeight: 700, letterSpacing: "0.3em",
+                  color: pin ? "var(--color-gray-900)" : "var(--color-gray-300)",
                 }}
-              />
+              >
+                {pin ? "•".repeat(pin.length) : "– – – –"}
+              </span>
             </div>
           </div>
 
