@@ -11,6 +11,7 @@ import moduleLoaderPlugin from "./plugins/module-loader.plugin.js";
 import printerTriggerPlugin from "./plugins/printer-trigger.plugin.js";
 import wsGateway from "./ws/ws-gateway.js";
 import healthRoute from "./routes/health.js";
+import systemRoute from "./routes/system.js";
 import authRoutes from "./routes/auth.js";
 import diagnosticsRoutes from "./routes/diagnostics.js";
 import { salesModule } from "@pos/module-sales";
@@ -92,6 +93,7 @@ export async function buildServer(config: AppConfig) {
 
   // Routes
   await fastify.register(healthRoute);
+  await fastify.register(systemRoute, { prefix: "/api" });
   await fastify.register(authRoutes, { prefix: "/api" });
   await fastify.register(diagnosticsRoutes, { prefix: "/api" });
   await fastify.register(categoriesRoutes, { prefix: "/api" });

@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { authClient } from "../../core/auth-client.js";
+import { systemApi } from "../../core/system-api.js";
 import { wsClient } from "../../core/ws-client.js";
 import { useStore } from "../../state/global-store.js";
 import { LockClosedIcon, BanknotesIcon, ClockIcon, ShieldCheckIcon } from "../../components/ui/icons.js";
@@ -28,6 +29,18 @@ export function LoginScreen() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [shuttingDown, setShuttingDown] = useState(false);
+
+  const handleShutdown = useCallback(async () => {
+    if (shuttingDown) return;
+    setShuttingDown(true);
+    try {
+      await systemApi.shutdown();
+    } catch {
+      // Il dispositivo potrebbe spegnersi prima che la risposta arrivi:
+      // un errore di rete a questo punto non è necessariamente un fallimento reale.
+    }
+  }, [shuttingDown]);
 
   const handleLogin = useCallback(async (currentPin: string) => {
     if (currentPin.length < MIN_PIN) return;
@@ -159,18 +172,30 @@ export function LoginScreen() {
         }}
       >
         <button
-          onClick={() => window.close()}
-          title="Chiudi applicazione"
+          onClick={() => void handleShutdown()}
+          disabled={shuttingDown}
+          title="Spegni il dispositivo"
           style={{
             position: "absolute", top: "16px", right: "16px",
             width: "36px", height: "36px", borderRadius: "50%", border: "none",
             background: "var(--color-gray-100)", color: "var(--color-gray-500)",
-            cursor: "pointer", fontSize: "18px",
+            cursor: shuttingDown ? "default" : "pointer", fontSize: "18px",
             display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
+            opacity: shuttingDown ? 0.6 : 1,
           }}
         >
           ✕
         </button>
+        {shuttingDown && (
+          <div style={{
+            position: "absolute", top: "60px", right: "16px",
+            fontSize: "var(--text-xs)", color: "var(--color-gray-500)",
+            background: "var(--color-white)", padding: "6px 10px",
+            borderRadius: "var(--radius-sm)", boxShadow: "var(--shadow-sm)",
+          }}>
+            Spegnimento in corso…
+          </div>
+        )}
 
         <div style={{ width: "100%", maxWidth: "360px", display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
           <div className="login-brand-mobile" style={{ display: "none", textAlign: "center", marginBottom: "var(--sp-sm)" }}>
