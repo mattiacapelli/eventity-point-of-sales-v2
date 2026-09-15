@@ -3,7 +3,7 @@ import { adminApi } from "../../core/admin-api.js";
 import type { RestaurantInfo } from "../../core/admin-api.js";
 import { useToastStore } from "../../components/ui/Toast.js";
 import { Button } from "../../components/ui/Button.js";
-import { inputStyle, labelStyle } from "./shared.js";
+import { inputStyle, labelStyle, PageHeader, FormGrid, SectionHeading } from "./shared.js";
 
 export function RestaurantTab() {
   const [form, setForm] = useState<RestaurantInfo>({ name: "", address: "", city: "", vat: "", phone: "", website: "", logoPath: null });
@@ -55,7 +55,7 @@ export function RestaurantTab() {
     }
   }
 
-  const fields: { key: keyof Omit<RestaurantInfo, "logoPath">; label: string; placeholder: string; type?: string }[] = [
+  const fields: { key: keyof Omit<RestaurantInfo, "logoPath">; label: string; placeholder: string }[] = [
     { key: "name",    label: "Nome locale",   placeholder: "Es. Trattoria da Mario" },
     { key: "address", label: "Indirizzo",      placeholder: "Es. Via Roma 12" },
     { key: "city",    label: "Città / CAP",    placeholder: "Es. Milano, 20121" },
@@ -65,19 +65,14 @@ export function RestaurantTab() {
   ];
 
   return (
-    <div style={{ padding: "var(--sp-lg)", maxWidth: "560px" }}>
-      <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-gray-800)", marginTop: 0, marginBottom: "6px" }}>
-        Informazioni ristorante
-      </h2>
-      <p style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-400)", marginTop: 0, marginBottom: "var(--sp-lg)" }}>
-        Questi dati appaiono sullo scontrino e nel Z-report.
-      </p>
+    <div style={{ padding: "var(--sp-lg)" }}>
+      <PageHeader title="Ristorante" subtitle="Questi dati appaiono sullo scontrino e nel Z-report." />
 
       {loading_ ? (
         <div style={{ color: "var(--color-gray-400)", padding: "40px", textAlign: "center" }}>Caricamento...</div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <div style={{ background: "var(--color-white)", borderRadius: "var(--radius-xl)", padding: "28px", boxShadow: "var(--shadow-sm)", display: "flex", flexDirection: "column", gap: "18px" }}>
+        <>
+          <FormGrid>
             {fields.map(({ key, label, placeholder }) => {
               const vatWarning = key === "vat" && form.vat && !/^(IT\d{11}|\d{16})$/i.test(form.vat.replace(/\s/g, ""));
               return (
@@ -97,14 +92,10 @@ export function RestaurantTab() {
                 </div>
               );
             })}
-          </div>
+          </FormGrid>
 
-          {/* Logo */}
-          <div style={{ background: "var(--color-white)", borderRadius: "var(--radius-xl)", padding: "24px", boxShadow: "var(--shadow-sm)", display: "flex", flexDirection: "column", gap: "14px" }}>
-            <div style={{ fontWeight: 700, fontSize: "var(--text-sm)", color: "var(--color-gray-700)" }}>Logo ristorante</div>
-            <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
-              Appare in cima allo scontrino immagine. Formato: PNG o JPG, max 5 MB.
-            </p>
+          <SectionHeading title="Logo ristorante" subtitle="Appare in cima allo scontrino immagine. Formato: PNG o JPG, max 5 MB." />
+          <div style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
             {form.logoPath && (
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <img
@@ -124,7 +115,7 @@ export function RestaurantTab() {
             </label>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "var(--sp-xl)" }}>
             <Button size="sm" loading={saving} onClick={() => void handleSave()}>
               Salva
             </Button>
@@ -134,7 +125,7 @@ export function RestaurantTab() {
               </span>
             )}
           </div>
-        </div>
+        </>
       )}
     </div>
   );

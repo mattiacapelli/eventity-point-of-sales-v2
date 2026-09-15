@@ -3,9 +3,16 @@ import { adminApi } from "../../core/admin-api.js";
 import type { InventoryItemRecord } from "../../core/admin-api.js";
 import { Button } from "../../components/ui/Button.js";
 import { Modal } from "../../components/ui/Modal.js";
-import { PlusIcon, PencilSquareIcon, TrashIcon } from "../../components/ui/icons.js";
-import { inputStyle, labelStyle, tableHeaderStyle, tableCellStyle } from "./shared.js";
+import { inputStyle, labelStyle, AdminTablePage, EditDeleteActions, DeleteConfirmModal } from "./shared.js";
 import type { Product } from "@pos/shared-types";
+
+const FILL_OPTIONS = [
+  { value: "yes", label: "Carico turno: Si" },
+  { value: "no", label: "Carico turno: —" },
+];
+const STOCK_OPTIONS = [
+  { value: "low", label: "Solo scorta bassa" },
+];
 
 const toggleStyle = (on: boolean): React.CSSProperties => ({
   width: "44px", height: "24px", borderRadius: "12px",
@@ -27,6 +34,8 @@ export function InventoryTab() {
   const [adjustTarget, setAdjustTarget] = useState<InventoryItemRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [fillFilter, setFillFilter] = useState("");
+  const [stockFilter, setStockFilter] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -125,67 +134,70 @@ export function InventoryTab() {
   const productMap = Object.fromEntries(products.map((p) => [p.id, p]));
 
   return (
-    <div style={{ padding: "var(--sp-lg)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--sp-lg)" }}>
-        <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-gray-800)", margin: 0 }}>Inventario</h2>
-        <Button size="sm" onClick={openCreate} icon={<PlusIcon style={{ width: "16px", height: "16px" }} />}>Nuovo item</Button>
-      </div>
-      <div style={{ background: "var(--color-white)", borderRadius: "var(--radius-xl)", overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
-        {loading_ ? (
-          <div style={{ padding: "32px", textAlign: "center", color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>Caricamento...</div>
-        ) : items.length === 0 ? (
-          <div style={{ padding: "32px", textAlign: "center", color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>Nessun item inventario.</div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th style={tableHeaderStyle}>Nome / Prodotto</th>
-                <th style={tableHeaderStyle}>SKU</th>
-                <th style={tableHeaderStyle}>Unità</th>
-                <th style={{ ...tableHeaderStyle, textAlign: "right" }}>Stock</th>
-                <th style={{ ...tableHeaderStyle, textAlign: "right" }}>Min</th>
-                <th style={{ ...tableHeaderStyle, textAlign: "center" }}>Carico turno</th>
-                <th style={{ ...tableHeaderStyle, textAlign: "center" }}>Azioni</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => {
-                const isLow = item.minStock > 0 && item.currentStock <= item.minStock;
-                const linkedProduct = item.productId ? productMap[item.productId] : null;
-                return (
-                  <tr key={item.id} style={{ background: isLow ? "rgba(239,68,68,0.04)" : undefined }}>
-                    <td style={tableCellStyle}>
-                      <span style={{ fontWeight: 600, color: "var(--color-gray-800)" }}>{item.name}</span>
-                      {isLow && <span style={{ marginLeft: "8px", fontSize: "var(--text-xs)", color: "#DC2626", fontWeight: 700 }}>SCORTA BASSA</span>}
-                      {linkedProduct && (
-                        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-brand)", marginTop: "2px" }}>
-                          → {linkedProduct.name}
-                        </div>
-                      )}
-                    </td>
-                    <td style={tableCellStyle}>{item.sku ?? "—"}</td>
-                    <td style={tableCellStyle}>{item.unit}</td>
-                    <td style={{ ...tableCellStyle, textAlign: "right", fontWeight: 600, color: isLow ? "#DC2626" : "var(--color-gray-800)" }}>{item.currentStock}</td>
-                    <td style={{ ...tableCellStyle, textAlign: "right" }}>{item.minStock}</td>
-                    <td style={{ ...tableCellStyle, textAlign: "center" }}>
-                      {item.resetOnShiftOpen === 1
-                        ? <span style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-brand)" }}>Si</span>
-                        : <span style={{ color: "var(--color-gray-300)", fontSize: "var(--text-xs)" }}>—</span>}
-                    </td>
-                    <td style={{ ...tableCellStyle, textAlign: "center" }}>
-                      <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
-                        <button onClick={() => { setAdjustTarget(item); setAdjustQty("0"); setAdjustReason(""); }} style={{ padding: "5px 10px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-gray-600)", fontFamily: "var(--font)" }}>Rettifica</button>
-                        <button onClick={() => openEdit(item)} style={{ padding: "6px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", color: "var(--color-gray-600)", display: "flex" }}><PencilSquareIcon style={{ width: "14px", height: "14px" }} /></button>
-                        <button onClick={() => setDeleteId(item.id)} style={{ padding: "6px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-danger)", background: "var(--color-white)", cursor: "pointer", color: "var(--color-danger)", display: "flex" }}><TrashIcon style={{ width: "14px", height: "14px" }} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+    <>
+      <AdminTablePage
+        title="Inventario"
+        rows={items}
+        rowKey={(item) => item.id}
+        loading={loading_}
+        emptyMessage="Nessun item inventario."
+        searchPlaceholder="Cerca item..."
+        searchPredicate={(item, q) => item.name.toLowerCase().includes(q.toLowerCase()) || (item.sku ?? "").toLowerCase().includes(q.toLowerCase())}
+        filters={[
+          { key: "stock", label: "Tutte le scorte", options: STOCK_OPTIONS, value: stockFilter, onChange: setStockFilter, predicate: (item) => item.minStock > 0 && item.currentStock <= item.minStock },
+          { key: "fill", label: "Tutti i carichi turno", options: FILL_OPTIONS, value: fillFilter, onChange: setFillFilter, predicate: (item, v) => (v === "yes" ? item.resetOnShiftOpen === 1 : item.resetOnShiftOpen !== 1) },
+        ]}
+        rowStyle={(item) => (item.minStock > 0 && item.currentStock <= item.minStock ? { background: "rgba(239,68,68,0.04)" } : undefined)}
+        columns={[
+          {
+            key: "name",
+            header: "Nome / Prodotto",
+            render: (item) => {
+              const isLow = item.minStock > 0 && item.currentStock <= item.minStock;
+              const linkedProduct = item.productId ? productMap[item.productId] : null;
+              return (
+                <>
+                  <span style={{ fontWeight: 600, color: "var(--color-gray-800)" }}>{item.name}</span>
+                  {isLow && <span style={{ marginLeft: "8px", fontSize: "var(--text-xs)", color: "#DC2626", fontWeight: 700 }}>SCORTA BASSA</span>}
+                  {linkedProduct && (
+                    <div style={{ fontSize: "var(--text-xs)", color: "var(--color-brand)", marginTop: "2px" }}>
+                      → {linkedProduct.name}
+                    </div>
+                  )}
+                </>
+              );
+            },
+          },
+          { key: "sku", header: "SKU", render: (item) => item.sku ?? "—" },
+          { key: "unit", header: "Unità", render: (item) => item.unit },
+          {
+            key: "stock",
+            header: "Stock",
+            align: "right",
+            render: (item) => {
+              const isLow = item.minStock > 0 && item.currentStock <= item.minStock;
+              return <span style={{ fontWeight: 600, color: isLow ? "#DC2626" : "var(--color-gray-800)" }}>{item.currentStock}</span>;
+            },
+          },
+          { key: "minStock", header: "Min", align: "right", render: (item) => item.minStock },
+          {
+            key: "fill",
+            header: "Carico turno",
+            align: "center",
+            render: (item) => item.resetOnShiftOpen === 1
+              ? <span style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-brand)" }}>Si</span>
+              : <span style={{ color: "var(--color-gray-300)", fontSize: "var(--text-xs)" }}>—</span>,
+          },
+        ]}
+        rowActions={(item) => (
+          <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+            <button onClick={() => { setAdjustTarget(item); setAdjustQty("0"); setAdjustReason(""); }} style={{ padding: "5px 10px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-gray-600)", fontFamily: "var(--font)" }}>Rettifica</button>
+            <EditDeleteActions onEdit={() => openEdit(item)} onDelete={() => setDeleteId(item.id)} />
+          </div>
         )}
-      </div>
+        createLabel="Nuovo item"
+        onCreateClick={openCreate}
+      />
 
       {/* Create / edit modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editTarget ? "Modifica item" : "Nuovo item inventario"}>
@@ -283,13 +295,13 @@ export function InventoryTab() {
         </div>
       </Modal>
 
-      <Modal open={deleteId !== null} onClose={() => setDeleteId(null)} title="Elimina item">
-        <p style={{ color: "var(--color-gray-600)", fontSize: "var(--text-sm)", marginBottom: "20px" }}>Eliminare questo item inventario?</p>
-        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteId(null)}>Annulla</Button>
-          <Button variant="danger" size="sm" onClick={() => deleteId && void handleDelete(deleteId)}>Elimina</Button>
-        </div>
-      </Modal>
-    </div>
+      <DeleteConfirmModal
+        open={deleteId !== null}
+        title="Elimina item"
+        message="Eliminare questo item inventario?"
+        onClose={() => setDeleteId(null)}
+        onConfirm={() => deleteId && void handleDelete(deleteId)}
+      />
+    </>
   );
 }

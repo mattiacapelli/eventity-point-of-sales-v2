@@ -4,8 +4,7 @@ import { useAdminStore } from "../../state/admin-store.js";
 import { Button } from "../../components/ui/Button.js";
 import { Modal } from "../../components/ui/Modal.js";
 import type { PaymentMethodRecord } from "@pos/shared-types";
-import { PlusIcon, BanknotesIcon, PencilSquareIcon, TrashIcon } from "../../components/ui/icons.js";
-import { inputStyle, labelStyle, Toggle } from "./shared.js";
+import { inputStyle, labelStyle, Toggle, AdminTablePage, EditDeleteActions, DeleteConfirmModal } from "./shared.js";
 
 export function PaymentMethodsTab() {
   const { paymentMethods, setPaymentMethods, upsertPaymentMethod, removePaymentMethod } = useAdminStore();
@@ -14,6 +13,7 @@ export function PaymentMethodsTab() {
   const [form, setForm] = useState({ name: "", type: "cash", icon: "", excludeFromTotal: false });
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [typeFilter, setTypeFilter] = useState("");
 
   useEffect(() => {
     adminApi.paymentMethods.list().then(setPaymentMethods).catch(console.error);
@@ -56,38 +56,59 @@ export function PaymentMethodsTab() {
     upsertPaymentMethod(updated);
   }
 
+  const typeOptions = Array.from(new Set(paymentMethods.map((m) => m.type))).sort().map((t) => ({ value: t, label: t }));
+
   return (
-    <div style={{ padding: "var(--sp-lg)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--sp-lg)" }}>
-        <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-gray-800)", margin: 0 }}>Metodi di pagamento</h2>
-        <Button size="sm" onClick={openCreate} icon={<PlusIcon style={{ width: "16px", height: "16px" }} />}>Nuovo metodo</Button>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        {paymentMethods.length === 0 && (
-          <div style={{ background: "var(--color-white)", borderRadius: "var(--radius-xl)", padding: "32px", textAlign: "center", color: "var(--color-gray-400)", fontSize: "var(--text-sm)", boxShadow: "var(--shadow-sm)" }}>
-            Nessun metodo di pagamento. Aggiungine uno.
-          </div>
-        )}
-        {paymentMethods.map((m) => (
-          <div key={m.id} style={{ background: "var(--color-white)", borderRadius: "var(--radius-lg)", padding: "14px 16px", display: "flex", alignItems: "center", gap: "12px", boxShadow: "var(--shadow-sm)" }}>
-            <BanknotesIcon style={{ width: "18px", height: "18px", color: "var(--color-brand)", flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: "var(--text-md)", fontWeight: 600, color: "var(--color-gray-800)" }}>{m.name}</div>
-              <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
-                {m.type}
-                {m.excludeFromTotal && " · Escluso dal totale generale"}
-              </div>
-            </div>
-            <Toggle value={m.active} onChange={() => void handleToggleActive(m)} />
-            <button onClick={() => openEdit(m)} style={{ padding: "6px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", color: "var(--color-gray-600)", display: "flex" }}>
-              <PencilSquareIcon style={{ width: "16px", height: "16px" }} />
-            </button>
-            <button onClick={() => setDeleteId(m.id)} style={{ padding: "6px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-danger)", background: "var(--color-white)", cursor: "pointer", color: "var(--color-danger)", display: "flex" }}>
-              <TrashIcon style={{ width: "16px", height: "16px" }} />
-            </button>
-          </div>
-        ))}
-      </div>
+    <>
+      <AdminTablePage
+        title="Metodi di pagamento"
+        rows={paymentMethods}
+        rowKey={(m) => m.id}
+        emptyMessage="Nessun metodo di pagamento. Aggiungine uno."
+        searchPlaceholder="Cerca metodo..."
+        searchPredicate={(m, q) => m.name.toLowerCase().includes(q.toLowerCase())}
+        filters={[
+          {
+            key: "type",
+            label: "Tutti i tipi",
+            options: typeOptions,
+            value: typeFilter,
+            onChange: setTypeFilter,
+            predicate: (m, v) => m.type === v,
+          },
+        ]}
+        columns={[
+          {
+            key: "name",
+            header: "Nome",
+            render: (m) => (
+              <>
+                <span style={{ fontWeight: 600, color: "var(--color-gray-800)" }}>{m.name}</span>
+                {m.excludeFromTotal && (
+                  <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginTop: "2px" }}>
+                    Escluso dal totale generale
+                  </div>
+                )}
+              </>
+            ),
+          },
+          {
+            key: "type",
+            header: "Tipo",
+            render: (m) => <span style={{ color: "var(--color-gray-500)" }}>{m.type}</span>,
+          },
+          {
+            key: "active",
+            header: "Attivo",
+            align: "center",
+            render: (m) => <Toggle value={m.active} onChange={() => void handleToggleActive(m)} />,
+          },
+        ]}
+        rowActions={(m) => <EditDeleteActions onEdit={() => openEdit(m)} onDelete={() => setDeleteId(m.id)} />}
+        createLabel="Nuovo metodo"
+        onCreateClick={openCreate}
+      />
+
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editTarget ? "Modifica metodo" : "Nuovo metodo di pagamento"}>
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div>
@@ -112,13 +133,13 @@ export function PaymentMethodsTab() {
           </div>
         </div>
       </Modal>
-      <Modal open={deleteId !== null} onClose={() => setDeleteId(null)} title="Elimina metodo di pagamento">
-        <p style={{ color: "var(--color-gray-600)", fontSize: "var(--text-sm)", marginBottom: "20px" }}>Sei sicuro?</p>
-        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteId(null)}>Annulla</Button>
-          <Button variant="danger" size="sm" onClick={() => deleteId && void handleDelete(deleteId)}>Elimina</Button>
-        </div>
-      </Modal>
-    </div>
+
+      <DeleteConfirmModal
+        open={deleteId !== null}
+        title="Elimina metodo di pagamento"
+        onClose={() => setDeleteId(null)}
+        onConfirm={() => deleteId && void handleDelete(deleteId)}
+      />
+    </>
   );
 }

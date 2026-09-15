@@ -1,12 +1,22 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { adminApi } from "../../core/admin-api.js";
 import { useAdminStore } from "../../state/admin-store.js";
 import { useToastStore } from "../../components/ui/Toast.js";
 import { Button } from "../../components/ui/Button.js";
+import { Modal } from "../../components/ui/Modal.js";
 import type { Terminal, Printer, Category } from "@pos/shared-types";
 import { PlusIcon, TrashIcon } from "../../components/ui/icons.js";
-import { inputStyle, Toggle } from "./shared.js";
+import { inputStyle, labelStyle, Toggle, AdminTablePage } from "./shared.js";
 import { wsClient } from "../../core/ws-client.js";
+
+const STATUS_OPTIONS = [
+  { value: "active", label: "Attivo" },
+  { value: "inactive", label: "Disattivo" },
+];
+const CONNECTION_OPTIONS = [
+  { value: "online", label: "Online" },
+  { value: "offline", label: "Offline" },
+];
 
 const VIEW_MODE_LABELS: Record<string, string> = {
   "": "Nessuna preferenza",
@@ -32,6 +42,8 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
   const [terminalProducts, setTerminalProducts] = useState<Record<number, { id: number; name: string }[]>>({});
   const [productDropdownId, setProductDropdownId] = useState<number | null>(null);
   const [allProducts, setAllProducts] = useState<{ id: number; name: string }[]>([]);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [connectionFilter, setConnectionFilter] = useState("");
 
   const now = Date.now();
   const isOnline = (t: Terminal) => t.lastSeenAt !== null && now - t.lastSeenAt < 5 * 60 * 1000;
@@ -66,6 +78,11 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
       const list = await adminApi.terminals.getPrinters(terminalId);
       setTerminalPrinters((prev) => ({ ...prev, [terminalId]: list.map((p) => p.id) }));
     } catch { /* ignore */ }
+  }
+
+  function openCreate() {
+    setNewName("");
+    setCreating(true);
   }
 
   async function handleCreate() {
@@ -185,99 +202,96 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
     }
   }
 
-  const cardStyle: React.CSSProperties = {
-    background: "var(--color-white)",
-    border: "1px solid var(--color-gray-200)",
-    borderRadius: "var(--radius-lg)",
-    padding: "16px 20px",
-    marginBottom: "10px",
-  };
-
   if (loading_) return <div style={{ color: "var(--color-gray-400)", padding: "24px" }}>Caricamento...</div>;
 
   return (
-    <div style={{ maxWidth: "640px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: "var(--text-lg)", color: "var(--color-gray-900)" }}>Terminali</div>
-          <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)" }}>Gestisci le casse fisiche e le loro stampanti dedicate.</div>
-        </div>
-        <Button onClick={() => setCreating(true)}>
-          <PlusIcon style={{ width: "15px", height: "15px" }} />
-          Nuovo terminale
-        </Button>
-      </div>
-
-      {creating && (
-        <div style={{ ...cardStyle, border: "2px solid var(--color-brand)", marginBottom: "16px" }}>
-          <div style={{ fontWeight: 600, marginBottom: "10px", color: "var(--color-gray-800)" }}>Nuovo terminale</div>
-          <div style={{ display: "flex", gap: "10px" }}>
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Es: Cassa 1, Cassa Bar..."
-              onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setCreating(false); }}
-              autoFocus
-              style={{ ...inputStyle, flex: 1 }}
-            />
-            <Button loading={savingNew} onClick={handleCreate}>Crea</Button>
-            <Button onClick={() => setCreating(false)}>Annulla</Button>
-          </div>
-        </div>
-      )}
-
-      {terminals.length === 0 ? (
-        <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)", padding: "24px", textAlign: "center" }}>
-          Nessun terminale. Crea il primo con il pulsante in alto.
-        </div>
-      ) : (
-        terminals.map((t) => {
+    <>
+      <AdminTablePage
+        title="Terminali"
+        subtitle="Gestisci le casse fisiche e le loro stampanti dedicate."
+        rows={terminals}
+        rowKey={(t) => t.id}
+        emptyMessage="Nessun terminale. Crea il primo con il pulsante in alto."
+        searchPlaceholder="Cerca terminale..."
+        searchPredicate={(t, q) => t.name.toLowerCase().includes(q.toLowerCase())}
+        filters={[
+          { key: "status", label: "Tutti gli stati", options: STATUS_OPTIONS, value: statusFilter, onChange: setStatusFilter, predicate: (t, v) => (v === "active" ? t.active : !t.active) },
+          { key: "connection", label: "Tutte le connessioni", options: CONNECTION_OPTIONS, value: connectionFilter, onChange: setConnectionFilter, predicate: (t, v) => (v === "online" ? isOnline(t) : !isOnline(t)) },
+        ]}
+        columns={[
+          {
+            key: "name",
+            header: "Nome",
+            render: (t) => <span style={{ fontWeight: 600, color: "var(--color-gray-800)" }}>{t.name}</span>,
+          },
+          {
+            key: "connection",
+            header: "Connessione",
+            render: (t) => (
+              <>
+                <span style={{ color: isOnline(t) ? "#22c55e" : "var(--color-gray-400)", fontWeight: 500 }}>
+                  {isOnline(t) ? "● online" : "○ offline"}
+                </span>
+                <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)", marginTop: "2px" }}>
+                  {t.lastSeenAt ? `Visto ${new Date(t.lastSeenAt).toLocaleString("it-IT")}` : "Mai connesso"}
+                </div>
+              </>
+            ),
+          },
+          {
+            key: "status",
+            header: "Stato",
+            align: "center",
+            render: (t) => (
+              <span style={{
+                fontSize: "var(--text-xs)", fontWeight: 700, padding: "2px 8px", borderRadius: "999px",
+                background: t.active ? "#dcfce7" : "var(--color-gray-100)",
+                color: t.active ? "#15803d" : "var(--color-gray-400)",
+              }}>
+                {t.active ? "Attivo" : "Disattivo"}
+              </span>
+            ),
+          },
+        ]}
+        rowActions={(t) => {
           const expanded = expandedId === t.id;
           return (
-            <div key={t.id} style={cardStyle}>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: "var(--text-md)", color: "var(--color-gray-800)" }}>
-                    {t.name}
-                  </div>
-                  <div style={{ fontSize: "var(--text-xs)", color: isOnline(t) ? "#22c55e" : "var(--color-gray-400)", fontWeight: 500, marginTop: "2px" }}>
-                    {isOnline(t) ? "● online" : "○ offline"}
-                    {t.lastSeenAt ? ` — visto ${new Date(t.lastSeenAt).toLocaleString("it-IT")}` : " — mai connesso"}
-                  </div>
-                </div>
-                <span style={{
-                  fontSize: "var(--text-xs)", fontWeight: 700, padding: "2px 8px", borderRadius: "999px",
-                  background: t.active ? "#dcfce7" : "var(--color-gray-100)",
-                  color: t.active ? "#15803d" : "var(--color-gray-400)",
-                }}>
-                  {t.active ? "Attivo" : "Disattivo"}
-                </span>
-                <button
-                  title="Configura"
-                  onClick={() => {
-                    if (!expanded) { loadTerminalPrinters(t.id); loadTerminalCategories(t.id); loadTerminalProducts(t.id); }
-                    setExpandedId(expanded ? null : t.id);
-                  }}
-                  style={{ background: "none", border: "1px solid var(--color-gray-200)", borderRadius: "var(--radius-md)", padding: "5px 10px", cursor: "pointer", fontSize: "var(--text-xs)", color: "var(--color-gray-600)" }}
-                >
-                  Configura
-                </button>
-                <button
-                  onClick={() => handleToggleActive(t)}
-                  style={{ background: "none", border: "1px solid var(--color-gray-200)", borderRadius: "var(--radius-md)", padding: "5px 10px", cursor: "pointer", fontSize: "var(--text-xs)", color: "var(--color-gray-600)" }}
-                >
-                  {t.active ? "Disattiva" : "Attiva"}
-                </button>
-                <button
-                  onClick={() => handleDelete(t.id)}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-gray-400)", padding: "4px" }}
-                  title="Elimina"
-                >
-                  <TrashIcon style={{ width: "16px", height: "16px" }} />
-                </button>
-              </div>
-              {expanded && (
-                <div style={{ marginTop: "14px", borderTop: "1px solid var(--color-gray-100)", paddingTop: "14px" }}>
+            <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+              <button
+                title="Configura"
+                onClick={() => {
+                  if (!expanded) { loadTerminalPrinters(t.id); loadTerminalCategories(t.id); loadTerminalProducts(t.id); }
+                  setExpandedId(expanded ? null : t.id);
+                }}
+                style={{
+                  padding: "6px 10px", borderRadius: "var(--radius-md)",
+                  border: expanded ? "1px solid var(--color-brand)" : "1px solid var(--color-gray-200)",
+                  background: expanded ? "rgba(23,102,60,0.06)" : "var(--color-white)",
+                  cursor: "pointer", color: expanded ? "var(--color-brand)" : "var(--color-gray-600)",
+                  fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font)",
+                }}
+              >
+                Configura
+              </button>
+              <button
+                onClick={() => handleToggleActive(t)}
+                style={{ background: "var(--color-white)", border: "1px solid var(--color-gray-200)", borderRadius: "var(--radius-md)", padding: "5px 10px", cursor: "pointer", fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-gray-600)", fontFamily: "var(--font)" }}
+              >
+                {t.active ? "Disattiva" : "Attiva"}
+              </button>
+              <button
+                onClick={() => handleDelete(t.id)}
+                style={{ padding: "6px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-danger)", background: "var(--color-white)", cursor: "pointer", color: "var(--color-danger)", display: "flex" }}
+                title="Elimina"
+              >
+                <TrashIcon style={{ width: "14px", height: "14px" }} />
+              </button>
+            </div>
+          );
+        }}
+        isExpanded={(t) => expandedId === t.id}
+        renderExpanded={(t) => (
+                <>
                   <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-gray-600)", marginBottom: "10px" }}>
                     Stampanti assegnate
                   </div>
@@ -470,12 +484,31 @@ export function TerminalsTab(_props: { onMultiTerminalChange?: (v: boolean) => v
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
-          );
-        })
-      )}
-    </div>
+                </>
+        )}
+        createLabel="Nuovo terminale"
+        onCreateClick={openCreate}
+      />
+
+      <Modal open={creating} onClose={() => setCreating(false)} title="Nuovo terminale">
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div>
+            <label style={labelStyle}>Nome</label>
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Es: Cassa 1, Cassa Bar..."
+              onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setCreating(false); }}
+              autoFocus
+              style={inputStyle}
+            />
+          </div>
+          <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+            <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>Annulla</Button>
+            <Button size="sm" loading={savingNew} disabled={!newName.trim()} onClick={handleCreate}>Crea</Button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 }

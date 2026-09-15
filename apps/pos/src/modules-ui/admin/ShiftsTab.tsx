@@ -7,7 +7,7 @@ import { useShiftStore } from "../../state/shift-store.js";
 import { useStore } from "../../state/global-store.js";
 import { Button } from "../../components/ui/Button.js";
 import { Modal } from "../../components/ui/Modal.js";
-import { inputStyle, labelStyle, tableHeaderStyle, tableCellStyle } from "./shared.js";
+import { inputStyle, labelStyle, tableHeaderStyle, tableCellStyle, DataTable, PageHeader } from "./shared.js";
 import { wsClient } from "../../core/ws-client.js";
 
 function ZReportModal({ shiftId, onClose }: { shiftId: number | null; onClose: () => void }) {
@@ -200,7 +200,7 @@ export function ShiftsTab() {
 
   return (
     <div style={{ padding: "var(--sp-lg)" }}>
-      <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-gray-800)", marginBottom: "var(--sp-lg)", marginTop: 0 }}>Turni</h2>
+      <PageHeader title="Turni" />
 
       {loading_ ? (
         <div style={{ textAlign: "center", color: "var(--color-gray-400)", padding: "40px" }}>Caricamento...</div>
@@ -250,41 +250,39 @@ export function ShiftsTab() {
               <div style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-500)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "10px" }}>
                 Storico
               </div>
-              <div style={{ background: "var(--color-white)", borderRadius: "var(--radius-xl)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderStyle}>Apertura</th>
-                      <th style={tableHeaderStyle}>Chiusura</th>
-                      <th style={tableHeaderStyle}>Durata</th>
-                      <th style={tableHeaderStyle}>Vendite</th>
-                      <th style={tableHeaderStyle}>Ordini</th>
-                      <th style={tableHeaderStyle}>Fondo cassa</th>
-                      <th style={tableHeaderStyle}></th>
+              <DataTable>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderStyle}>Apertura</th>
+                    <th style={tableHeaderStyle}>Chiusura</th>
+                    <th style={tableHeaderStyle}>Durata</th>
+                    <th style={tableHeaderStyle}>Vendite</th>
+                    <th style={tableHeaderStyle}>Ordini</th>
+                    <th style={tableHeaderStyle}>Fondo cassa</th>
+                    <th style={tableHeaderStyle}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.filter((s) => s.closedAt !== null).map((s) => (
+                    <tr key={s.id}>
+                      <td style={tableCellStyle}>{formatDate(s.openedAt)}</td>
+                      <td style={tableCellStyle}>{s.closedAt ? formatDate(s.closedAt) : "—"}</td>
+                      <td style={tableCellStyle}>{formatDuration(s.openedAt, s.closedAt)}</td>
+                      <td style={{ ...tableCellStyle, fontWeight: 600, color: "var(--color-brand)" }}>€{s.totalSales.toFixed(2)}</td>
+                      <td style={tableCellStyle}>{s.totalOrders}</td>
+                      <td style={tableCellStyle}>{s.closingCash !== null ? `€${s.closingCash.toFixed(2)}` : "—"}</td>
+                      <td style={tableCellStyle}>
+                        <button
+                          onClick={() => setZReportShiftId(s.id)}
+                          style={{ padding: "5px 10px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font)", color: "var(--color-gray-600)" }}
+                        >
+                          Z-Report
+                        </button>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {history.filter((s) => s.closedAt !== null).map((s) => (
-                      <tr key={s.id}>
-                        <td style={tableCellStyle}>{formatDate(s.openedAt)}</td>
-                        <td style={tableCellStyle}>{s.closedAt ? formatDate(s.closedAt) : "—"}</td>
-                        <td style={tableCellStyle}>{formatDuration(s.openedAt, s.closedAt)}</td>
-                        <td style={{ ...tableCellStyle, fontWeight: 600, color: "var(--color-brand)" }}>€{s.totalSales.toFixed(2)}</td>
-                        <td style={tableCellStyle}>{s.totalOrders}</td>
-                        <td style={tableCellStyle}>{s.closingCash !== null ? `€${s.closingCash.toFixed(2)}` : "—"}</td>
-                        <td style={tableCellStyle}>
-                          <button
-                            onClick={() => setZReportShiftId(s.id)}
-                            style={{ padding: "5px 10px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font)", color: "var(--color-gray-600)" }}
-                          >
-                            Z-Report
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </DataTable>
             </div>
           )}
         </>

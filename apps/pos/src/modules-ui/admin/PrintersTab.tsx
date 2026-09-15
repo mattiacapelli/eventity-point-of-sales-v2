@@ -4,8 +4,13 @@ import { useAdminStore } from "../../state/admin-store.js";
 import { Button } from "../../components/ui/Button.js";
 import { Modal } from "../../components/ui/Modal.js";
 import type { Printer, ProductionCenter } from "@pos/shared-types";
-import { PlusIcon, PrinterIcon, PencilSquareIcon, TrashIcon, BuildingStorefrontIcon, XMarkIcon } from "../../components/ui/icons.js";
-import { inputStyle, labelStyle, Toggle } from "./shared.js";
+import { PlusIcon, PrinterIcon, BuildingStorefrontIcon, XMarkIcon } from "../../components/ui/icons.js";
+import { inputStyle, labelStyle, Toggle, AdminTablePage, EditDeleteActions, DeleteConfirmModal } from "./shared.js";
+
+const USAGE_OPTIONS = [
+  { value: "receipt", label: "Scontrini" },
+  { value: "kitchen", label: "Cucina" },
+];
 
 type ConnectionType = "network" | "usb" | "windows";
 
@@ -81,6 +86,8 @@ export function PrintersTab() {
   const [printerCenters, setPrinterCenters] = useState<Record<number, ProductionCenter[]>>({});
   const [loadedPrinterCenters, setLoadedPrinterCenters] = useState<Set<number>>(new Set());
   const [centerDropdown, setCenterDropdown] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [usageFilter, setUsageFilter] = useState("");
 
   useEffect(() => {
     adminApi.printers.list().then(setPrinters).catch(console.error);
@@ -286,129 +293,160 @@ export function PrintersTab() {
   );
 
   return (
-    <div style={{ padding: "var(--sp-lg)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--sp-lg)" }}>
-        <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-gray-800)", margin: 0 }}>Stampanti</h2>
-        <div style={{ display: "flex", gap: "8px" }}>
-          <Button size="sm" variant="secondary" onClick={() => void openDiscoverModal()}>Scopri in rete</Button>
-          <Button size="sm" variant="secondary" onClick={() => void openUsbDiscover()}>Scopri USB</Button>
-          <Button size="sm" onClick={openCreate} icon={<PlusIcon style={{ width: "16px", height: "16px" }} />}>Nuova stampante</Button>
-        </div>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        {printers.length === 0 && (
-          <div style={{ background: "var(--color-white)", borderRadius: "var(--radius-xl)", padding: "32px", textAlign: "center", color: "var(--color-gray-400)", fontSize: "var(--text-sm)", boxShadow: "var(--shadow-sm)" }}>
-            Nessuna stampante configurata.
-          </div>
-        )}
-        {printers.map((p) => (
-          <div key={p.id} style={{ background: "var(--color-white)", borderRadius: "var(--radius-lg)", padding: "14px 16px", boxShadow: "var(--shadow-sm)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <PrinterIcon style={{ width: "18px", height: "18px", color: "var(--color-brand)", flexShrink: 0 }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "var(--text-md)", fontWeight: 600, color: "var(--color-gray-800)" }}>{p.name}</div>
-                <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
-                  {printerSubtitle(p)}
-                  {p.receiptEnabled && " · Scontrini"}
-                  {p.kitchenEnabled && " · Cucina"}
+    <>
+      <AdminTablePage
+        title="Stampanti"
+        rows={printers}
+        rowKey={(p) => p.id}
+        emptyMessage="Nessuna stampante configurata."
+        searchPlaceholder="Cerca stampante..."
+        searchPredicate={(p, q) => p.name.toLowerCase().includes(q.toLowerCase())}
+        filters={[
+          { key: "usage", label: "Tutti gli usi", options: USAGE_OPTIONS, value: usageFilter, onChange: setUsageFilter, predicate: (p, v) => (v === "receipt" ? p.receiptEnabled : p.kitchenEnabled) },
+        ]}
+        extraHeaderActions={
+          <>
+            <Button size="sm" variant="secondary" onClick={() => void openDiscoverModal()}>Scopri in rete</Button>
+            <Button size="sm" variant="secondary" onClick={() => void openUsbDiscover()}>Scopri USB</Button>
+          </>
+        }
+        columns={[
+          {
+            key: "name",
+            header: "Nome",
+            render: (p) => (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <PrinterIcon style={{ width: "16px", height: "16px", color: "var(--color-brand)", flexShrink: 0 }} />
+                <span style={{ fontWeight: 600, color: "var(--color-gray-800)" }}>{p.name}</span>
+              </div>
+            ),
+          },
+          {
+            key: "connection",
+            header: "Connessione",
+            render: (p) => <span style={{ color: "var(--color-gray-500)" }}>{printerSubtitle(p)}</span>,
+          },
+          {
+            key: "usage",
+            header: "Uso",
+            render: (p) => (
+              <span style={{ color: "var(--color-gray-500)" }}>
+                {[p.receiptEnabled && "Scontrini", p.kitchenEnabled && "Cucina"].filter(Boolean).join(" · ") || "—"}
+              </span>
+            ),
+          },
+        ]}
+        rowActions={(p) => {
+          const isExpanded = expandedId === p.id;
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" }}>
+              <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                <Button size="sm" variant="secondary" loading={testingId === p.id} onClick={() => void handleTestPrint(p.id)}>
+                  Test
+                </Button>
+                <button
+                  onClick={() => setExpandedId(isExpanded ? null : p.id)}
+                  title="Centri di produzione"
+                  style={{
+                    padding: "6px 10px", borderRadius: "var(--radius-md)",
+                    border: isExpanded ? "1px solid var(--color-brand)" : "1px solid var(--color-gray-200)",
+                    background: isExpanded ? "rgba(23,102,60,0.06)" : "var(--color-white)",
+                    cursor: "pointer", color: isExpanded ? "var(--color-brand)" : "var(--color-gray-500)",
+                    fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font)",
+                  }}
+                >
+                  Dettagli
+                </button>
+                <EditDeleteActions onEdit={() => openEdit(p)} onDelete={() => setDeleteId(p.id)} />
+              </div>
+              {testResult[p.id] && (
+                <div style={{ padding: "6px 10px", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", fontSize: "var(--text-xs)", color: "var(--color-gray-600)", maxWidth: "260px" }}>
+                  {testResult[p.id]}
                 </div>
-              </div>
-              <Button size="sm" variant="secondary" loading={testingId === p.id} onClick={() => void handleTestPrint(p.id)}>
-                Test
-              </Button>
-              <button onClick={() => openEdit(p)} style={{ padding: "6px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", color: "var(--color-gray-600)", display: "flex" }}>
-                <PencilSquareIcon style={{ width: "16px", height: "16px" }} />
-              </button>
-              <button onClick={() => setDeleteId(p.id)} style={{ padding: "6px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-danger)", background: "var(--color-white)", cursor: "pointer", color: "var(--color-danger)", display: "flex" }}>
-                <TrashIcon style={{ width: "16px", height: "16px" }} />
-              </button>
+              )}
             </div>
-            {testResult[p.id] && (
-              <div style={{ marginTop: "8px", padding: "8px 12px", background: "var(--color-gray-50)", borderRadius: "var(--radius-md)", fontSize: "var(--text-xs)", color: "var(--color-gray-600)" }}>
-                {testResult[p.id]}
+          );
+        }}
+        isExpanded={(p) => expandedId === p.id}
+        renderExpanded={(p) => {
+          const assignedCenters = printerCenters[p.id] ?? [];
+          const unassignedCenters = productionCenters.filter((c) => !assignedCenters.some((a) => a.id === c.id));
+          const isCenterDropdownOpen = centerDropdown === p.id;
+          return (
+            <>
+              <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-gray-500)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px" }}>
+                Centri di produzione
               </div>
-            )}
-
-            {/* Centri di produzione assegnati */}
-            {(() => {
-              const assignedCenters = printerCenters[p.id] ?? [];
-              const unassignedCenters = productionCenters.filter((c) => !assignedCenters.some((a) => a.id === c.id));
-              const isCenterDropdownOpen = centerDropdown === p.id;
-              return (
-                <div style={{ borderTop: "1px solid var(--color-gray-100)", marginTop: "12px", paddingTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-gray-500)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    Centri di produzione
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", minHeight: "24px" }}>
-                    {assignedCenters.map((c) => (
-                      <span key={c.id} style={{
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
+                {assignedCenters.map((c) => (
+                  <span key={c.id} style={{
+                    display: "inline-flex", alignItems: "center", gap: "5px",
+                    padding: "3px 10px", borderRadius: "20px",
+                    background: "rgba(99,102,241,0.1)", color: "#4f46e5",
+                    fontSize: "var(--text-xs)", fontWeight: 600,
+                  }}>
+                    <BuildingStorefrontIcon style={{ width: "11px", height: "11px" }} />
+                    {c.name}
+                    <button
+                      onClick={() => void handleRemoveCenter(p.id, c.id)}
+                      style={{ display: "flex", alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: "0", color: "#4f46e5", opacity: 0.7 }}
+                    >
+                      <XMarkIcon style={{ width: "12px", height: "12px" }} />
+                    </button>
+                  </span>
+                ))}
+                {assignedCenters.length === 0 && (
+                  <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
+                    Nessun centro assegnato
+                  </span>
+                )}
+                {unassignedCenters.length > 0 && (
+                  <div style={{ position: "relative" }}>
+                    <button
+                      onClick={() => setCenterDropdown(isCenterDropdownOpen ? null : p.id)}
+                      style={{
                         display: "inline-flex", alignItems: "center", gap: "5px",
-                        padding: "3px 10px", borderRadius: "20px",
-                        background: "rgba(99,102,241,0.1)", color: "#4f46e5",
-                        fontSize: "var(--text-xs)", fontWeight: 600,
+                        padding: "5px 12px", borderRadius: "20px",
+                        border: "1.5px dashed var(--color-gray-300)", background: "transparent",
+                        cursor: "pointer", fontSize: "var(--text-xs)", fontWeight: 600,
+                        color: "var(--color-gray-500)",
+                      }}
+                    >
+                      <PlusIcon style={{ width: "12px", height: "12px" }} />
+                      Assegna centro
+                    </button>
+                    {isCenterDropdownOpen && (
+                      <div style={{
+                        position: "absolute", top: "calc(100% + 6px)", left: 0,
+                        background: "var(--color-white)", borderRadius: "var(--radius-lg)",
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.12)", border: "1px solid var(--color-gray-200)",
+                        minWidth: "200px", zIndex: 100, overflow: "hidden",
                       }}>
-                        <BuildingStorefrontIcon style={{ width: "11px", height: "11px" }} />
-                        {c.name}
-                        <button
-                          onClick={() => void handleRemoveCenter(p.id, c.id)}
-                          style={{ display: "flex", alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: "0", color: "#4f46e5", opacity: 0.7 }}
-                        >
-                          <XMarkIcon style={{ width: "12px", height: "12px" }} />
-                        </button>
-                      </span>
-                    ))}
-                    {assignedCenters.length === 0 && (
-                      <span style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
-                        Nessun centro assegnato
-                      </span>
+                        {unassignedCenters.map((c, i) => (
+                          <button key={c.id} onClick={() => void handleAssignCenter(p.id, c.id)}
+                            style={{
+                              width: "100%", padding: "10px 14px", border: "none",
+                              borderBottom: i < unassignedCenters.length - 1 ? "1px solid var(--color-gray-100)" : "none",
+                              background: "transparent", cursor: "pointer", textAlign: "left",
+                              fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-gray-700)", fontFamily: "var(--font)",
+                            }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--color-gray-50)"; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ""; }}
+                          >
+                            {c.name}
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
-                  {unassignedCenters.length > 0 && (
-                    <div style={{ position: "relative" }}>
-                      <button
-                        onClick={() => setCenterDropdown(isCenterDropdownOpen ? null : p.id)}
-                        style={{
-                          display: "inline-flex", alignItems: "center", gap: "5px",
-                          padding: "5px 12px", borderRadius: "20px",
-                          border: "1.5px dashed var(--color-gray-300)", background: "transparent",
-                          cursor: "pointer", fontSize: "var(--text-xs)", fontWeight: 600,
-                          color: "var(--color-gray-500)",
-                        }}
-                      >
-                        <PlusIcon style={{ width: "12px", height: "12px" }} />
-                        Assegna centro
-                      </button>
-                      {isCenterDropdownOpen && (
-                        <div style={{
-                          position: "absolute", top: "calc(100% + 6px)", left: 0,
-                          background: "var(--color-white)", borderRadius: "var(--radius-lg)",
-                          boxShadow: "0 8px 24px rgba(0,0,0,0.12)", border: "1px solid var(--color-gray-200)",
-                          minWidth: "200px", zIndex: 100, overflow: "hidden",
-                        }}>
-                          {unassignedCenters.map((c, i) => (
-                            <button key={c.id} onClick={() => void handleAssignCenter(p.id, c.id)}
-                              style={{
-                                width: "100%", padding: "10px 14px", border: "none",
-                                borderBottom: i < unassignedCenters.length - 1 ? "1px solid var(--color-gray-100)" : "none",
-                                background: "transparent", cursor: "pointer", textAlign: "left",
-                                fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-gray-700)", fontFamily: "var(--font)",
-                              }}
-                              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--color-gray-50)"; }}
-                              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ""; }}
-                            >
-                              {c.name}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-        ))}
-      </div>
+                )}
+              </div>
+            </>
+          );
+        }}
+        createLabel="Nuova stampante"
+        onCreateClick={openCreate}
+      />
 
       {/* Create / Edit modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editTarget ? "Modifica stampante" : "Nuova stampante"}>
@@ -538,14 +576,13 @@ export function PrintersTab() {
         </div>
       </Modal>
 
-      {/* Delete modal */}
-      <Modal open={deleteId !== null} onClose={() => setDeleteId(null)} title="Elimina stampante">
-        <p style={{ color: "var(--color-gray-600)", fontSize: "var(--text-sm)", marginBottom: "20px" }}>Eliminare questa stampante?</p>
-        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteId(null)}>Annulla</Button>
-          <Button variant="danger" size="sm" onClick={() => deleteId && void handleDelete(deleteId)}>Elimina</Button>
-        </div>
-      </Modal>
+      <DeleteConfirmModal
+        open={deleteId !== null}
+        title="Elimina stampante"
+        message="Eliminare questa stampante?"
+        onClose={() => setDeleteId(null)}
+        onConfirm={() => deleteId && void handleDelete(deleteId)}
+      />
 
       {/* Network discover modal */}
       <Modal open={discoverModalOpen} onClose={() => { setDiscoverModalOpen(false); setDiscoverResult(null); }} title="Scopri stampanti in rete">
@@ -626,7 +663,7 @@ export function PrintersTab() {
           </div>
         </div>
       </Modal>
-    </div>
+    </>
   );
 
   async function openUsbDiscoverInline() {

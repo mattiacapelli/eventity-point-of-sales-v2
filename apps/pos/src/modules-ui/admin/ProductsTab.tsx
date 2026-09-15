@@ -7,8 +7,13 @@ import { Button } from "../../components/ui/Button.js";
 import { Modal } from "../../components/ui/Modal.js";
 import type { Product, OptionGroupWithOptions, Option } from "@pos/shared-types";
 import { CubeIcon, PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, CircleStackIcon } from "../../components/ui/icons.js";
-import { inputStyle, labelStyle, tableHeaderStyle, tableCellStyle } from "./shared.js";
+import { inputStyle, labelStyle, AdminTablePage, EditDeleteActions, DeleteConfirmModal } from "./shared.js";
 import { ColorField } from "./ColorField.js";
+
+const ACTIVE_OPTIONS = [
+  { value: "active", label: "Attivo" },
+  { value: "inactive", label: "Non attivo" },
+];
 
 // ─── Option Groups Panel ──────────────────────────────────────────────────────
 
@@ -794,6 +799,7 @@ export function ProductsTab() {
   const [ingredientsProduct, setIngredientsProduct] = useState<Product | null>(null);
   const [productSearch, setProductSearch] = useState("");
   const [productCategoryFilter, setProductCategoryFilter] = useState("");
+  const [productActiveFilter, setProductActiveFilter] = useState("");
 
   function openCreate() {
     setEditTarget(null);
@@ -912,154 +918,113 @@ export function ProductsTab() {
   }
 
   return (
-    <div style={{ padding: "var(--sp-lg)" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--sp-lg)" }}>
-        <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-gray-800)", margin: 0 }}>
-          Prodotti
-        </h2>
-        <Button size="sm" onClick={openCreate} icon={<PlusIcon style={{ width: "16px", height: "16px" }} />}>
-          Nuovo prodotto
-        </Button>
-      </div>
-
-      {/* Filters */}
-      <div style={{ display: "flex", gap: "10px", marginBottom: "var(--sp-md)" }}>
-        <input
-          type="search"
-          value={productSearch}
-          onChange={(e) => setProductSearch(e.target.value)}
-          placeholder="Cerca prodotto…"
-          style={{ ...inputStyle, flex: 1, height: "38px" }}
-        />
-        <select
-          value={productCategoryFilter}
-          onChange={(e) => setProductCategoryFilter(e.target.value)}
-          style={{ ...inputStyle, flex: "0 0 180px", height: "38px", paddingRight: "8px" }}
-        >
-          <option value="">Tutte le categorie</option>
-          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </div>
-
-      {/* Table */}
-      <div style={{ background: "var(--color-white)", borderRadius: "var(--radius-xl)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={tableHeaderStyle}>Nome</th>
-              <th style={tableHeaderStyle}>Categoria</th>
-              <th style={tableHeaderStyle}>Centro produzione</th>
-              <th style={tableHeaderStyle}>Prezzo</th>
-              <th style={{ ...tableHeaderStyle, textAlign: "center" }}>Attivo</th>
-              <th style={{ ...tableHeaderStyle, textAlign: "right" }}>Azioni</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.length === 0 && (
-              <tr>
-                <td colSpan={6} style={{ ...tableCellStyle, textAlign: "center", color: "var(--color-gray-400)", padding: "32px" }}>
-                  Nessun prodotto. Clicca "Nuovo prodotto" per aggiungerne uno.
-                </td>
-              </tr>
-            )}
-            {products.filter((p) => {
-              if (productSearch && !p.name.toLowerCase().includes(productSearch.toLowerCase())) return false;
-              if (productCategoryFilter && String(p.categoryId) !== productCategoryFilter) return false;
-              return true;
-            }).map((p) => {
-              const isExpanded = expandedProductId === p.id;
-              return (
-                <React.Fragment key={p.id}>
-                  <tr style={{ transition: "background var(--transition)" }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = "var(--color-gray-50)"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = isExpanded ? "var(--color-gray-50)" : ""; }}
-                  >
-                    <td style={{ ...tableCellStyle, fontWeight: 600, color: "var(--color-gray-800)" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        {p.color && (
-                          <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: p.color, flexShrink: 0, display: "inline-block" }} />
-                        )}
-                        {p.name}
-                      </div>
-                    </td>
-                    <td style={tableCellStyle}>{p.categoryName ?? <span style={{ color: "var(--color-gray-400)" }}>—</span>}</td>
-                    <td style={tableCellStyle}>{productionCenters.find((pc) => pc.id === p.productionCenterId)?.name ?? <span style={{ color: "var(--color-gray-400)" }}>—</span>}</td>
-                    <td style={{ ...tableCellStyle, fontWeight: 600 }}>€{p.price.toFixed(2)}</td>
-                    <td style={{ ...tableCellStyle, textAlign: "center" }}>
-                      <button
-                        onClick={() => void handleToggleActive(p)}
-                        style={{
-                          width: "42px", height: "24px", borderRadius: "12px", border: "none",
-                          background: p.active ? "var(--color-brand)" : "var(--color-gray-300)",
-                          cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0,
-                        }}
-                      >
-                        <span style={{
-                          position: "absolute", top: "3px", left: p.active ? "20px" : "3px",
-                          width: "18px", height: "18px", borderRadius: "50%",
-                          background: "var(--color-white)", transition: "left 0.2s",
-                          boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                        }} />
-                      </button>
-                    </td>
-                    <td style={{ ...tableCellStyle, textAlign: "right" }}>
-                      <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
-                        <button
-                          onClick={() => setExpandedProductId(isExpanded ? null : p.id)}
-                          title="Opzioni configurabili"
-                          style={{
-                            padding: "6px 10px", borderRadius: "var(--radius-md)",
-                            border: isExpanded ? "1px solid var(--color-brand)" : "1px solid var(--color-gray-200)",
-                            background: isExpanded ? "rgba(23,102,60,0.06)" : "var(--color-white)",
-                            cursor: "pointer",
-                            color: isExpanded ? "var(--color-brand)" : "var(--color-gray-500)",
-                            display: "flex", alignItems: "center", gap: "4px",
-                            fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font)",
-                          }}
-                        >
-                          <CubeIcon style={{ width: "13px", height: "13px" }} />
-                          Opzioni
-                        </button>
-                        <button
-                          onClick={() => setIngredientsProduct(p)}
-                          title="Ingredienti inventario"
-                          style={{
-                            padding: "6px 10px", borderRadius: "var(--radius-md)",
-                            border: "1px solid var(--color-gray-200)",
-                            background: "var(--color-white)", cursor: "pointer",
-                            color: "var(--color-gray-500)",
-                            display: "flex", alignItems: "center", gap: "4px",
-                            fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font)",
-                          }}
-                        >
-                          <CircleStackIcon style={{ width: "13px", height: "13px" }} />
-                          Ingredienti
-                        </button>
-                        <button onClick={() => openEdit(p)} title="Modifica"
-                          style={{ padding: "6px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-gray-200)", background: "var(--color-white)", cursor: "pointer", color: "var(--color-gray-600)", display: "flex", alignItems: "center" }}>
-                          <PencilSquareIcon style={{ width: "16px", height: "16px" }} />
-                        </button>
-                        <button onClick={() => setDeleteId(p.id)} title="Elimina"
-                          style={{ padding: "6px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-danger)", background: "var(--color-white)", cursor: "pointer", color: "var(--color-danger)", display: "flex", alignItems: "center" }}>
-                          <TrashIcon style={{ width: "16px", height: "16px" }} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  {isExpanded && (
-                    <tr>
-                      <td colSpan={6} style={{ padding: 0, borderBottom: "1px solid var(--color-gray-200)" }}>
-                        <OptionGroupsPanel product={p} />
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+    <>
+      <AdminTablePage
+        title="Prodotti"
+        rows={products}
+        rowKey={(p) => p.id}
+        emptyMessage='Nessun prodotto. Clicca "Nuovo prodotto" per aggiungerne uno.'
+        searchPlaceholder="Cerca prodotto..."
+        searchPredicate={(p, q) => p.name.toLowerCase().includes(q.toLowerCase())}
+        filters={[
+          { key: "category", label: "Tutte le categorie", options: categories.map((c) => ({ value: String(c.id), label: c.name })), value: productCategoryFilter, onChange: setProductCategoryFilter, predicate: (p, v) => String(p.categoryId) === v },
+          { key: "active", label: "Tutti gli stati", options: ACTIVE_OPTIONS, value: productActiveFilter, onChange: setProductActiveFilter, predicate: (p, v) => (v === "active" ? p.active : !p.active) },
+        ]}
+        columns={[
+          {
+            key: "name",
+            header: "Nome",
+            render: (p) => (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 600, color: "var(--color-gray-800)" }}>
+                {p.color && (
+                  <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: p.color, flexShrink: 0, display: "inline-block" }} />
+                )}
+                {p.name}
+              </div>
+            ),
+          },
+          {
+            key: "category",
+            header: "Categoria",
+            render: (p) => p.categoryName ?? <span style={{ color: "var(--color-gray-400)" }}>—</span>,
+          },
+          {
+            key: "center",
+            header: "Centro produzione",
+            render: (p) => productionCenters.find((pc) => pc.id === p.productionCenterId)?.name ?? <span style={{ color: "var(--color-gray-400)" }}>—</span>,
+          },
+          {
+            key: "price",
+            header: "Prezzo",
+            render: (p) => <span style={{ fontWeight: 600 }}>€{p.price.toFixed(2)}</span>,
+          },
+          {
+            key: "active",
+            header: "Attivo",
+            align: "center",
+            render: (p) => (
+              <button
+                onClick={() => void handleToggleActive(p)}
+                style={{
+                  width: "42px", height: "24px", borderRadius: "12px", border: "none",
+                  background: p.active ? "var(--color-brand)" : "var(--color-gray-300)",
+                  cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0,
+                }}
+              >
+                <span style={{
+                  position: "absolute", top: "3px", left: p.active ? "20px" : "3px",
+                  width: "18px", height: "18px", borderRadius: "50%",
+                  background: "var(--color-white)", transition: "left 0.2s",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                }} />
+              </button>
+            ),
+          },
+        ]}
+        rowActions={(p) => {
+          const isExpanded = expandedProductId === p.id;
+          return (
+            <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setExpandedProductId(isExpanded ? null : p.id)}
+                title="Opzioni configurabili"
+                style={{
+                  padding: "6px 10px", borderRadius: "var(--radius-md)",
+                  border: isExpanded ? "1px solid var(--color-brand)" : "1px solid var(--color-gray-200)",
+                  background: isExpanded ? "rgba(23,102,60,0.06)" : "var(--color-white)",
+                  cursor: "pointer",
+                  color: isExpanded ? "var(--color-brand)" : "var(--color-gray-500)",
+                  display: "flex", alignItems: "center", gap: "4px",
+                  fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font)",
+                }}
+              >
+                <CubeIcon style={{ width: "13px", height: "13px" }} />
+                Opzioni
+              </button>
+              <button
+                onClick={() => setIngredientsProduct(p)}
+                title="Ingredienti inventario"
+                style={{
+                  padding: "6px 10px", borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--color-gray-200)",
+                  background: "var(--color-white)", cursor: "pointer",
+                  color: "var(--color-gray-500)",
+                  display: "flex", alignItems: "center", gap: "4px",
+                  fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font)",
+                }}
+              >
+                <CircleStackIcon style={{ width: "13px", height: "13px" }} />
+                Ingredienti
+              </button>
+              <EditDeleteActions onEdit={() => openEdit(p)} onDelete={() => setDeleteId(p.id)} />
+            </div>
+          );
+        }}
+        isExpanded={(p) => expandedProductId === p.id}
+        renderExpanded={(p) => <OptionGroupsPanel product={p} />}
+        createLabel="Nuovo prodotto"
+        onCreateClick={openCreate}
+      />
 
       {/* Create/Edit Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editTarget ? "Modifica prodotto" : "Nuovo prodotto"}>
@@ -1260,22 +1225,19 @@ export function ProductsTab() {
         </div>
       </Modal>
 
-      {/* Delete confirm modal */}
-      <Modal open={deleteId !== null} onClose={() => setDeleteId(null)} title="Elimina prodotto">
-        <p style={{ color: "var(--color-gray-600)", fontSize: "var(--text-sm)", marginBottom: "20px" }}>
-          Sei sicuro di voler eliminare questo prodotto? L'azione non è reversibile.
-        </p>
-        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteId(null)}>Annulla</Button>
-          <Button variant="danger" size="sm" onClick={() => deleteId && void handleDelete(deleteId)}>
-            Elimina
-          </Button>
-        </div>
-      </Modal>
+      <DeleteConfirmModal
+        open={deleteId !== null}
+        title="Elimina prodotto"
+        message="Sei sicuro di voler eliminare questo prodotto? L'azione non è reversibile."
+        onClose={() => setDeleteId(null)}
+        onConfirm={() => deleteId && void handleDelete(deleteId)}
+      />
 
       <IngredientsModal product={ingredientsProduct} onClose={() => setIngredientsProduct(null)} />
 
-      <GridDefaultsSection />
-    </div>
+      <div style={{ padding: "0 var(--sp-lg) var(--sp-lg)" }}>
+        <GridDefaultsSection />
+      </div>
+    </>
   );
 }

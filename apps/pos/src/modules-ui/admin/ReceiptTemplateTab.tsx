@@ -8,7 +8,7 @@ import { Modal } from "../../components/ui/Modal.js";
 import { GenericBlockEditor } from "./BlockEditor.js";
 import type { ReceiptTemplate, ReceiptBlock } from "@pos/shared-types";
 import { PlusIcon } from "../../components/ui/icons.js";
-import { inputStyle, labelStyle, Toggle } from "./shared.js";
+import { inputStyle, labelStyle, Toggle, PageHeader } from "./shared.js";
 
 // ─── Receipt Template Tab ─────────────────────────────────────────────────────
 
@@ -509,9 +509,10 @@ export function ReceiptTemplateTab() {
           {ROLE_HINTS[form.role]}
         </div>
       )}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--sp-lg)", flexWrap: "wrap", gap: "10px" }}>
-        <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-gray-800)", margin: 0 }}>Template scontrino</h2>
-        <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+      <PageHeader
+        title="Template scontrino"
+        actions={
+          <>
           {/* Role select */}
           <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as "master" | "sub" | "client_copy" }))}
             style={{ ...inputStyle, height: "36px", width: "auto", fontSize: "var(--text-sm)", padding: "0 10px" }}>
@@ -571,8 +572,9 @@ export function ReceiptTemplateTab() {
               {previewLoading ? "Generazione..." : "🖼 Anteprima"}
             </button>
           )}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {form.printMode === "text" ? (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "start" }}>

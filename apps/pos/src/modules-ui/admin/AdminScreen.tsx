@@ -196,7 +196,6 @@ export function AdminScreen() {
 
   // If current tab became hidden (module disabled), fall back to first visible tab
   const resolvedActiveTab = isTabVisible(activeTab) ? activeTab : (visibleTabs[0]?.key ?? "restaurant");
-  const activeTab_ = visibleTabs.find((t) => t.key === resolvedActiveTab) ?? visibleTabs[0]!
 
   return (
     <PosLayout>
@@ -217,16 +216,9 @@ export function AdminScreen() {
           ))}
         </aside>
 
-        <main className="scrollable" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "24px 28px 40px" }}>
-          <div style={{ maxWidth: "940px", display: "flex", flexDirection: "column", gap: "18px" }}>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: "16px" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 700, letterSpacing: "-0.025em", color: "var(--color-gray-900)" }}>
-                  {activeTab_.label}
-                </h1>
-                <p style={{ margin: 0, fontSize: "14.5px", color: "var(--color-gray-700)" }}>Amministrazione</p>
-              </div>
-              <div style={{ flex: 1 }} />
+        <main className="scrollable" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "16px 28px 40px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "10px" }}>
               {lowStockCount > 0 && (
                 <button
                   onClick={() => setActiveTab("inventory")}

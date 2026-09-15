@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { adminApi } from "../../core/admin-api.js";
 import type { ModuleInfo } from "../../core/admin-api.js";
 import { ArrowPathIcon } from "../../components/ui/icons.js";
+import { PageHeader } from "./shared.js";
 
 type ResetStep = "password" | "confirm1" | "confirm2" | "done";
 
@@ -233,10 +234,16 @@ export function AdvancedTab({ onModuleToggle }: { onModuleToggle?: () => void })
 
   const cardStyle: React.CSSProperties = {
     background: "var(--color-white)",
-    border: "1px solid var(--color-gray-100)",
     borderRadius: "var(--radius-xl)",
-    boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+    boxShadow: "var(--shadow-sm)",
     padding: "24px",
+  };
+
+  const cardGridStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
+    gap: "18px",
+    alignItems: "start",
   };
 
   const toggleStyle = (on: boolean, disabled: boolean): React.CSSProperties => ({
@@ -267,7 +274,8 @@ export function AdvancedTab({ onModuleToggle }: { onModuleToggle?: () => void })
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-lg)", maxWidth: "560px" }}>
+    <div style={{ padding: "var(--sp-lg)", display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
+      <PageHeader title="Avanzate" />
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: "4px", background: "var(--color-gray-100)", borderRadius: "var(--radius-lg)", padding: "4px", width: "fit-content" }}>
@@ -295,7 +303,7 @@ export function AdvancedTab({ onModuleToggle }: { onModuleToggle?: () => void })
       </div>
 
       {subTab === "general" && (
-        <>
+        <div style={cardGridStyle}>
           {/* Express mode */}
           <div style={cardStyle}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--sp-md)" }}>
@@ -347,7 +355,7 @@ export function AdvancedTab({ onModuleToggle }: { onModuleToggle?: () => void })
           </div>
 
           {/* Danger zone */}
-          <div style={{ ...cardStyle, borderColor: "#FECACA", background: "#FFF5F5" }}>
+          <div style={{ ...cardStyle, border: "1.5px solid #FECACA", background: "#FFF5F5" }}>
             <div style={{ fontWeight: 700, fontSize: "var(--text-md)", color: "#DC2626", marginBottom: "6px" }}>Zona pericolosa</div>
             <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", lineHeight: 1.5, marginBottom: "14px" }}>
               Il reset di sistema cancella tutti i dati (ordini, catalogo, turni, stampanti, impostazioni) mantenendo solo il tuo account admin.
@@ -363,11 +371,10 @@ export function AdvancedTab({ onModuleToggle }: { onModuleToggle?: () => void })
               Reset di sistema
             </button>
           </div>
-
-          {resetDialogOpen && <FactoryResetDialog onClose={() => setResetDialogOpen(false)} />}
-
-        </>
+        </div>
       )}
+
+      {resetDialogOpen && <FactoryResetDialog onClose={() => setResetDialogOpen(false)} />}
 
       {subTab === "modules" && (
         <div style={cardStyle}>

@@ -41,6 +41,8 @@ export {
   HomeIcon,
   UserGroupIcon,
   CloudArrowUpIcon,
+  MagnifyingGlassIcon,
+  FunnelIcon,
 } from "@heroicons/react/24/outline";
 
 export {

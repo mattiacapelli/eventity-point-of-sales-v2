@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { adminApi } from "../../core/admin-api.js";
+import { PageHeader } from "./shared.js";
 
 function formatDate(ts: number): string {
   return new Date(ts).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" });
@@ -92,14 +93,11 @@ export function CloudSyncTab() {
   }
 
   return (
-    <div>
-      <div style={{ marginBottom: "20px" }}>
-        <div style={{ fontSize: "var(--text-lg)", fontWeight: 700, color: "var(--color-gray-800)" }}>Cloud</div>
-        <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", marginTop: "2px" }}>
-          Esporta categorie, prodotti e opzioni in un file JSON da importare manualmente nel pannello cloud
-          (menu digitale self-order). La cassa resta indipendente: nessuna sincronizzazione automatica.
-        </div>
-      </div>
+    <div style={{ padding: "var(--sp-lg)" }}>
+      <PageHeader
+        title="Cloud"
+        subtitle="Esporta categorie, prodotti e opzioni in un file JSON da importare manualmente nel pannello cloud (menu digitale self-order). La cassa resta indipendente: nessuna sincronizzazione automatica."
+      />
 
       {error && (
         <div style={{

@@ -1,15 +1,22 @@
 import React, { useEffect, useState } from "react";
 import { adminApi } from "../../core/admin-api.js";
 import { useGridStore } from "../../state/grid-store.js";
+import { PageHeader } from "./shared.js";
 
 // ─── Shared styles ─────────────────────────────────────────────────────────────
 
 const cardStyle: React.CSSProperties = {
   background: "var(--color-white)",
-  border: "1px solid var(--color-gray-100)",
   borderRadius: "var(--radius-xl)",
-  boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+  boxShadow: "var(--shadow-sm)",
   padding: "24px",
+};
+
+const cardGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
+  gap: "18px",
+  alignItems: "start",
 };
 
 const toggleStyle = (on: boolean, disabled: boolean): React.CSSProperties => ({
@@ -291,7 +298,8 @@ export function InterfaceTab() {
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-lg)", maxWidth: "640px" }}>
+    <div style={{ padding: "var(--sp-lg)", display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
+      <PageHeader title="Interfaccia" />
 
       {/* Sub-tab switcher */}
       <div style={{ display: "flex", gap: "4px", background: "var(--color-gray-100)", borderRadius: "var(--radius-lg)", padding: "4px", width: "fit-content" }}>
@@ -320,7 +328,7 @@ export function InterfaceTab() {
 
       {/* ── Aspetto ── */}
       {subTab === "appearance" && (
-        <>
+        <div style={cardGridStyle}>
           <div style={cardStyle}>
             <div style={sectionTitle}>Tema</div>
             <div style={rowStyle}>
@@ -377,12 +385,12 @@ export function InterfaceTab() {
               })}
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* ── Carrello ── */}
       {subTab === "cart" && (
-        <>
+        <div style={cardGridStyle}>
           <div style={cardStyle}>
             <div style={sectionTitle}>Turno</div>
             <div style={rowStyle}>
@@ -604,12 +612,12 @@ export function InterfaceTab() {
               }}
             />
           </div>
-        </>
+        </div>
       )}
 
       {/* ── Card prodotto ── */}
       {subTab === "card" && (
-        <>
+        <div style={cardGridStyle}>
           {/* Anteprima */}
           <div style={{ ...cardStyle, display: "flex", justifyContent: "center", background: "var(--color-gray-50)" }}>
             <CardPreview
@@ -709,7 +717,7 @@ export function InterfaceTab() {
               </div>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

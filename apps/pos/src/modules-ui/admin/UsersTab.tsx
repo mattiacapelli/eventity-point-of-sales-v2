@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { adminApi } from "../../core/admin-api.js";
 import { useToastStore } from "../../components/ui/Toast.js";
 import { Button } from "../../components/ui/Button.js";
+import { Modal } from "../../components/ui/Modal.js";
 import type { User, UserRole } from "@pos/shared-types";
-import { PlusIcon } from "../../components/ui/icons.js";
-import { inputStyle } from "./shared.js";
+import { inputStyle, labelStyle, AdminTablePage, IconButton } from "./shared.js";
+import { ArrowPathIcon, CheckIcon, XMarkIcon } from "../../components/ui/icons.js";
 
 const ROLE_LABELS: Record<UserRole, string> = {
   admin: "Admin",
@@ -14,35 +15,45 @@ const ROLE_LABELS: Record<UserRole, string> = {
   viewer: "Solo lettura",
 };
 
+const ROLE_OPTIONS = (Object.keys(ROLE_LABELS) as UserRole[]).map((r) => ({ value: r, label: ROLE_LABELS[r] }));
+const STATUS_OPTIONS = [
+  { value: "active", label: "Attivo" },
+  { value: "inactive", label: "Disattivo" },
+];
+
 export function UsersTab() {
   const [users, setUsers] = useState<User[]>([]);
-  const [loading_, setLoading_] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newUsername, setNewUsername] = useState("");
-  const [newRole, setNewRole] = useState<UserRole>("cashier");
-  const [newPin, setNewPin] = useState("");
-  const [savingNew, setSavingNew] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", username: "", role: "cashier" as UserRole, pin: "" });
+  const [saving, setSaving] = useState(false);
   const [resetPinId, setResetPinId] = useState<number | null>(null);
   const [resetPinValue, setResetPinValue] = useState("");
+  const [resettingPin, setResettingPin] = useState(false);
+  const [roleFilter, setRoleFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   useEffect(() => {
-    adminApi.users.list().then(setUsers).catch(() => {}).finally(() => setLoading_(false));
+    adminApi.users.list().then(setUsers).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
+  function openCreate() {
+    setForm({ name: "", username: "", role: "cashier", pin: "" });
+    setModalOpen(true);
+  }
+
   async function handleCreate() {
-    if (!newName.trim() || !newUsername.trim() || !newPin.trim()) return;
-    setSavingNew(true);
+    if (!form.name.trim() || !form.username.trim() || !form.pin.trim()) return;
+    setSaving(true);
     try {
-      await adminApi.users.create({ name: newName.trim(), username: newUsername.trim(), role: newRole, pin: newPin.trim() });
+      await adminApi.users.create({ name: form.name.trim(), username: form.username.trim(), role: form.role, pin: form.pin.trim() });
       const list = await adminApi.users.list();
       setUsers(list);
-      setNewName(""); setNewUsername(""); setNewPin(""); setNewRole("cashier");
-      setCreating(false);
+      setModalOpen(false);
     } catch (err) {
       useToastStore.getState().show(err instanceof Error ? err.message : "Errore nella creazione utente");
     } finally {
-      setSavingNew(false);
+      setSaving(false);
     }
   }
 
@@ -64,83 +75,69 @@ export function UsersTab() {
     }
   }
 
-  async function handleResetPin(id: number) {
-    if (!resetPinValue.trim()) return;
+  function openResetPin(id: number) {
+    setResetPinId(id);
+    setResetPinValue("");
+  }
+
+  async function handleResetPin() {
+    if (resetPinId === null || !resetPinValue.trim()) return;
+    setResettingPin(true);
     try {
-      await adminApi.users.resetPin(id, resetPinValue.trim());
+      await adminApi.users.resetPin(resetPinId, resetPinValue.trim());
       useToastStore.getState().show("PIN reimpostato", "success");
       setResetPinId(null);
       setResetPinValue("");
     } catch (err) {
       useToastStore.getState().show(err instanceof Error ? err.message : "Errore nel reset del PIN");
+    } finally {
+      setResettingPin(false);
     }
   }
 
-  const cardStyle: React.CSSProperties = {
-    background: "var(--color-white)",
-    border: "1px solid var(--color-gray-200)",
-    borderRadius: "var(--radius-lg)",
-    padding: "16px 20px",
-    marginBottom: "10px",
-  };
-
-  if (loading_) return <div style={{ color: "var(--color-gray-400)", padding: "24px" }}>Caricamento...</div>;
-
   return (
-    <div style={{ maxWidth: "640px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: "var(--text-lg)", color: "var(--color-gray-900)" }}>Utenti</div>
-          <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)" }}>Gestisci gli account che accedono al POS.</div>
-        </div>
-        <Button onClick={() => setCreating(true)}>
-          <PlusIcon style={{ width: "15px", height: "15px" }} />
-          Nuovo utente
-        </Button>
-      </div>
-
-      {creating && (
-        <div style={{ ...cardStyle, border: "2px solid var(--color-brand)", marginBottom: "16px" }}>
-          <div style={{ fontWeight: 600, marginBottom: "10px", color: "var(--color-gray-800)" }}>Nuovo utente</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nome" style={inputStyle} autoFocus />
-            <input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder="Username" style={inputStyle} />
-            <select value={newRole} onChange={(e) => setNewRole(e.target.value as UserRole)} style={inputStyle}>
-              {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
-                <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-              ))}
-            </select>
-            <input value={newPin} onChange={(e) => setNewPin(e.target.value)} placeholder="PIN (4-8 cifre)" type="password" style={inputStyle} />
-            <div style={{ display: "flex", gap: "10px" }}>
-              <Button loading={savingNew} onClick={handleCreate}>Crea</Button>
-              <Button onClick={() => setCreating(false)}>Annulla</Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {users.length === 0 ? (
-        <div style={{ color: "var(--color-gray-400)", fontSize: "var(--text-sm)", padding: "24px", textAlign: "center" }}>
-          Nessun utente. Crea il primo con il pulsante in alto.
-        </div>
-      ) : (
-        users.map((u) => (
-          <div key={u.id} style={cardStyle}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: "var(--text-md)", color: "var(--color-gray-800)" }}>
-                  {u.name}
-                </div>
-                <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>
-                  @{u.username}
-                </div>
-              </div>
-              <select value={u.role} onChange={(e) => handleRoleChange(u, e.target.value as UserRole)}
+    <>
+      <AdminTablePage
+        title="Utenti"
+        subtitle="Gestisci gli account che accedono al POS."
+        rows={users}
+        rowKey={(u) => u.id}
+        loading={loading}
+        emptyMessage="Nessun utente. Crea il primo con il pulsante in alto."
+        searchPlaceholder="Cerca utente..."
+        searchPredicate={(u, q) => u.name.toLowerCase().includes(q.toLowerCase()) || u.username.toLowerCase().includes(q.toLowerCase())}
+        filters={[
+          { key: "role", label: "Tutti i ruoli", options: ROLE_OPTIONS, value: roleFilter, onChange: setRoleFilter, predicate: (u, v) => u.role === v },
+          { key: "status", label: "Tutti gli stati", options: STATUS_OPTIONS, value: statusFilter, onChange: setStatusFilter, predicate: (u, v) => (v === "active" ? u.active : !u.active) },
+        ]}
+        columns={[
+          {
+            key: "name",
+            header: "Nome",
+            render: (u) => (
+              <>
+                <span style={{ fontWeight: 600, color: "var(--color-gray-800)" }}>{u.name}</span>
+                <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-400)" }}>@{u.username}</div>
+              </>
+            ),
+          },
+          {
+            key: "role",
+            header: "Ruolo",
+            render: (u) => (
+              <select value={u.role} onChange={(e) => void handleRoleChange(u, e.target.value as UserRole)}
                 style={{ ...inputStyle, width: "auto", height: "32px", fontSize: "var(--text-xs)", padding: "0 8px" }}>
-                {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
-                  <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                {ROLE_OPTIONS.map((r) => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
                 ))}
               </select>
+            ),
+          },
+          {
+            key: "status",
+            header: "Stato",
+            align: "center",
+            render: (u) => (
               <span style={{
                 fontSize: "var(--text-xs)", fontWeight: 700, padding: "2px 8px", borderRadius: "999px",
                 background: u.active ? "#dcfce7" : "var(--color-gray-100)",
@@ -148,29 +145,73 @@ export function UsersTab() {
               }}>
                 {u.active ? "Attivo" : "Disattivo"}
               </span>
-              <button
-                onClick={() => { setResetPinId(resetPinId === u.id ? null : u.id); setResetPinValue(""); }}
-                style={{ background: "none", border: "1px solid var(--color-gray-200)", borderRadius: "var(--radius-md)", padding: "5px 10px", cursor: "pointer", fontSize: "var(--text-xs)", color: "var(--color-gray-600)" }}
-              >
-                Reimposta PIN
-              </button>
-              <button
-                onClick={() => handleToggleActive(u)}
-                style={{ background: "none", border: "1px solid var(--color-gray-200)", borderRadius: "var(--radius-md)", padding: "5px 10px", cursor: "pointer", fontSize: "var(--text-xs)", color: "var(--color-gray-600)" }}
-              >
-                {u.active ? "Disattiva" : "Attiva"}
-              </button>
-            </div>
-            {resetPinId === u.id && (
-              <div style={{ marginTop: "12px", borderTop: "1px solid var(--color-gray-100)", paddingTop: "12px", display: "flex", gap: "10px" }}>
-                <input value={resetPinValue} onChange={(e) => setResetPinValue(e.target.value)} placeholder="Nuovo PIN (4-8 cifre)" type="password"
-                  style={{ ...inputStyle, flex: 1 }} />
-                <Button onClick={() => handleResetPin(u.id)}>Salva</Button>
-              </div>
-            )}
+            ),
+          },
+        ]}
+        rowActions={(u) => (
+          <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+            <IconButton icon={<ArrowPathIcon style={{ width: "16px", height: "16px" }} />} title="Reimposta PIN" onClick={() => openResetPin(u.id)} />
+            <button
+              onClick={() => void handleToggleActive(u)}
+              style={{ background: "var(--color-white)", border: "1px solid var(--color-gray-200)", borderRadius: "var(--radius-md)", padding: "5px 10px", cursor: "pointer", fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-gray-600)", fontFamily: "var(--font)" }}
+            >
+              {u.active ? "Disattiva" : "Attiva"}
+            </button>
           </div>
-        ))
-      )}
-    </div>
+        )}
+        createLabel="Nuovo utente"
+        onCreateClick={openCreate}
+      />
+
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Nuovo utente">
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div>
+            <label style={labelStyle}>Nome</label>
+            <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Nome" style={inputStyle} autoFocus />
+          </div>
+          <div>
+            <label style={labelStyle}>Username</label>
+            <input value={form.username} onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} placeholder="Username" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Ruolo</label>
+            <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as UserRole }))} style={inputStyle}>
+              {ROLE_OPTIONS.map((r) => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>PIN (4-8 cifre)</label>
+            <input value={form.pin} onChange={(e) => setForm((f) => ({ ...f, pin: e.target.value }))} placeholder="PIN" type="password" style={inputStyle} />
+          </div>
+          <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+            <Button variant="ghost" size="sm" onClick={() => setModalOpen(false)}>Annulla</Button>
+            <Button size="sm" loading={saving} disabled={!form.name.trim() || !form.username.trim() || !form.pin.trim()} onClick={() => void handleCreate()}>Crea</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={resetPinId !== null} onClose={() => setResetPinId(null)} title="Reimposta PIN">
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div>
+            <label style={labelStyle}>Nuovo PIN (4-8 cifre)</label>
+            <input
+              value={resetPinValue}
+              onChange={(e) => setResetPinValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void handleResetPin(); }}
+              placeholder="Nuovo PIN"
+              type="password"
+              style={inputStyle}
+              autoFocus
+            />
+          </div>
+          <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+            <Button variant="ghost" size="sm" icon={<XMarkIcon style={{ width: "16px", height: "16px" }} />} onClick={() => setResetPinId(null)}>Annulla</Button>
+            <Button size="sm" loading={resettingPin} disabled={!resetPinValue.trim()} icon={<CheckIcon style={{ width: "16px", height: "16px" }} />} onClick={() => void handleResetPin()}>Salva</Button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 }

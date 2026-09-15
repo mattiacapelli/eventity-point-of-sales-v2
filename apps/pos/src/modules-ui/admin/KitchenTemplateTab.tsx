@@ -6,7 +6,7 @@ import { Button } from "../../components/ui/Button.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { GenericBlockEditor } from "./BlockEditor.js";
 import type { KitchenTemplate, KitchenBlock, KitchenBlockType } from "@pos/shared-types";
-import { inputStyle, labelStyle } from "./shared.js";
+import { inputStyle, labelStyle, PageHeader } from "./shared.js";
 
 const KITCHEN_BLOCK_TYPE_LABELS: Record<KitchenBlockType, string> = {
   "center-name":  "Nome centro",
@@ -182,10 +182,10 @@ export function KitchenTemplateTab() {
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--sp-lg)", flexWrap: "wrap", gap: "10px" }}>
-        <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700, color: "var(--color-gray-800)", margin: 0 }}>Template comanda</h2>
-        {selected && (
-          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+      <PageHeader
+        title="Template comanda"
+        actions={selected && (
+          <>
             {/* Mode toggle */}
             <div style={{ display: "flex", borderRadius: "var(--radius-lg)", overflow: "hidden", border: "1.5px solid var(--color-gray-200)" }}>
               {(["text", "image"] as const).map((m) => (
@@ -197,9 +197,9 @@ export function KitchenTemplateTab() {
             </div>
             <Button loading={saving} onClick={() => void handleSave()}>Salva</Button>
             <Button variant="danger" size="sm" onClick={() => setDeleteConfirmId(selected.id)}>Elimina</Button>
-          </div>
+          </>
         )}
-      </div>
+      />
 
       {templates.length === 0 && (
         <div style={{ textAlign: "center", padding: "var(--sp-xl)", color: "var(--color-gray-400)", fontSize: "var(--text-sm)" }}>
