@@ -233,7 +233,7 @@ export function LoginScreen() {
                   disabled={!key || loading || (isConfirm && !canSubmit)}
                   style={{
                     height: "56px",
-                    borderRadius: "12px",
+                    borderRadius: "0",
                     background: isConfirm
                       ? "transparent"
                       : isMuted ? "var(--color-gray-100)" : (key ? "var(--color-white)" : "transparent"),
