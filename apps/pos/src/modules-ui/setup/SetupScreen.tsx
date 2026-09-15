@@ -39,20 +39,12 @@ const STEPS: { id: WizardStep; label: string; Icon: React.ComponentType<React.SV
 const RESPONSIVE = `
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  .setup-card {
-    width: 100%;
-    max-width: 520px;
-    background: var(--color-white);
-    border-radius: var(--radius-xl);
-    padding: var(--sp-xl) var(--sp-xl);
-    box-shadow: var(--shadow-lg);
-    position: relative;
-    box-sizing: border-box;
-  }
-  @media (max-width: 600px) {
-    .setup-card {
-      border-radius: var(--radius-lg);
-      padding: var(--sp-lg) var(--sp-md);
+  @media (max-width: 860px) {
+    .setup-brand-mobile {
+      display: flex !important;
+    }
+    .setup-form-panel {
+      padding-top: 72px !important;
     }
   }
 
@@ -64,15 +56,6 @@ const RESPONSIVE = `
   @media (max-width: 480px) {
     .setup-grid-2 {
       grid-template-columns: 1fr;
-    }
-  }
-
-  .setup-step-label {
-    display: block;
-  }
-  @media (max-width: 420px) {
-    .setup-step-label {
-      display: none;
     }
   }
 
@@ -231,19 +214,19 @@ function AnimatedLogo({ onDone }: { onDone: () => void }) {
   );
 }
 
-// ─── Step bar ─────────────────────────────────────────────────────────────────
+// ─── Step bar (pannello sinistro, verticale) ─────────────────────────────────
 
 function StepBar({ current }: { current: WizardStep }) {
   const idx = STEPS.findIndex((s) => s.id === current);
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", marginBottom: "var(--sp-xl)" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
       {STEPS.map((s, i) => {
         const done   = i < idx;
         const active = i === idx;
         const StepIcon = s.Icon;
         return (
-          <React.Fragment key={s.id}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "5px", flexShrink: 0 }}>
+          <div key={s.id} style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
               <div style={{
                 width: "32px",
                 height: "32px",
@@ -251,38 +234,32 @@ function StepBar({ current }: { current: WizardStep }) {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "var(--text-xs)",
-                fontWeight: 700,
-                background: done ? "var(--color-brand)" : active ? "var(--color-accent)" : "var(--color-gray-100)",
-                color: done ? "var(--color-white)" : active ? "var(--color-gray-900)" : "var(--color-gray-400)",
+                flexShrink: 0,
+                background: done ? "rgba(255,255,255,0.9)" : active ? "var(--color-accent)" : "rgba(255,255,255,0.12)",
+                color: done ? "var(--color-brand-dark)" : active ? "var(--color-gray-900)" : "rgba(255,255,255,0.5)",
                 transition: "all 0.3s",
-                boxShadow: active ? "0 0 0 4px rgba(194,232,18,0.25)" : "none",
               }}>
-                {done ? <CheckIcon style={{ width: "16px", height: "16px" }} /> : active ? <StepIcon style={{ width: "16px", height: "16px" }} /> : String(i + 1)}
+                {done ? <CheckIcon style={{ width: "16px", height: "16px" }} /> : <StepIcon style={{ width: "16px", height: "16px" }} />}
               </div>
-              <span className="setup-step-label" style={{
-                fontSize: "9px",
-                fontWeight: 700,
-                color: active ? "var(--color-brand)" : "var(--color-gray-400)",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                transition: "color 0.3s",
-                lineHeight: 1,
-              }}>
-                {s.label}
-              </span>
+              {i < STEPS.length - 1 && (
+                <div style={{
+                  width: "2px",
+                  height: "22px",
+                  background: done ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.15)",
+                  transition: "background 0.4s",
+                }} />
+              )}
             </div>
-            {i < STEPS.length - 1 && (
-              <div style={{
-                flex: 1,
-                height: "2px",
-                background: done ? "var(--color-brand)" : "var(--color-gray-100)",
-                transition: "background 0.4s",
-                marginTop: "15px",
-                minWidth: "8px",
-              }} />
-            )}
-          </React.Fragment>
+            <span style={{
+              fontSize: "var(--text-sm)",
+              fontWeight: active ? 700 : 500,
+              color: active ? "var(--color-white)" : "rgba(255,255,255,0.6)",
+              transition: "color 0.3s",
+              paddingBottom: i < STEPS.length - 1 ? "22px" : 0,
+            }}>
+              {s.label}
+            </span>
+          </div>
         );
       })}
     </div>
@@ -294,7 +271,7 @@ function StepBar({ current }: { current: WizardStep }) {
 function ErrorBanner({ msg }: { msg: string }) {
   return (
     <div style={{
-      background: "rgba(239,68,68,0.08)",
+      background: "rgba(154,44,34,0.08)",
       color: "var(--color-danger)",
       borderRadius: "var(--radius-md)",
       padding: "12px 14px",
@@ -323,7 +300,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 function StepHeading({ title, sub }: { title: string; sub: string }) {
   return (
     <div style={{ marginBottom: "var(--sp-lg)" }}>
-      <div style={{ fontSize: "var(--text-xl)", fontWeight: 800, color: "var(--color-gray-900)", marginBottom: "6px", lineHeight: 1.2 }}>
+      <div style={{ fontSize: "var(--text-xxl, 26px)", fontWeight: 700, color: "var(--color-gray-900)", marginBottom: "6px", letterSpacing: "-0.01em" }}>
         {title}
       </div>
       <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", lineHeight: 1.6 }}>
@@ -385,20 +362,20 @@ function StepLicense({ onNext }: { onNext: () => void }) {
 
       {/* License status */}
       <div style={{
-        background: "linear-gradient(135deg, var(--color-brand) 0%, var(--color-brand-dark) 100%)",
+        background: "var(--color-gray-50)",
         borderRadius: "var(--radius-lg)",
+        border: "1.5px solid var(--color-gray-200)",
         padding: "16px 20px",
         display: "flex",
         alignItems: "center",
         gap: "14px",
-        color: "var(--color-white)",
       }}>
-        <ShieldCheckIcon style={{ width: "24px", height: "24px", flexShrink: 0 }} />
+        <ShieldCheckIcon style={{ width: "22px", height: "22px", flexShrink: 0, color: "var(--color-brand)" }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: "var(--text-sm)" }}>Licenza di prova attiva</div>
-          <div style={{ fontSize: "var(--text-xs)", opacity: 0.8, marginTop: "2px" }}>Funzionalità complete durante l'installazione.</div>
+          <div style={{ fontWeight: 700, fontSize: "var(--text-sm)", color: "var(--color-gray-800)" }}>Licenza di prova attiva</div>
+          <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)", marginTop: "2px" }}>Funzionalità complete durante l'installazione.</div>
         </div>
-        <div style={{ background: "rgba(194,232,18,0.2)", color: "var(--color-accent)", borderRadius: "999px", padding: "3px 10px", fontSize: "var(--text-xs)", fontWeight: 700, flexShrink: 0 }}>
+        <div style={{ background: "rgba(23,102,60,0.1)", color: "var(--color-brand)", borderRadius: "999px", padding: "3px 10px", fontSize: "var(--text-xs)", fontWeight: 700, flexShrink: 0 }}>
           ATTIVA
         </div>
       </div>
@@ -699,12 +676,12 @@ function StepDone({ username, storeName, onDone }: { username: string; storeName
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--sp-lg)", textAlign: "center" }}>
-      <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "linear-gradient(135deg, var(--color-brand), var(--color-brand-dark))", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 32px rgba(23,102,60,0.3)", transform: vis ? "scale(1)" : "scale(0.5)", opacity: vis ? 1 : 0, transition: "transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.4s ease" }}>
-        <CheckIcon style={{ width: "38px", height: "38px", color: "var(--color-accent)" }} />
+      <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "var(--color-brand)", display: "flex", alignItems: "center", justifyContent: "center", transform: vis ? "scale(1)" : "scale(0.5)", opacity: vis ? 1 : 0, transition: "transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.4s ease" }}>
+        <CheckIcon style={{ width: "38px", height: "38px", color: "var(--color-white)" }} />
       </div>
 
       <div style={{ opacity: vis ? 1 : 0, transform: vis ? "translateY(0)" : "translateY(10px)", transition: "all 0.4s ease 0.2s" }}>
-        <div style={{ fontSize: "var(--text-xl)", fontWeight: 800, color: "var(--color-gray-900)", marginBottom: "6px" }}>
+        <div style={{ fontSize: "var(--text-xxl, 26px)", fontWeight: 700, color: "var(--color-gray-900)", marginBottom: "6px", letterSpacing: "-0.01em" }}>
           {storeName} è pronto!
         </div>
         <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", lineHeight: 1.6 }}>
@@ -817,57 +794,89 @@ export function SetupScreen({ onDone }: { onDone: () => void }) {
   return (
     <>
       <style>{RESPONSIVE}</style>
-      <div style={{
-        minHeight: "100dvh",
-        background: "linear-gradient(160deg, var(--color-brand-dark) 0%, var(--color-brand) 100%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "clamp(12px, 4vw, 32px)",
-        boxSizing: "border-box",
-        position: "relative",
-        overflow: "hidden",
-      }}>
-        {/* Decorazioni di sfondo */}
+      <div style={{ height: "100dvh", display: "flex", minHeight: 0 }}>
+        {/* Brand panel */}
         <div
-          aria-hidden
+          className="login-brand-panel"
           style={{
-            position: "absolute", inset: 0, pointerEvents: "none",
-            backgroundImage: "radial-gradient(circle at 15% 15%, rgba(255,255,255,0.08) 0%, transparent 45%), radial-gradient(circle at 85% 90%, rgba(255,255,255,0.06) 0%, transparent 40%)",
+            flex: "1 1 40%",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            padding: "var(--sp-xxl, 48px)",
+            background: "linear-gradient(160deg, var(--color-brand-dark) 0%, var(--color-brand) 100%)",
+            color: "var(--color-white)",
+            position: "relative",
+            overflow: "hidden",
           }}
-        />
+        >
+          <div
+            aria-hidden
+            style={{
+              position: "absolute", inset: 0,
+              backgroundImage: "radial-gradient(circle at 15% 15%, rgba(255,255,255,0.08) 0%, transparent 45%), radial-gradient(circle at 85% 90%, rgba(255,255,255,0.06) 0%, transparent 40%)",
+            }}
+          />
 
-        <div className="setup-card">
-          {/* Header */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "var(--sp-xl)" }}>
-            <div style={{ width: "36px", height: "36px", borderRadius: "var(--radius-sm)", background: "var(--color-brand)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <svg width="20" height="20" viewBox="0 0 490 530" fill="none">
-                <path fillRule="evenodd" clipRule="evenodd" d="M266.087 527.204C214.215 527.204 168.106 516.281 127.76 494.434C88.0555 471.946 56.6757 441.425 33.6212 402.872C25.6925 389.235 19.1663 374.875 14.0423 359.79C12.9044 356.44 15.4234 353.014 18.9506 353.014H65.5305C66.6401 353.014 67.7209 352.66 68.6175 352.004L100.723 328.517C103.624 326.395 107.747 327.764 108.962 331.153C112.025 339.71 115.73 347.874 120.076 355.646C134.805 381.348 155.618 401.265 182.515 415.402C209.412 429.538 240.471 436.606 275.693 436.606C300.669 436.606 323.724 432.43 344.857 424.076C349.698 422.219 354.62 420.026 359.621 417.503C362.127 416.238 365.199 417.084 366.635 419.502L405.438 484.866C406.971 487.449 406.039 490.798 403.366 492.161C382.993 502.557 361.248 511.024 338.133 517.566C313.798 523.992 289.783 527.204 266.087 527.204ZM479.983 288.179C482.831 288.179 485.158 285.897 485.222 283.041L486.066 245.771C486.707 210.431 481.263 177.984 469.736 148.427C458.849 118.227 442.839 92.2045 421.705 70.3581C401.213 48.5117 376.877 31.4845 348.699 19.2762C320.522 6.42545 290.103 0 257.442 0C220.298 0 185.716 6.74666 153.697 20.24C122.317 33.0907 95.0998 51.7245 72.0453 76.141C49.6313 99.915 32.0201 128.187 19.2121 160.956C13.2345 176.249 8.65178 192.313 5.46397 209.147C1.82132 228.381 0 248.621 0 269.867C0 274.365 0.0902493 278.814 0.270747 283.22C0.38487 286.004 2.68463 288.179 5.46243 288.179H479.983ZM116.233 169.63C110.496 181.445 106.112 194.618 103.08 209.147H385.202V202.4C383.281 181.196 376.237 162.241 364.069 145.535C351.901 128.829 336.531 115.657 317.96 106.019C299.389 96.381 279.216 91.5619 257.442 91.5619C222.86 91.5619 193.722 98.3086 170.027 111.802C146.332 124.653 128.401 143.929 116.233 169.63Z" fill="var(--color-accent)" />
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontSize: "var(--text-lg)", fontWeight: 800, color: "var(--color-brand)", letterSpacing: "-0.5px", lineHeight: 1 }}>Eventity POS</div>
-              <div style={{ fontSize: "10px", color: "var(--color-gray-400)", marginTop: "2px", fontWeight: 500 }}>Configurazione guidata</div>
-            </div>
+          <div style={{ position: "relative", display: "flex", alignItems: "center", gap: "10px" }}>
+            <svg width="22" height="22" viewBox="0 0 490 530" fill="none">
+              <path fillRule="evenodd" clipRule="evenodd" d="M266.087 527.204C214.215 527.204 168.106 516.281 127.76 494.434C88.0555 471.946 56.6757 441.425 33.6212 402.872C25.6925 389.235 19.1663 374.875 14.0423 359.79C12.9044 356.44 15.4234 353.014 18.9506 353.014H65.5305C66.6401 353.014 67.7209 352.66 68.6175 352.004L100.723 328.517C103.624 326.395 107.747 327.764 108.962 331.153C112.025 339.71 115.73 347.874 120.076 355.646C134.805 381.348 155.618 401.265 182.515 415.402C209.412 429.538 240.471 436.606 275.693 436.606C300.669 436.606 323.724 432.43 344.857 424.076C349.698 422.219 354.62 420.026 359.621 417.503C362.127 416.238 365.199 417.084 366.635 419.502L405.438 484.866C406.971 487.449 406.039 490.798 403.366 492.161C382.993 502.557 361.248 511.024 338.133 517.566C313.798 523.992 289.783 527.204 266.087 527.204ZM479.983 288.179C482.831 288.179 485.158 285.897 485.222 283.041L486.066 245.771C486.707 210.431 481.263 177.984 469.736 148.427C458.849 118.227 442.839 92.2045 421.705 70.3581C401.213 48.5117 376.877 31.4845 348.699 19.2762C320.522 6.42545 290.103 0 257.442 0C220.298 0 185.716 6.74666 153.697 20.24C122.317 33.0907 95.0998 51.7245 72.0453 76.141C49.6313 99.915 32.0201 128.187 19.2121 160.956C13.2345 176.249 8.65178 192.313 5.46397 209.147C1.82132 228.381 0 248.621 0 269.867C0 274.365 0.0902493 278.814 0.270747 283.22C0.38487 286.004 2.68463 288.179 5.46243 288.179H479.983ZM116.233 169.63C110.496 181.445 106.112 194.618 103.08 209.147H385.202V202.4C383.281 181.196 376.237 162.241 364.069 145.535C351.901 128.829 336.531 115.657 317.96 106.019C299.389 96.381 279.216 91.5619 257.442 91.5619C222.86 91.5619 193.722 98.3086 170.027 111.802C146.332 124.653 128.401 143.929 116.233 169.63Z" fill="white" />
+            </svg>
+            <span style={{ fontSize: "22px", fontWeight: 700, letterSpacing: "-0.04em" }}>epos</span>
           </div>
 
-          <StepBar current={step} />
-
-          {/* Loading overlay */}
-          {loading && (
-            <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.88)", borderRadius: "var(--radius-xl)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px", zIndex: 10 }}>
-              <div style={{ width: "44px", height: "44px", border: "4px solid var(--color-gray-100)", borderTop: "4px solid var(--color-brand)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-              <div style={{ fontWeight: 600, color: "var(--color-gray-600)", fontSize: "var(--text-sm)" }}>Configurazione in corso…</div>
+          <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: "var(--sp-xl, 32px)" }}>
+            <div>
+              <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-accent)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "10px" }}>
+                Configurazione guidata
+              </div>
+              <h1 style={{ margin: 0, fontSize: "28px", lineHeight: 1.25, fontWeight: 700, letterSpacing: "-0.01em" }}>
+                Configuriamo insieme la tua cassa
+              </h1>
             </div>
-          )}
+            <StepBar current={step} />
+          </div>
 
-          {error && !loading && <div style={{ marginBottom: "20px" }}><ErrorBanner msg={error} /></div>}
+          <span style={{ position: "relative", fontSize: "var(--text-xs)", color: "rgba(255,255,255,0.6)" }}>
+            © {new Date().getFullYear()} epos · Point of Sale
+          </span>
+        </div>
 
-          {step === "license"    && <StepLicense    onNext={() => setStep("restaurant")} />}
-          {step === "restaurant" && <StepRestaurant onNext={(d) => { setRestaurantData(d); setStep("admin"); }} onBack={() => setStep("license")} />}
-          {step === "admin"      && <StepAdmin      onNext={(d) => void handleAdminNext(d)} onBack={() => setStep("restaurant")} />}
-          {step === "printer"    && <StepPrinter    onNext={(d) => void handlePrinterNext(d)} onBack={() => setStep("admin")} />}
-          {step === "done"       && <StepDone       username={createdUsername} storeName={storeName} onDone={onDone} />}
+        {/* Form panel */}
+        <div
+          className="setup-form-panel"
+          style={{
+            flex: "1 1 60%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "var(--color-white)",
+            padding: "var(--sp-xl)",
+            position: "relative",
+            overflowY: "auto",
+          }}
+        >
+          <div className="setup-brand-mobile" style={{ display: "none", position: "absolute", top: "var(--sp-lg)", left: "var(--sp-lg)", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "22px", fontWeight: 700, letterSpacing: "-0.04em", color: "var(--color-brand)" }}>epos</span>
+          </div>
+
+          <div style={{ width: "100%", maxWidth: "460px", padding: "var(--sp-xl) 0" }}>
+            {/* Loading overlay */}
+            {loading && (
+              <div style={{ position: "fixed", inset: 0, background: "rgba(255,255,255,0.88)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px", zIndex: 10 }}>
+                <div style={{ width: "44px", height: "44px", border: "4px solid var(--color-gray-100)", borderTop: "4px solid var(--color-brand)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                <div style={{ fontWeight: 600, color: "var(--color-gray-600)", fontSize: "var(--text-sm)" }}>Configurazione in corso…</div>
+              </div>
+            )}
+
+            {error && !loading && <div style={{ marginBottom: "20px" }}><ErrorBanner msg={error} /></div>}
+
+            {step === "license"    && <StepLicense    onNext={() => setStep("restaurant")} />}
+            {step === "restaurant" && <StepRestaurant onNext={(d) => { setRestaurantData(d); setStep("admin"); }} onBack={() => setStep("license")} />}
+            {step === "admin"      && <StepAdmin      onNext={(d) => void handleAdminNext(d)} onBack={() => setStep("restaurant")} />}
+            {step === "printer"    && <StepPrinter    onNext={(d) => void handlePrinterNext(d)} onBack={() => setStep("admin")} />}
+            {step === "done"       && <StepDone       username={createdUsername} storeName={storeName} onDone={onDone} />}
+          </div>
         </div>
       </div>
     </>
