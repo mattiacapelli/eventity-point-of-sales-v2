@@ -74,25 +74,25 @@ export async function listTenants(params: { search?: string; page?: number; page
   if (params.page) query.set("page", String(params.page));
   if (params.pageSize) query.set("pageSize", String(params.pageSize));
   const res = await authedFetch(`/admin/tenants?${query.toString()}`);
-  await throwIfNotOk(res, "Impossibile caricare i tenant");
+  await throwIfNotOk(res, "Impossibile caricare gli eventi");
   return res.json() as Promise<Paginated<Tenant>>;
 }
 
 export async function getTenant(id: string): Promise<Tenant> {
   const res = await authedFetch(`/admin/tenants/${id}`);
-  await throwIfNotOk(res, "Tenant non trovato");
+  await throwIfNotOk(res, "Evento non trovato");
   return res.json() as Promise<Tenant>;
 }
 
 export async function createTenant(name: string): Promise<Tenant> {
   const res = await authedFetch("/admin/tenants", { method: "POST", body: JSON.stringify({ name }) });
-  await throwIfNotOk(res, "Impossibile creare il tenant");
+  await throwIfNotOk(res, "Impossibile creare l'evento");
   return res.json() as Promise<Tenant>;
 }
 
 export async function updateTenant(id: string, data: Partial<{ name: string; active: boolean }>): Promise<Tenant> {
   const res = await authedFetch(`/admin/tenants/${id}`, { method: "PATCH", body: JSON.stringify(data) });
-  await throwIfNotOk(res, "Impossibile aggiornare il tenant");
+  await throwIfNotOk(res, "Impossibile aggiornare l'evento");
   return res.json() as Promise<Tenant>;
 }
 
@@ -104,7 +104,7 @@ export async function rotateTenantKey(id: string): Promise<{ apiKey: string }> {
 
 export async function deleteTenant(id: string): Promise<void> {
   const res = await authedFetch(`/admin/tenants/${id}`, { method: "DELETE" });
-  await throwIfNotOk(res, "Impossibile eliminare il tenant");
+  await throwIfNotOk(res, "Impossibile eliminare l'evento");
 }
 
 export async function fetchTenantStats(id: string): Promise<TenantStats> {

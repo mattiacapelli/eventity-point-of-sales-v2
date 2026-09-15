@@ -49,7 +49,7 @@ export function GlobalUsersScreen() {
     <div style={{ display: "flex", flexDirection: "column" }}>
       <PageHeader
         title="Utenti"
-        description="Tutti gli utenti registrati sulla piattaforma e i tenant a cui sono assegnati."
+        description="Tutti gli utenti registrati sulla piattaforma e gli eventi a cui sono assegnati."
       />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
@@ -98,7 +98,7 @@ export function GlobalUsersScreen() {
               <TableHead>
                 <Th>Email</Th>
                 <Th width="160px">Stato</Th>
-                <Th>Tenant assegnati</Th>
+                <Th>Eventi assegnati</Th>
                 <Th width="110px" align="right">Dal</Th>
               </TableHead>
               <tbody>
@@ -121,7 +121,7 @@ export function GlobalUsersScreen() {
                     </Td>
                     <Td>
                       {u.tenants.length === 0 ? (
-                        <span style={{ color: "var(--color-gray-400)" }}>Nessun tenant assegnato</span>
+                        <span style={{ color: "var(--color-gray-400)" }}>Nessun evento assegnato</span>
                       ) : (
                         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                           {u.tenants.map((t) => (

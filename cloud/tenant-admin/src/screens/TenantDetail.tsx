@@ -24,14 +24,14 @@ export const TENANT_TAB_LABEL: Record<TenantDetailTab, string> = {
 };
 
 const TENANT_TAB_DESCRIPTION: Record<TenantDetailTab, string> = {
-  overview: "Stato del locale e statistiche degli ordini.",
+  overview: "Stato dell'evento e statistiche degli ordini.",
   integration: "Link del menu self-order e chiave API per la cassa.",
   appearance: "Logo, colori e opzioni ordine mostrati ai clienti quando ordinano dal tavolo.",
   categories: "Ordina le categorie del menu e assegna un'emoji a ciascuna.",
   products: "Prodotti del catalogo, prezzi, immagini e disponibilità per data.",
-  users: "Chi ha accesso a questo locale e con quale ruolo.",
-  audit: "Cronologia delle azioni amministrative eseguite su questo locale.",
-  settings: "Operazioni irreversibili su questo locale.",
+  users: "Chi ha accesso a questo evento e con quale ruolo.",
+  audit: "Cronologia delle azioni amministrative eseguite su questo evento.",
+  settings: "Operazioni irreversibili su questo evento.",
 };
 
 /** Which tabs are visible for a given write-access level — shared with the sidebar so the nav list stays in sync. */

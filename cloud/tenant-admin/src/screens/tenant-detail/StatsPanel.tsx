@@ -92,11 +92,11 @@ export function StatsPanel({ tenant }: { tenant: Tenant }) {
 
           <div style={{ background: "var(--color-gray-50)", border: "1px solid var(--color-gray-100)", borderRadius: "var(--radius-lg)", padding: "var(--sp-md)" }}>
             <div style={{ marginBottom: "10px" }}>
-              <SectionLabel>Stato del locale</SectionLabel>
+              <SectionLabel>Stato dell'evento</SectionLabel>
             </div>
             <StatusRow ok={stats.categoriesCount > 0} label={stats.categoriesCount > 0 ? "Categorie configurate" : "Nessuna categoria configurata"} />
             <StatusRow ok={stats.productsCount > 0} label={stats.productsCount > 0 ? "Menu configurato" : "Nessun prodotto nel menu"} />
-            <StatusRow ok={tenant.active} label={tenant.active ? "Tenant attivo" : "Tenant disattivato"} />
+            <StatusRow ok={tenant.active} label={tenant.active ? "Evento attivo" : "Evento disattivato"} />
           </div>
         </div>
       )}

@@ -32,7 +32,7 @@ export function TenantDetailRoute({ currentUser }: { currentUser: CurrentUser })
     setAuditCount(null);
     getTenant(id)
       .then((t) => { setTenant(t); setActiveTenant(t); })
-      .catch((err) => setError(err instanceof Error ? err.message : "Impossibile caricare il tenant"));
+      .catch((err) => setError(err instanceof Error ? err.message : "Impossibile caricare l'evento"));
     return () => setActiveTenant(null);
   }, [id]);
 
@@ -80,7 +80,7 @@ export function TenantDetailRoute({ currentUser }: { currentUser: CurrentUser })
         <button
           onClick={() => setMobileNavOpen(true)}
           className="tenant-sidebar-toggle"
-          aria-label="Apri menu locale"
+          aria-label="Apri menu evento"
           data-testid="tenant-sidebar-toggle"
           style={{
             display: "none", alignItems: "center", gap: "8px", marginBottom: "var(--sp-md)",

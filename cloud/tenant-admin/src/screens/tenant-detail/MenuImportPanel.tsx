@@ -54,7 +54,7 @@ export function MenuImportPanel({ tenantId, onImported }: {
       {confirmImport && pendingImportFile && (
         <ConfirmDialog
           title="Importa menu"
-          description={`Questa operazione sostituirà l'intero catalogo attuale del tenant con il contenuto di "${pendingImportFile.name}". L'operazione non è reversibile. Continuare?`}
+          description={`Questa operazione sostituirà l'intero catalogo attuale dell'evento con il contenuto di "${pendingImportFile.name}". L'operazione non è reversibile. Continuare?`}
           confirmLabel="Importa"
           onConfirm={handleConfirmImport}
           onCancel={() => { setConfirmImport(false); setPendingImportFile(null); }}

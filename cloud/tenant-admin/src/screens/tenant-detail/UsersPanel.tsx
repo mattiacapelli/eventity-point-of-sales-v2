@@ -158,7 +158,7 @@ export function UsersPanel({ tenantId, currentUser, canManageUsers, onCountChang
       {removeTarget && (
         <ConfirmDialog
           title="Rimuovi utente"
-          description={`Confermi la rimozione di ${removeTarget.email} da questo tenant?`}
+          description={`Confermi la rimozione di ${removeTarget.email} da questo evento?`}
           confirmLabel="Rimuovi"
           onConfirm={async () => { await handleRemoveUser(removeTarget); setRemoveTarget(null); }}
           onCancel={() => setRemoveTarget(null)}

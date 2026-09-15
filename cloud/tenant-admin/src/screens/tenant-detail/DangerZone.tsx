@@ -16,7 +16,7 @@ export function DangerZone({ tenantId, tenantName, onDeleted }: {
   async function handleDelete() {
     await deleteTenant(tenantId);
     onDeleted(tenantId);
-    showToast("Tenant eliminato");
+    showToast("Evento eliminato");
   }
 
   return (
@@ -32,14 +32,14 @@ export function DangerZone({ tenantId, tenantName, onDeleted }: {
         <ExclamationTriangleIcon width={20} height={20} color="var(--color-danger)" style={{ flexShrink: 0 }} />
         <div>
           <div style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-gray-800)" }}>Zona pericolosa</div>
-          <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)" }}>L'eliminazione del tenant non è reversibile.</div>
+          <div style={{ fontSize: "var(--text-xs)", color: "var(--color-gray-500)" }}>L'eliminazione dell'evento non è reversibile.</div>
         </div>
       </div>
-      <Button variant="danger" onClick={() => setConfirmDelete(true)}>Elimina tenant</Button>
+      <Button variant="danger" onClick={() => setConfirmDelete(true)}>Elimina evento</Button>
 
       {confirmDelete && (
         <ConfirmDialog
-          title="Elimina tenant"
+          title="Elimina evento"
           description={`Confermi l'eliminazione definitiva di "${tenantName}"? L'operazione non è reversibile.`}
           confirmLabel="Elimina"
           onConfirm={handleDelete}

@@ -36,7 +36,7 @@ export function TenantsScreen({ currentUser }: { currentUser: CurrentUser }) {
         setTenants(res.items);
         setTotal(res.total);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Impossibile caricare i tenant"))
+      .catch((err) => setError(err instanceof Error ? err.message : "Impossibile caricare gli eventi"))
       .finally(() => setLoading(false));
   }
 
@@ -54,11 +54,11 @@ export function TenantsScreen({ currentUser }: { currentUser: CurrentUser }) {
       const created = await createTenant(newName.trim());
       setNewName("");
       setCreateOpen(false);
-      showToast(`Tenant "${created.name}" creato`);
+      showToast(`Evento "${created.name}" creato`);
       load();
       navigate(`/tenants/${created.id}/overview`);
     } catch (err) {
-      showToast(err instanceof Error ? err.message : "Impossibile creare il tenant", "error");
+      showToast(err instanceof Error ? err.message : "Impossibile creare l'evento", "error");
     } finally {
       setCreating(false);
     }
@@ -70,12 +70,12 @@ export function TenantsScreen({ currentUser }: { currentUser: CurrentUser }) {
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
       <PageHeader
-        title="Locali"
-        description="Gestisci i locali collegati alla piattaforma, il loro stato e l'accesso al menu self-order."
+        title="Eventi"
+        description="Gestisci gli eventi collegati alla piattaforma, il loro stato e l'accesso al menu self-order."
         actions={currentUser.isSuperAdmin && (
           <Button onClick={() => setCreateOpen(true)}>
             <PlusIcon width={16} height={16} />
-            Nuovo locale
+            Nuovo evento
           </Button>
         )}
       />
@@ -91,7 +91,7 @@ export function TenantsScreen({ currentUser }: { currentUser: CurrentUser }) {
           <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
             <span style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-gray-900)", fontVariantNumeric: "tabular-nums" }}>{total}</span>
             <span style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)" }}>
-              {total === 1 ? "locale totale" : "locali totali"}
+              {total === 1 ? "evento totale" : "eventi totali"}
             </span>
           </div>
           <div style={{ maxWidth: "320px", flex: "1 1 240px" }}>
@@ -110,7 +110,7 @@ export function TenantsScreen({ currentUser }: { currentUser: CurrentUser }) {
         ) : tenants.length === 0 ? (
           <div style={{ textAlign: "center", padding: "var(--sp-xl) 0", display: "flex", flexDirection: "column", gap: "var(--sp-sm)", alignItems: "center" }}>
             {search ? <MagnifyingGlassIcon width={32} height={32} color="var(--color-gray-300)" /> : <BuildingStorefrontIcon width={32} height={32} color="var(--color-gray-300)" />}
-            <EmptyState>{search ? "Nessun tenant corrisponde alla ricerca" : "Nessun tenant creato"}</EmptyState>
+            <EmptyState>{search ? "Nessun evento corrisponde alla ricerca" : "Nessun evento creato"}</EmptyState>
           </div>
         ) : (
           <>
@@ -162,12 +162,12 @@ export function TenantsScreen({ currentUser }: { currentUser: CurrentUser }) {
 
       {createOpen && (
         <Modal onClose={() => setCreateOpen(false)}>
-          <div style={{ fontSize: "var(--text-lg)", fontWeight: 700, color: "var(--color-gray-900)" }}>Nuovo locale</div>
+          <div style={{ fontSize: "var(--text-lg)", fontWeight: 700, color: "var(--color-gray-900)" }}>Nuovo evento</div>
           <Input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") void handleCreate(); }}
-            placeholder="Nome del locale..."
+            placeholder="Nome dell'evento..."
             autoFocus
           />
           <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>

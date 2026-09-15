@@ -5,7 +5,7 @@ import type { CurrentUser } from "../core/types.js";
 import { Popover } from "./Popover.js";
 
 const NAV_ITEMS: { path: string; label: string; superAdminOnly?: boolean }[] = [
-  { path: "/tenants", label: "Locali" },
+  { path: "/tenants", label: "Eventi" },
   { path: "/users", label: "Utenti", superAdminOnly: true },
 ];
 
