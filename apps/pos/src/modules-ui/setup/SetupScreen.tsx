@@ -164,7 +164,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 function StepHeading({ title, sub }: { title: string; sub: string }) {
   return (
     <div style={{ marginBottom: "var(--sp-lg)" }}>
-      <div style={{ fontSize: "var(--text-xxl, 26px)", fontWeight: 700, color: "var(--color-gray-900)", marginBottom: "6px", letterSpacing: "-0.01em" }}>
+      <div style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-gray-900)", marginBottom: "6px", letterSpacing: "-0.01em" }}>
         {title}
       </div>
       <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", lineHeight: 1.6 }}>
@@ -545,7 +545,7 @@ function StepDone({ username, storeName, onDone }: { username: string; storeName
       </div>
 
       <div style={{ opacity: vis ? 1 : 0, transform: vis ? "translateY(0)" : "translateY(10px)", transition: "all 0.4s ease 0.2s" }}>
-        <div style={{ fontSize: "var(--text-xxl, 26px)", fontWeight: 700, color: "var(--color-gray-900)", marginBottom: "6px", letterSpacing: "-0.01em" }}>
+        <div style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-gray-900)", marginBottom: "6px", letterSpacing: "-0.01em" }}>
           {storeName} è pronto!
         </div>
         <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", lineHeight: 1.6 }}>

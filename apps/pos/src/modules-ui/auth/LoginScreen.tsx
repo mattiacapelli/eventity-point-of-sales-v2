@@ -118,7 +118,7 @@ export function LoginScreen() {
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          padding: "var(--sp-xxl, 48px)",
+          padding: "var(--sp-xxl)",
           background: "linear-gradient(160deg, var(--color-brand-dark) 0%, var(--color-brand) 100%)",
           color: "var(--color-white)",
           position: "relative",
@@ -135,7 +135,7 @@ export function LoginScreen() {
 
         <span style={{ position: "relative", fontSize: "26px", fontWeight: 700, letterSpacing: "-0.04em" }}>epos</span>
 
-        <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: "var(--sp-xl, 32px)", maxWidth: "420px" }}>
+        <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: "var(--sp-xl)", maxWidth: "420px" }}>
           <h1 style={{ margin: 0, fontSize: "32px", lineHeight: 1.2, fontWeight: 700, letterSpacing: "-0.01em" }}>
             La cassa pensata per i tuoi eventi
           </h1>
@@ -203,7 +203,7 @@ export function LoginScreen() {
           </div>
 
           <div>
-            <div style={{ fontSize: "var(--text-xxl, 26px)", fontWeight: 700, color: "var(--color-gray-900)", letterSpacing: "-0.01em" }}>
+            <div style={{ fontSize: "var(--text-xxl)", fontWeight: 700, color: "var(--color-gray-900)", letterSpacing: "-0.01em" }}>
               Bentornato
             </div>
             <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", marginTop: "4px" }}>
@@ -226,7 +226,7 @@ export function LoginScreen() {
               <LockClosedIcon width={18} height={18} color="var(--color-gray-400)" style={{ flexShrink: 0 }} />
               <span
                 style={{
-                  flex: 1, fontSize: "20px", fontWeight: 700, letterSpacing: "0.3em",
+                  flex: 1, fontSize: "var(--text-xl)", fontWeight: 700, letterSpacing: "0.3em",
                   color: pin ? "var(--color-gray-900)" : "var(--color-gray-300)",
                 }}
               >
@@ -239,7 +239,7 @@ export function LoginScreen() {
             <div style={{
               background: "rgba(154,44,34,0.08)", color: "var(--color-danger)",
               padding: "10px 14px", borderRadius: "var(--radius-md)",
-              fontSize: "14px", fontWeight: 500, textAlign: "center",
+              fontSize: "var(--text-sm)", fontWeight: 500, textAlign: "center",
             }}>
               {error}
             </div>
@@ -263,7 +263,7 @@ export function LoginScreen() {
                       ? "transparent"
                       : isMuted ? "var(--color-gray-100)" : (key ? "var(--color-white)" : "transparent"),
                     border: isConfirm || isMuted || !key ? "none" : "1px solid var(--color-gray-200)",
-                    fontSize: (key === "⌫" || key === "✓") ? "20px" : "22px",
+                    fontSize: (key === "⌫" || key === "✓") ? "var(--text-xl)" : "var(--text-xxl)",
                     fontWeight: isMuted ? 600 : 700,
                     color: isConfirm
                       ? "var(--color-gray-700)"
@@ -289,7 +289,7 @@ export function LoginScreen() {
               border: "none",
               background: canSubmit ? "var(--color-brand)" : "var(--color-gray-100)",
               color: canSubmit ? "var(--color-white)" : "var(--color-gray-400)",
-              fontSize: "var(--text-md, 16px)",
+              fontSize: "var(--text-md)",
               fontWeight: 700,
               fontFamily: "var(--font)",
               cursor: canSubmit ? "pointer" : "default",
