@@ -126,6 +126,54 @@ export function SectionHeading({ title, subtitle }: { title: string; subtitle?: 
   );
 }
 
+/**
+ * Read-only card showing structured entity data as label/value rows,
+ * grouped into named sections. Pairs with a "Modifica" button in the
+ * PageHeader actions that opens a Modal with the editable form.
+ */
+export function DetailCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      background: "var(--color-white)", borderRadius: "var(--radius-xl)",
+      boxShadow: "var(--shadow-sm)", overflow: "hidden",
+    }}>
+      {children}
+    </div>
+  );
+}
+
+/** Named section inside a DetailCard, grouping related DetailRows. */
+export function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ borderBottom: "1px solid var(--color-gray-100)" }}>
+      <div style={{
+        padding: "14px 20px 0", fontSize: "var(--text-xs)", fontWeight: 700,
+        color: "var(--color-gray-500)", textTransform: "uppercase", letterSpacing: "0.06em",
+      }}>
+        {title}
+      </div>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+/** Single label/value row inside a DetailSection. */
+export function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "baseline", gap: "16px",
+      padding: "10px 20px", fontSize: "var(--text-sm)",
+    }}>
+      <span style={{ flex: "0 0 200px", color: "var(--color-gray-500)", fontWeight: 500 }}>{label}</span>
+      <span style={{ flex: 1, color: "var(--color-gray-800)", fontWeight: 600, minWidth: 0, wordBreak: "break-word" }}>
+        {value === "" || value === null || value === undefined
+          ? <span style={{ color: "var(--color-gray-300)", fontWeight: 400 }}>—</span>
+          : value}
+      </span>
+    </div>
+  );
+}
+
 const reorderBtnStyle: React.CSSProperties = {
   padding: "4px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-gray-200)",
   background: "var(--color-white)", cursor: "pointer", color: "var(--color-gray-500)",
