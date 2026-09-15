@@ -167,6 +167,16 @@ button {
   to   { opacity: 1; transform: translateX(0); }
 }
 
+/* Responsive login */
+@media (max-width: 860px) {
+  .login-brand-panel {
+    display: none !important;
+  }
+  .login-brand-mobile {
+    display: block !important;
+  }
+}
+
 /* Utility */
 .sr-only {
   position: absolute;

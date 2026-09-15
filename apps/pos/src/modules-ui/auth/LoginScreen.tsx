@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { authClient } from "../../core/auth-client.js";
 import { wsClient } from "../../core/ws-client.js";
 import { useStore } from "../../state/global-store.js";
+import { LockClosedIcon, BanknotesIcon, ClockIcon, ShieldCheckIcon } from "../../components/ui/icons.js";
 
 const MIN_PIN = 4;
 const MAX_PIN = 12;
@@ -12,6 +13,12 @@ const KEYPAD = [
   ["4", "5", "6"],
   ["7", "8", "9"],
   ["⌫", "0", "✓"],
+];
+
+const HIGHLIGHTS = [
+  { Icon: BanknotesIcon, text: "Cassa veloce per vendita, comande e scontrini" },
+  { Icon: ClockIcon, text: "Gestione turni, magazzino e statistiche in tempo reale" },
+  { Icon: ShieldCheckIcon, text: "Accesso protetto da PIN personale per ogni operatore" },
 ];
 
 export function LoginScreen() {
@@ -89,108 +96,124 @@ export function LoginScreen() {
   const canSubmit = pin.length >= MIN_PIN && !loading;
 
   return (
-    <div
-      style={{
-        height: "100%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "var(--color-brand)",
-        padding: "40px",
-        position: "relative",
-      }}
-    >
-      {/* Close button */}
-      <button
-        onClick={() => window.close()}
-        title="Chiudi applicazione"
+    <div style={{ height: "100%", display: "flex", minHeight: 0 }}>
+      {/* Brand panel */}
+      <div
+        className="login-brand-panel"
         style={{
-          position: "absolute",
-          top: "16px",
-          right: "16px",
-          width: "36px",
-          height: "36px",
-          borderRadius: "50%",
-          border: "none",
-          background: "rgba(255,255,255,0.15)",
-          color: "rgba(255,255,255,0.8)",
-          cursor: "pointer",
-          fontSize: "18px",
+          flex: "1 1 46%",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          padding: "var(--sp-xxl, 48px)",
+          background: "linear-gradient(160deg, var(--color-brand-dark) 0%, var(--color-brand) 100%)",
+          color: "var(--color-white)",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          aria-hidden
+          style={{
+            position: "absolute", inset: 0,
+            backgroundImage: "radial-gradient(circle at 15% 15%, rgba(255,255,255,0.08) 0%, transparent 45%), radial-gradient(circle at 85% 90%, rgba(255,255,255,0.06) 0%, transparent 40%)",
+          }}
+        />
+
+        <span style={{ position: "relative", fontSize: "26px", fontWeight: 700, letterSpacing: "-0.04em" }}>epos</span>
+
+        <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: "var(--sp-xl, 32px)", maxWidth: "420px" }}>
+          <h1 style={{ margin: 0, fontSize: "32px", lineHeight: 1.2, fontWeight: 700, letterSpacing: "-0.01em" }}>
+            La cassa pensata per i tuoi eventi
+          </h1>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-md)" }}>
+            {HIGHLIGHTS.map(({ Icon, text }) => (
+              <div key={text} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{
+                  flexShrink: 0, width: "34px", height: "34px", borderRadius: "var(--radius-md)",
+                  background: "rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <Icon width={18} height={18} />
+                </div>
+                <span style={{ fontSize: "var(--text-sm)", color: "rgba(255,255,255,0.9)" }}>{text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <span style={{ position: "relative", fontSize: "var(--text-xs)", color: "rgba(255,255,255,0.6)" }}>
+          © {new Date().getFullYear()} epos · Point of Sale
+        </span>
+      </div>
+
+      {/* Form panel */}
+      <div
+        style={{
+          flex: "1 1 54%",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          lineHeight: 1,
-        }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.25)"; }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.15)"; }}
-      >
-        ✕
-      </button>
-
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "420px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "24px",
+          background: "var(--color-gray-50)",
+          padding: "var(--sp-xl)",
+          position: "relative",
         }}
       >
-        {/* Brand header */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "0 4px" }}>
-          <span style={{ fontSize: "30px", fontWeight: 700, letterSpacing: "-0.04em", color: "#FFFFFF" }}>
-            epos
-          </span>
-          <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-brand-light)" }}>
-            Point of Sale
-          </span>
-        </div>
-
-        {/* Card */}
-        <div
+        <button
+          onClick={() => window.close()}
+          title="Chiudi applicazione"
           style={{
-            background: "var(--color-white)",
-            borderRadius: "var(--radius-xl)",
-            padding: "30px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "18px",
+            position: "absolute", top: "16px", right: "16px",
+            width: "36px", height: "36px", borderRadius: "50%", border: "none",
+            background: "var(--color-gray-100)", color: "var(--color-gray-500)",
+            cursor: "pointer", fontSize: "18px",
+            display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
           }}
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-            <h1 style={{ margin: 0, fontSize: "24px", fontWeight: 700, letterSpacing: "-0.02em" }}>
-              Inserisci il PIN
-            </h1>
-            <p style={{ margin: 0, fontSize: "15px", color: "var(--color-gray-700)" }}>
-              Minimo {MIN_PIN} cifre · premi ✓ per confermare
-            </p>
+          ✕
+        </button>
+
+        <div style={{ width: "100%", maxWidth: "360px", display: "flex", flexDirection: "column", gap: "var(--sp-lg)" }}>
+          <div className="login-brand-mobile" style={{ display: "none", textAlign: "center", marginBottom: "var(--sp-sm)" }}>
+            <span style={{ fontSize: "28px", fontWeight: 700, letterSpacing: "-0.04em", color: "var(--color-brand)" }}>epos</span>
           </div>
 
-          {/* PIN display */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              height: "56px",
-              padding: "0 18px",
-              borderRadius: "12px",
-              background: "var(--color-gray-100)",
-              border: "1px solid var(--color-gray-200)",
-            }}
-          >
-            <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-gray-700)" }}>PIN</span>
-            <span
-              style={{
-                flex: 1,
-                fontSize: "26px",
-                fontWeight: 700,
-                letterSpacing: "0.3em",
-                color: "var(--color-gray-900)",
-              }}
-            >
-              {pin ? "•".repeat(pin.length) : "– – – –"}
-            </span>
+          <div>
+            <div style={{ fontSize: "var(--text-xxl, 26px)", fontWeight: 700, color: "var(--color-gray-900)", letterSpacing: "-0.01em" }}>
+              Bentornato
+            </div>
+            <div style={{ fontSize: "var(--text-sm)", color: "var(--color-gray-500)", marginTop: "4px" }}>
+              Inserisci il tuo PIN personale per accedere alla cassa.
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: "block", fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--color-gray-700)", marginBottom: "6px" }}>
+              PIN
+            </label>
+            <div style={{ position: "relative" }}>
+              <LockClosedIcon width={18} height={18} color="var(--color-gray-400)" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+              <input
+                value={pin}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, "").slice(0, MAX_PIN);
+                  setPin(digits);
+                  setError(null);
+                }}
+                onKeyDown={(e) => { if (e.key === "Enter") void handleLogin(pin); }}
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
+                autoFocus
+                placeholder="••••"
+                style={{
+                  width: "100%", height: "48px", padding: "0 14px 0 42px",
+                  borderRadius: "var(--radius-md)", border: "1.5px solid var(--color-gray-200)",
+                  fontSize: "20px", fontWeight: 700, letterSpacing: "0.3em",
+                  fontFamily: "var(--font)", color: "var(--color-gray-900)",
+                  background: "var(--color-white)", outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </div>
           </div>
 
           {error && (
@@ -215,13 +238,13 @@ export function LoginScreen() {
                   onClick={() => { if (key) handleKeypad(key); }}
                   disabled={!key || loading || (isConfirm && !canSubmit)}
                   style={{
-                    height: "62px",
+                    height: "56px",
                     borderRadius: "12px",
                     background: isConfirm
                       ? "transparent"
                       : isMuted ? "var(--color-gray-100)" : (key ? "var(--color-white)" : "transparent"),
                     border: isConfirm || isMuted || !key ? "none" : "1px solid var(--color-gray-200)",
-                    fontSize: (key === "⌫" || key === "✓") ? "22px" : "24px",
+                    fontSize: (key === "⌫" || key === "✓") ? "20px" : "22px",
                     fontWeight: isMuted ? 600 : 700,
                     color: isConfirm
                       ? "var(--color-gray-700)"
@@ -242,20 +265,25 @@ export function LoginScreen() {
             onClick={() => { void handleLogin(pin); }}
             disabled={!canSubmit}
             style={{
-              height: "60px",
-              borderRadius: "14px",
+              height: "48px",
+              borderRadius: "var(--radius-md)",
+              border: "none",
               background: canSubmit ? "var(--color-brand)" : "var(--color-gray-100)",
               color: canSubmit ? "var(--color-white)" : "var(--color-gray-400)",
-              fontSize: "19px",
+              fontSize: "var(--text-md, 16px)",
               fontWeight: 700,
+              fontFamily: "var(--font)",
               cursor: canSubmit ? "pointer" : "default",
               transition: "background var(--transition)",
             }}
-            onMouseEnter={(e) => { if (canSubmit) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-brand-dark)"; }}
-            onMouseLeave={(e) => { if (canSubmit) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-brand)"; }}
           >
             {loading ? "Accesso…" : "Accedi"}
           </button>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--color-gray-400)", fontSize: "var(--text-xs)" }}>
+            <ShieldCheckIcon width={14} height={14} />
+            Connessione protetta · accesso riservato al personale autorizzato
+          </div>
         </div>
       </div>
     </div>

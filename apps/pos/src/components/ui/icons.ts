@@ -43,6 +43,7 @@ export {
   CloudArrowUpIcon,
   MagnifyingGlassIcon,
   FunnelIcon,
+  LockClosedIcon,
 } from "@heroicons/react/24/outline";
 
 export {
