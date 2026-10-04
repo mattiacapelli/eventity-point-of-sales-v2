@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Archivo, Helvetica, sans-serif; font-variant-numeric: tabular-nums; color: #10281C; background: #F4F6F3; -webkit-font-smoothing: antialiased; }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  a { color: #17663C; text-decoration: none; }
+  a:hover { color: #0F3D25; text-decoration: underline; }
+</style>
+</helmet>
+
+<div style="width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 20px 72px; display: flex; flex-direction: column; gap: 14px">
+
+  <header style="margin: 20px 0 0; padding: 44px 44px 40px; border-radius: 24px; background: #17663C; display: flex; flex-direction: column; gap: 34px">
+    <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
+      <span style="font-size: 18px; font-weight: 600; letter-spacing: -0.02em; color: #8FB79F">eventity</span>
+      <span style="width: 1px; height: 26px; background: rgba(255,255,255,0.26); align-self: center"></span>
+      <span style="font-size: 44px; font-weight: 700; letter-spacing: -0.045em; color: #FFFFFF; line-height: 1">{{ word }}</span>
+      <span style="font-size: 13px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #A8C9B5">Linee guida di prodotto</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px; max-width: 620px">
+      <h1 style="margin: 0; font-size: 40px; font-weight: 700; letter-spacing: -0.035em; line-height: 1.1; color: #FFFFFF; text-wrap: pretty">La cassa della suite eventity</h1>
+      <p style="margin: 0; font-size: 17px; line-height: 1.55; color: #C4DBCD; text-wrap: pretty">{{ tagline }}</p>
+    </div>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap">
+      <sc-for list="{{ headerFacts }}" as="f" hint-placeholder-count="4">
+        <div style="flex: 1 1 150px; min-width: 0; padding: 14px 16px; border-radius: 14px; background: #0F3D25; display: flex; flex-direction: column; gap: 4px">
+          <span style="font-size: 11.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8FB79F">{{ f.label }}</span>
+          <span style="font-size: 17px; font-weight: 600; color: #FFFFFF; line-height: 1.3">{{ f.value }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </header>
+
+  <!-- 01 PIATTAFORMA -->
+  <section style="padding: 34px 36px; border-radius: 22px; background: #FFFFFF; border: 1px solid #E2E7E1; display: flex; flex-direction: column; gap: 26px">
+    <div style="display: flex; align-items: baseline; gap: 14px">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: #17663C">01</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.025em">Piattaforma di marca</h2>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px">
+      <sc-for list="{{ platform }}" as="p" hint-placeholder-count="3">
+        <div style="padding: 20px 22px; border-radius: 16px; background: #F7F9F7; display: flex; flex-direction: column; gap: 8px">
+          <span style="font-size: 11.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">{{ p.label }}</span>
+          <span style="font-size: 19px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.25">{{ p.title }}</span>
+          <span style="font-size: 15px; line-height: 1.55; color: #4E5F55; text-wrap: pretty">{{ p.body }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Principi di progetto</span>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px">
+        <sc-for list="{{ principles }}" as="p" hint-placeholder-count="4">
+          <div style="display: flex; gap: 12px; padding: 16px 18px; border-radius: 14px; border: 1px solid #E9EDE9">
+            <span style="font-size: 15px; font-weight: 700; color: #17663C; flex: none">{{ p.n }}</span>
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
+              <span style="font-size: 16px; font-weight: 600; line-height: 1.3">{{ p.title }}</span>
+              <span style="font-size: 14.5px; line-height: 1.5; color: #6B7A70; text-wrap: pretty">{{ p.body }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 LOGO -->
+  <section style="padding: 34px 36px; border-radius: 22px; background: #FFFFFF; border: 1px solid #E2E7E1; display: flex; flex-direction: column; gap: 26px">
+    <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: #17663C">02</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.025em">Marchio di prodotto</h2>
+      <span style="font-size: 15px; color: #6B7A70">Wordmark Archivo Bold, tracking −4,5%, tutto minuscolo · regole di suite in <a href="Brand Identity Eventity.dc.html">eventity</a></span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px">
+      <div style="padding: 34px; border-radius: 16px; background: #F7F9F7; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 16px; align-items: center; justify-content: center; min-height: 180px">
+        <span style="font-size: 52px; font-weight: 700; letter-spacing: -0.045em; color: #17663C; line-height: 1">{{ word }}</span>
+        <span style="font-size: 12.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #8B978E">Positivo · verde su bianco</span>
+      </div>
+      <div style="padding: 34px; border-radius: 16px; background: #17663C; display: flex; flex-direction: column; gap: 16px; align-items: center; justify-content: center; min-height: 180px">
+        <span style="font-size: 52px; font-weight: 700; letter-spacing: -0.045em; color: #FFFFFF; line-height: 1">{{ word }}</span>
+        <span style="font-size: 12.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A8C9B5">Negativo · bianco su verde</span>
+      </div>
+      <div style="padding: 34px; border-radius: 16px; background: #10281C; display: flex; flex-direction: column; gap: 16px; align-items: center; justify-content: center; min-height: 180px">
+        <span style="font-size: 52px; font-weight: 700; letter-spacing: -0.045em; color: #FFFFFF; line-height: 1">{{ word }}</span>
+        <span style="font-size: 12.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #8B978E">Mono · scontrino e stampa</span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; align-items: stretch">
+      <div style="padding: 22px 24px; border-radius: 16px; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 14px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Area di rispetto</span>
+        <div style="padding: 26px; border-radius: 12px; background: #F7F9F7; display: grid; place-items: center">
+          <div style="padding: 26px; border: 1.5px dashed #BFCDC3; border-radius: 8px">
+            <span style="font-size: 40px; font-weight: 700; letter-spacing: -0.045em; color: #17663C; line-height: 1">{{ word }}</span>
+          </div>
+        </div>
+        <span style="font-size: 14.5px; line-height: 1.5; color: #6B7A70">Margine libero pari all'altezza della <strong style="font-weight: 700; color: #10281C">e</strong> su tutti i lati. Dimensione minima: 64px su schermo, 16mm in stampa.</span>
+      </div>
+
+      <div style="padding: 22px 24px; border-radius: 16px; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 14px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Lockup di suite e con il locale</span>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #F7F9F7">
+            <span style="font-size: 15px; font-weight: 600; letter-spacing: -0.02em; color: #6B7A70">eventity</span>
+            <span style="width: 1px; height: 24px; background: #D3DAD3"></span>
+            <span style="font-size: 26px; font-weight: 700; letter-spacing: -0.045em; color: #17663C; line-height: 1">{{ word }}</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-radius: 12px; background: #F7F9F7">
+            <span style="font-size: 26px; font-weight: 700; letter-spacing: -0.045em; color: #17663C; line-height: 1">{{ word }}</span>
+            <span style="width: 1px; height: 26px; background: #D3DAD3"></span>
+            <div style="display: flex; flex-direction: column; line-height: 1.25; min-width: 0">
+              <span style="font-size: 15px; font-weight: 600">Festival Estivo</span>
+              <span style="font-size: 12.5px; color: #7C8A81">Arena Eventi</span>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-radius: 12px; background: #17663C">
+            <span style="font-size: 26px; font-weight: 700; letter-spacing: -0.045em; color: #FFFFFF; line-height: 1">{{ word }}</span>
+            <span style="width: 1px; height: 26px; background: rgba(255,255,255,0.28)"></span>
+            <span style="font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #A8C9B5">Ordina dal tavolo</span>
+          </div>
+        </div>
+        <span style="font-size: 14.5px; line-height: 1.5; color: #6B7A70">Dentro l'app si mostra solo <strong style="font-weight: 700; color: #10281C">epos</strong>. Il lockup con eventity vive su login, sito, email e fatture; il marchio del locale sta sempre a destra del filetto.</span>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Usi non ammessi</span>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px">
+        <sc-for list="{{ misuse }}" as="m" hint-placeholder-count="4">
+          <div style="padding: 16px; border-radius: 14px; border: 1px solid #F0DCD9; background: #FDF6F5; display: flex; flex-direction: column; gap: 12px; align-items: center">
+            <span style="{{ m.sampleStyle }}">{{ m.sample }}</span>
+            <span style="font-size: 13.5px; line-height: 1.45; color: #9A2C22; text-align: center; font-weight: 600">{{ m.label }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 COLORE -->
+  <section style="padding: 34px 36px; border-radius: 22px; background: #FFFFFF; border: 1px solid #E2E7E1; display: flex; flex-direction: column; gap: 26px">
+    <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: #17663C">03</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.025em">Colore</h2>
+      <span style="font-size: 15px; color: #6B7A70">Un verde, una neutrale, due semantici. Il colore è codifica, non decorazione.</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 12px">
+      <sc-for list="{{ coreColors }}" as="c" hint-placeholder-count="5">
+        <div style="border-radius: 16px; overflow: hidden; border: 1px solid #E9EDE9; display: flex; flex-direction: column">
+          <div style="{{ c.swatchStyle }}">
+            <span style="{{ c.roleStyle }}">{{ c.role }}</span>
+          </div>
+          <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 3px">
+            <span style="font-size: 15.5px; font-weight: 700">{{ c.name }}</span>
+            <span style="font-size: 13.5px; font-family: ui-monospace, monospace; color: #6B7A70">{{ c.hex }}</span>
+            <span style="font-size: 13.5px; line-height: 1.45; color: #7C8A81; padding-top: 3px">{{ c.use }}</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px">
+      <div style="padding: 22px 24px; border-radius: 16px; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 14px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Stati semantici</span>
+        <sc-for list="{{ semantic }}" as="s" hint-placeholder-count="4">
+          <div style="display: flex; align-items: center; gap: 12px">
+            <span style="{{ s.chipStyle }}">{{ s.label }}</span>
+            <span style="flex: 1; font-size: 14.5px; line-height: 1.45; color: #6B7A70">{{ s.use }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="padding: 22px 24px; border-radius: 16px; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 14px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Proporzioni d'uso</span>
+        <div style="display: flex; height: 52px; border-radius: 12px; overflow: hidden">
+          <sc-for list="{{ ratio }}" as="r" hint-placeholder-count="4">
+            <div style="{{ r.style }}"></div>
+          </sc-for>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 9px">
+          <sc-for list="{{ ratio }}" as="r" hint-placeholder-count="4">
+            <div style="display: flex; align-items: center; gap: 10px">
+              <span style="{{ r.dotStyle }}"></span>
+              <span style="flex: 1; font-size: 14.5px; color: #37493E">{{ r.label }}</span>
+              <span style="font-size: 14.5px; font-weight: 700">{{ r.pct }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <sc-if value="{{ showCategories }}" hint-placeholder-val="{{ true }}">
+      <div style="display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap">
+          <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Tinte di categoria</span>
+          <span style="font-size: 14px; color: #7C8A81">Generate in oklch a luminosità e croma costanti: leggibili, mai in competizione col verde di marca.</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 10px">
+          <sc-for list="{{ categoryTints }}" as="c" hint-placeholder-count="8">
+            <div style="{{ c.cardStyle }}">
+              <span style="{{ c.barStyle }}"></span>
+              <span style="font-size: 14px; font-weight: 600; line-height: 1.3">{{ c.name }}</span>
+              <span style="font-size: 11.5px; font-family: ui-monospace, monospace; color: #7C8A81">{{ c.hue }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+  </section>
+
+  <!-- 04 TIPOGRAFIA -->
+  <section style="padding: 34px 36px; border-radius: 22px; background: #FFFFFF; border: 1px solid #E2E7E1; display: flex; flex-direction: column; gap: 26px">
+    <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: #17663C">04</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.025em">Tipografia</h2>
+      <span style="font-size: 15px; color: #6B7A70">Archivo · SIL Open Font License · numeri tabellari sempre attivi</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 0">
+      <sc-for list="{{ typeScale }}" as="t" hint-placeholder-count="6">
+        <div style="display: flex; align-items: baseline; gap: 22px; padding: 16px 0; border-bottom: 1px solid #F2F5F2; flex-wrap: wrap">
+          <div style="width: 168px; flex: none; display: flex; flex-direction: column; gap: 3px">
+            <span style="font-size: 14px; font-weight: 700">{{ t.name }}</span>
+            <span style="font-size: 12.5px; font-family: ui-monospace, monospace; color: #8B978E">{{ t.specs }}</span>
+          </div>
+          <span style="{{ t.sampleStyle }}">{{ t.sample }}</span>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px">
+      <div style="padding: 20px 22px; border-radius: 16px; background: #F7F9F7; display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Numeri e importi</span>
+        <span style="font-size: 38px; font-weight: 700; letter-spacing: -0.03em; line-height: 1">€439.50</span>
+        <span style="font-size: 14.5px; line-height: 1.5; color: #6B7A70">Sempre tabellari, simbolo attaccato alla cifra, due decimali anche sugli interi. Totali mai sotto 24px in cassa.</span>
+      </div>
+      <div style="padding: 20px 22px; border-radius: 16px; background: #F7F9F7; display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Minimi di leggibilità</span>
+        <div style="display: flex; flex-direction: column; gap: 7px">
+          <sc-for list="{{ minima }}" as="m" hint-placeholder-count="4">
+            <div style="display: flex; align-items: baseline; gap: 10px">
+              <span style="flex: 1; font-size: 14.5px; color: #37493E">{{ m.label }}</span>
+              <span style="font-size: 14.5px; font-weight: 700">{{ m.value }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 COMPONENTI -->
+  <section style="padding: 34px 36px; border-radius: 22px; background: #FFFFFF; border: 1px solid #E2E7E1; display: flex; flex-direction: column; gap: 26px">
+    <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: #17663C">05</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.025em">Componenti</h2>
+      <span style="font-size: 15px; color: #6B7A70">Raggi 9 / 11 / 15 / 22px · target minimo 44px, 56px in cassa</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px">
+      <div style="padding: 22px 24px; border-radius: 16px; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 14px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Bottoni</span>
+        <button style="height: 62px; border-radius: 15px; background: #17663C; color: #FFFFFF; font-size: 19px; font-weight: 700" style-hover="background: #0F3D25">Paga €22.00</button>
+        <button style="height: 52px; border-radius: 13px; border: 1px solid #E2E7E1; font-size: 16px; font-weight: 600" style-hover="background: #F4F6F3">Azione secondaria</button>
+        <button style="height: 46px; border-radius: 11px; font-size: 15px; font-weight: 600; color: #9A2C22" style-hover="background: #FBEEEC">Azione distruttiva</button>
+        <button style="height: 52px; border-radius: 13px; background: #E4E9E4; color: #A3AFA7; font-size: 16px; font-weight: 600; cursor: default">Non disponibile</button>
+      </div>
+
+      <div style="padding: 22px 24px; border-radius: 16px; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 14px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Card prodotto</span>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
+          <div style="min-height: 124px; padding: 14px; border-radius: 15px; background: oklch(0.965 0.022 145); box-shadow: 0 0 0 2px #17663C; display: flex; flex-direction: column; gap: 6px">
+            <span style="font-size: 16px; font-weight: 600; line-height: 1.25">Panino con porchetta</span>
+            <span style="flex: 1"></span>
+            <span style="display: flex; align-items: center; justify-content: space-between">
+              <span style="font-size: 19px; font-weight: 700; color: #17663C">€6.00</span>
+              <span style="min-width: 28px; height: 28px; border-radius: 9px; background: #17663C; color: #FFFFFF; font-size: 14px; font-weight: 700; display: grid; place-items: center">2</span>
+            </span>
+          </div>
+          <div style="min-height: 124px; padding: 14px; border-radius: 15px; background: oklch(0.965 0.022 40); box-shadow: 0 0 0 1px #E2E7E1; display: flex; flex-direction: column; gap: 6px">
+            <span style="font-size: 16px; font-weight: 600; line-height: 1.25">Grigliata mista</span>
+            <span style="flex: 1"></span>
+            <span style="font-size: 19px; font-weight: 700; color: #17663C">€14.00</span>
+          </div>
+        </div>
+        <span style="font-size: 14px; line-height: 1.5; color: #6B7A70">Sfondo = tinta categoria. Selezione = anello verde 2px, mai riempimento pieno.</span>
+      </div>
+
+      <div style="padding: 22px 24px; border-radius: 16px; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 14px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Chip di stato</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          <sc-for list="{{ chips }}" as="c" hint-placeholder-count="4">
+            <span style="{{ c.style }}">{{ c.label }}</span>
+          </sc-for>
+        </div>
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E; padding-top: 6px">Stepper quantità</span>
+        <div style="display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 11px; background: #F4F6F3; align-self: flex-start">
+          <button style="width: 42px; height: 42px; border-radius: 9px; background: #FFFFFF; color: #17663C; font-size: 22px; font-weight: 600">−</button>
+          <span style="min-width: 30px; text-align: center; font-size: 17px; font-weight: 700">3</span>
+          <button style="width: 42px; height: 42px; border-radius: 9px; background: #17663C; color: #FFFFFF; font-size: 22px; font-weight: 600">+</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 VOCE -->
+  <section style="padding: 34px 36px; border-radius: 22px; background: #FFFFFF; border: 1px solid #E2E7E1; display: flex; flex-direction: column; gap: 24px">
+    <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: #17663C">06</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.025em">Voce e testi</h2>
+      <span style="font-size: 15px; color: #6B7A70">Diretta, di servizio, senza gergo: chi legge ha una coda davanti</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 12px">
+      <sc-for list="{{ copyRules }}" as="c" hint-placeholder-count="4">
+        <div style="padding: 18px 20px; border-radius: 16px; background: #F7F9F7; display: flex; flex-direction: column; gap: 10px">
+          <span style="font-size: 15px; font-weight: 700; line-height: 1.3">{{ c.rule }}</span>
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <div style="display: flex; gap: 9px; align-items: baseline">
+              <span style="font-size: 13px; font-weight: 700; color: #17663C; flex: none">Sì</span>
+              <span style="font-size: 14.5px; line-height: 1.45; color: #10281C">{{ c.good }}</span>
+            </div>
+            <div style="display: flex; gap: 9px; align-items: baseline">
+              <span style="font-size: 13px; font-weight: 700; color: #9A2C22; flex: none">No</span>
+              <span style="font-size: 14.5px; line-height: 1.45; color: #7C8A81; text-decoration: line-through">{{ c.bad }}</span>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <!-- 07 APPLICAZIONI -->
+  <section style="padding: 34px 36px; border-radius: 22px; background: #FFFFFF; border: 1px solid #E2E7E1; display: flex; flex-direction: column; gap: 26px">
+    <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: #17663C">07</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.025em">Applicazioni</h2>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; align-items: start">
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Cassa · barra applicativa</span>
+        <div style="border-radius: 14px; overflow: hidden; border: 1px solid #E2E7E1">
+          <div style="display: flex; align-items: center; gap: 12px; height: 58px; padding: 0 14px; background: #FFFFFF; border-bottom: 1px solid #E2E7E1">
+            <span style="font-size: 20px; font-weight: 700; letter-spacing: -0.04em; color: #17663C">{{ word }}</span>
+            <span style="height: 36px; padding: 0 12px; border-radius: 10px; background: #E8F0EA; color: #17663C; font-size: 14px; font-weight: 600; display: grid; place-items: center">Cassa</span>
+            <span style="height: 36px; padding: 0 12px; border-radius: 10px; color: #6B7A70; font-size: 14px; font-weight: 600; display: grid; place-items: center">Storico</span>
+            <span style="flex: 1"></span>
+            <span style="width: 26px; height: 26px; border-radius: 50%; background: #E8F0EA; color: #17663C; font-size: 13px; font-weight: 700; display: grid; place-items: center">M</span>
+          </div>
+          <div style="height: 76px; background: #F4F6F3"></div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Mobile · testata</span>
+        <div style="border-radius: 14px; overflow: hidden; border: 1px solid #E2E7E1">
+          <div style="padding: 18px 16px 20px; background: #17663C; display: flex; flex-direction: column; gap: 5px">
+            <span style="font-size: 20px; font-weight: 700; letter-spacing: -0.04em; color: #FFFFFF">{{ word }}</span>
+            <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #A8C9B5">Ordina dal tavolo</span>
+          </div>
+          <div style="height: 58px; background: #F4F6F3"></div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Scontrino · monocromatico</span>
+        <div style="padding: 18px 20px; border-radius: 14px; background: #FFFFFF; border: 1px solid #E2E7E1; display: flex; flex-direction: column; gap: 10px; font-family: ui-monospace, monospace">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px">
+            <span style="font-family: Archivo, sans-serif; font-size: 20px; font-weight: 700; letter-spacing: -0.04em; color: #10281C">{{ word }}</span>
+            <span style="font-size: 11px; color: #6B7A70">FESTIVAL ESTIVO · ARENA EVENTI</span>
+          </div>
+          <div style="border-top: 1px dashed #CBD5CC; padding-top: 9px; display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #37493E">
+            <div style="display: flex"><span style="flex: 1">2× Panino porchetta</span><span>12.00</span></div>
+            <div style="display: flex"><span style="flex: 1">1× Birra media</span><span>5.00</span></div>
+          </div>
+          <div style="border-top: 1px solid #10281C; padding-top: 9px; display: flex; align-items: baseline">
+            <span style="flex: 1; font-family: Archivo, sans-serif; font-size: 13px; font-weight: 700">TOTALE</span>
+            <span style="font-family: Archivo, sans-serif; font-size: 19px; font-weight: 700">€17.00</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer style="padding: 26px 36px; border-radius: 22px; background: #10281C; display: flex; align-items: center; gap: 18px; flex-wrap: wrap">
+    <span style="font-size: 22px; font-weight: 700; letter-spacing: -0.045em; color: #FFFFFF">{{ word }}</span>
+    <span style="flex: 1; min-width: 200px; font-size: 14.5px; line-height: 1.5; color: #8FB79F">Prodotto della suite <a href="Brand Identity Eventity.dc.html" style="color: #FFFFFF; font-weight: 600">eventity</a> · v1.0 · Archivo (OFL) · le regole di marca, colore e voce comuni stanno nelle linee guida di suite</span>
+  </footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;logoWord&quot;: {&quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;epos&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Marchio&quot;}, &quot;tagline&quot;: {&quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;Un'identità costruita per essere letta da lontano, sotto il sole e di corsa.&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Marchio&quot;}, &quot;showCategoryTints&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Colore&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const word = this.props.logoWord ?? 'epos';
+    const tint = h => 'oklch(0.965 0.022 ' + h + ')';
+    const cat = h => 'oklch(0.60 0.085 ' + h + ')';
+
+    return {
+      word,
+      tagline: this.props.tagline ?? 'Un\u2019identit\u00E0 costruita per essere letta da lontano, sotto il sole e di corsa: verde di marca sull\u2019azione, bianco sulla superficie, nulla in mezzo.',
+      showCategories: this.props.showCategoryTints ?? true,
+
+      headerFacts: [
+        { label: 'Suite', value: 'eventity' },
+        { label: 'Carattere', value: 'Archivo · OFL' },
+        { label: 'Colore guida', value: 'Verde #17663C' },
+        { label: 'Contesto', value: 'Eventi e sagre' }
+      ],
+
+      platform: [
+        { label: 'Ruolo nella suite', title: 'La cassa che regge la coda', body: 'Il prodotto di vendita di eventity: si installa il giorno prima, lo usa chi non l\u2019ha mai visto, non si ferma nell\u2019ora di punta.' },
+        { label: 'Personalit\u00E0', title: 'Operativa, non istituzionale', body: 'Tono da collega esperto: dice cosa fare adesso. Nessuna enfasi commerciale dentro il prodotto.' },
+        { label: 'Promessa', title: 'Un tap, un incasso', body: 'Ogni schermata ha una sola azione primaria evidente. Tutto il resto \u00E8 secondario per forma e per colore.' }
+      ],
+
+      principles: [
+        { n: '01', title: 'Leggibile a 60 cm', body: 'Testo di sistema mai sotto 14px, importi e totali mai sotto 24px.' },
+        { n: '02', title: 'Il colore informa', body: 'Verde = azione e conferma. Tinte = categoria. Ambra e rosso = solo eccezioni.' },
+        { n: '03', title: 'Una sola gerarchia', body: 'Un primario per schermata, secondari con bordo, distruttivi come testo.' },
+        { n: '04', title: 'Dita, non puntatori', body: 'Target 44px minimi, 56px sui flussi di cassa, gap di 8px tra bersagli vicini.' }
+      ],
+
+      misuse: [
+        { label: 'Non ruotare n\u00E9 inclinare', sample: word, sampleStyle: 'font-size:30px;font-weight:700;letter-spacing:-0.045em;color:#17663C;transform:rotate(-9deg);display:inline-block;' },
+        { label: 'Non applicare gradienti', sample: word, sampleStyle: 'font-size:30px;font-weight:700;letter-spacing:-0.045em;background:linear-gradient(90deg,#17663C,#8FB79F);-webkit-background-clip:text;-webkit-text-fill-color:transparent;' },
+        { label: 'Non allargare la spaziatura', sample: word, sampleStyle: 'font-size:30px;font-weight:700;letter-spacing:0.22em;color:#17663C;' },
+        { label: 'Non usare verdi fuori palette', sample: word, sampleStyle: 'font-size:30px;font-weight:700;letter-spacing:-0.045em;color:#4CD964;' }
+      ],
+
+      coreColors: [
+        { name: 'Verde epos', hex: '#17663C', role: 'Primario', use: 'Azioni, conferme, header mobile, totali.', fg: '#FFFFFF', sub: '#A8C9B5' },
+        { name: 'Verde profondo', hex: '#0F3D25', role: 'Pressed', use: 'Stato premuto e fondi secondari scuri.', fg: '#FFFFFF', sub: '#8FB79F' },
+        { name: 'Inchiostro', hex: '#10281C', role: 'Testo', use: 'Testo principale e stampa monocromatica.', fg: '#FFFFFF', sub: '#8B978E' },
+        { name: 'Verde tenue', hex: '#E8F0EA', role: 'Tinta', use: 'Voce di menu attiva, chip positivi, avatar.', fg: '#17663C', sub: '#17663C' },
+        { name: 'Superficie', hex: '#F4F6F3', role: 'Sfondo', use: 'Fondo app; le card restano bianche.', fg: '#10281C', sub: '#6B7A70' },
+        { name: 'Bordo', hex: '#E2E7E1', role: 'Linea', use: 'Bordi 1px, separatori, contorni dei campi.', fg: '#10281C', sub: '#6B7A70' }
+      ].map(c => ({
+        name: c.name, hex: c.hex, role: c.role, use: c.use,
+        swatchStyle: 'height:104px;padding:14px;display:flex;align-items:flex-end;background:' + c.hex + ';',
+        roleStyle: 'font-size:11.5px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:' + c.sub + ';'
+      })),
+
+      semantic: [
+        { label: 'Completato', bg: '#E8F0EA', fg: '#17663C', use: 'Ordine pagato, comanda consegnata.' },
+        { label: 'In attesa', bg: '#FFF4E2', fg: '#8A5A0B', use: 'Da pagare, cassa chiusa, differenza di conta.' },
+        { label: 'Annullato', bg: '#F0F3F0', fg: '#7C8A81', use: 'Voci storiche non pi\u00F9 attive.' },
+        { label: 'Rimborsa', bg: '#FBEEEC', fg: '#9A2C22', use: 'Solo azioni irreversibili, mai come riempimento.' }
+      ].map(s => ({
+        label: s.label, use: s.use,
+        chipStyle: 'flex:none;padding:6px 12px;border-radius:8px;font-size:13.5px;font-weight:700;background:' + s.bg + ';color:' + s.fg + ';'
+      })),
+
+      ratio: [
+        { label: 'Bianco e superficie', pct: '70%', color: '#F4F6F3', w: 70 },
+        { label: 'Verde di marca', pct: '18%', color: '#17663C', w: 18 },
+        { label: 'Inchiostro e bordi', pct: '9%', color: '#10281C', w: 9 },
+        { label: 'Semantici', pct: '3%', color: '#C98A16', w: 3 }
+      ].map(r => ({
+        label: r.label, pct: r.pct,
+        style: 'width:' + r.w + '%;background:' + r.color + ';' + (r.color === '#F4F6F3' ? 'box-shadow:inset 0 0 0 1px #E2E7E1;' : ''),
+        dotStyle: 'width:11px;height:11px;border-radius:3px;flex:none;background:' + r.color + ';' + (r.color === '#F4F6F3' ? 'box-shadow:inset 0 0 0 1px #D3DAD3;' : '')
+      })),
+
+      categoryTints: [
+        { name: 'Panini', h: 145 }, { name: 'Griglia', h: 40 }, { name: 'Cucina calda', h: 25 },
+        { name: 'Fritti', h: 75 }, { name: 'Pizza', h: 55 }, { name: 'Dolci', h: 330 },
+        { name: 'Bibite', h: 235 }, { name: 'Birra', h: 95 }, { name: 'Vino', h: 300 }, { name: 'Caff\u00E8', h: 190 }
+      ].map(c => ({
+        name: c.name, hue: 'hue ' + c.h,
+        cardStyle: 'padding:14px;border-radius:14px;display:flex;flex-direction:column;gap:7px;background:' + tint(c.h) + ';box-shadow:0 0 0 1px #E9EDE9;',
+        barStyle: 'width:24px;height:5px;border-radius:3px;background:' + cat(c.h) + ';'
+      })),
+
+      typeScale: [
+        { name: 'Display', specs: '40 / 700 / −3.5%', sample: 'Ordine registrato', size: 40, weight: 700, ls: '-0.035em' },
+        { name: 'Titolo schermata', specs: '26 / 700 / −2.5%', sample: 'Riepilogo ordine', size: 26, weight: 700, ls: '-0.025em' },
+        { name: 'Importo', specs: '34 / 700 / −3%', sample: '€439.50', size: 34, weight: 700, ls: '-0.03em' },
+        { name: 'Titolo blocco', specs: '19 / 700 / −2%', sample: 'Metodi di pagamento', size: 19, weight: 700, ls: '-0.02em' },
+        { name: 'Corpo', specs: '16 / 500 / 0', sample: 'Panino con porchetta', size: 16, weight: 500, ls: '0' },
+        { name: 'Etichetta', specs: '11.5 / 700 / +12% maiusc.', sample: 'Da incassare', size: 11.5, weight: 700, ls: '0.12em', upper: true },
+        { name: 'Nota', specs: '13.5 / 400 / 0', sample: 'Paghi in cassa mostrando il codice.', size: 13.5, weight: 400, ls: '0' }
+      ].map(t => ({
+        name: t.name, specs: t.specs, sample: t.sample,
+        sampleStyle: 'font-size:' + t.size + 'px;font-weight:' + t.weight + ';letter-spacing:' + t.ls + ';line-height:1.2;'
+          + (t.upper ? 'text-transform:uppercase;color:#8B978E;' : 'color:#10281C;')
+      })),
+
+      minima: [
+        { label: 'Testo interfaccia', value: '14 px' },
+        { label: 'Totale in cassa', value: '24 px' },
+        { label: 'Target tattile', value: '44 px' },
+        { label: 'Contrasto testo', value: '4.5 : 1' }
+      ],
+
+      chips: [
+        { label: 'Completato', bg: '#E8F0EA', fg: '#17663C' },
+        { label: 'In attesa', bg: '#FFF4E2', fg: '#8A5A0B' },
+        { label: 'Annullato', bg: '#F0F3F0', fg: '#7C8A81' },
+        { label: 'Pronto al ritiro', bg: '#E8F0EA', fg: '#17663C' }
+      ].map(c => ({
+        label: c.label,
+        style: 'padding:6px 12px;border-radius:8px;font-size:13.5px;font-weight:700;background:' + c.bg + ';color:' + c.fg + ';'
+      })),
+
+      copyRules: [
+        { rule: 'Dì cosa succede, non cosa manca', good: 'Apri la cassa per incassare', bad: 'Operazione non consentita' },
+        { rule: 'Importo dentro il bottone', good: 'Paga €22.00', bad: 'Procedi al pagamento' },
+        { rule: 'Niente gergo tecnico', good: 'Codice ordine', bad: 'ID transazione' },
+        { rule: 'Conferme che spiegano l\u2019effetto', good: 'La cassa resta aperta', bad: 'Sei sicuro?' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

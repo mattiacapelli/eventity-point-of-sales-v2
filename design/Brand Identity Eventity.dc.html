@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Archivo, Helvetica, sans-serif; font-variant-numeric: tabular-nums; color: #10281C; background: #F4F6F3; -webkit-font-smoothing: antialiased; }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  a { color: #17663C; text-decoration: none; }
+  a:hover { color: #0F3D25; text-decoration: underline; }
+</style>
+</helmet>
+
+<div style="width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 20px 72px; display: flex; flex-direction: column; gap: 14px">
+
+  <header style="margin: 20px 0 0; padding: 44px 44px 40px; border-radius: 24px; background: #10281C; display: flex; flex-direction: column; gap: 34px">
+    <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
+      <span style="font-size: 42px; font-weight: 700; letter-spacing: -0.045em; color: #FFFFFF; line-height: 1">{{ suite }}</span>
+      <span style="font-size: 13px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #8FB79F">Brand identity · suite</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px; max-width: 640px">
+      <h1 style="margin: 0; font-size: 40px; font-weight: 700; letter-spacing: -0.035em; line-height: 1.1; color: #FFFFFF; text-wrap: pretty">Un sistema, molti strumenti per chi organizza eventi</h1>
+      <p style="margin: 0; font-size: 17px; line-height: 1.55; color: #A8C9B5; text-wrap: pretty">{{ tagline }}</p>
+    </div>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap">
+      <sc-for list="{{ headerFacts }}" as="f" hint-placeholder-count="4">
+        <div style="flex: 1 1 150px; min-width: 0; padding: 14px 16px; border-radius: 14px; background: #17663C; display: flex; flex-direction: column; gap: 4px">
+          <span style="font-size: 11.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #A8C9B5">{{ f.label }}</span>
+          <span style="font-size: 17px; font-weight: 600; color: #FFFFFF; line-height: 1.3">{{ f.value }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </header>
+
+  <!-- 01 PIATTAFORMA -->
+  <section style="padding: 34px 36px; border-radius: 22px; background: #FFFFFF; border: 1px solid #E2E7E1; display: flex; flex-direction: column; gap: 26px">
+    <div style="display: flex; align-items: baseline; gap: 14px">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: #17663C">01</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.025em">Piattaforma di marca</h2>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px">
+      <sc-for list="{{ platform }}" as="p" hint-placeholder-count="4">
+        <div style="padding: 20px 22px; border-radius: 16px; background: #F7F9F7; display: flex; flex-direction: column; gap: 8px">
+          <span style="font-size: 11.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">{{ p.label }}</span>
+          <span style="font-size: 19px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.25">{{ p.title }}</span>
+          <span style="font-size: 15px; line-height: 1.55; color: #4E5F55; text-wrap: pretty">{{ p.body }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Principi trasversali ai prodotti</span>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px">
+        <sc-for list="{{ principles }}" as="p" hint-placeholder-count="4">
+          <div style="display: flex; gap: 12px; padding: 16px 18px; border-radius: 14px; border: 1px solid #E9EDE9">
+            <span style="font-size: 15px; font-weight: 700; color: #17663C; flex: none">{{ p.n }}</span>
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
+              <span style="font-size: 16px; font-weight: 600; line-height: 1.3">{{ p.title }}</span>
+              <span style="font-size: 14.5px; line-height: 1.5; color: #6B7A70; text-wrap: pretty">{{ p.body }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 ARCHITETTURA -->
+  <section style="padding: 34px 36px; border-radius: 22px; background: #FFFFFF; border: 1px solid #E2E7E1; display: flex; flex-direction: column; gap: 26px">
+    <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: #17663C">02</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.025em">Architettura di marca</h2>
+      <span style="font-size: 15px; color: #6B7A70">Marca ombrello con prodotti nominati: {{ suite }} garantisce, il prodotto lavora</span>
+    </div>
+
+    <div style="padding: 26px 24px; border-radius: 18px; background: #F7F9F7; display: flex; flex-direction: column; gap: 18px; align-items: center">
+      <div style="padding: 14px 24px; border-radius: 14px; background: #10281C">
+        <span style="font-size: 26px; font-weight: 700; letter-spacing: -0.045em; color: #FFFFFF">{{ suite }}</span>
+      </div>
+      <span style="width: 1.5px; height: 26px; background: #CBD5CC"></span>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; width: 100%">
+        <sc-for list="{{ products }}" as="p" hint-placeholder-count="4">
+          <div style="{{ p.cardStyle }}">
+            <div style="display: flex; align-items: baseline; gap: 8px">
+              <span style="{{ p.wordStyle }}">{{ p.word }}</span>
+              <span style="{{ p.statusStyle }}">{{ p.status }}</span>
+            </div>
+            <span style="font-size: 14.5px; font-weight: 600; line-height: 1.3; color: #10281C">{{ p.role }}</span>
+            <span style="font-size: 13.5px; line-height: 1.45; color: #6B7A70">{{ p.desc }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px">
+      <div style="padding: 22px 24px; border-radius: 16px; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 14px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Regole di denominazione</span>
+        <sc-for list="{{ naming }}" as="n" hint-placeholder-count="4">
+          <div style="display: flex; gap: 11px; align-items: baseline">
+            <span style="width: 7px; height: 7px; border-radius: 50%; background: #17663C; flex: none; transform: translateY(-2px)"></span>
+            <span style="flex: 1; font-size: 14.5px; line-height: 1.5; color: #37493E; text-wrap: pretty">{{ n.text }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="padding: 22px 24px; border-radius: 16px; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 12px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Lockup prodotto</span>
+        <div style="display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #F7F9F7">
+          <span style="font-size: 15px; font-weight: 600; letter-spacing: -0.02em; color: #6B7A70">{{ suite }}</span>
+          <span style="width: 1px; height: 24px; background: #D3DAD3"></span>
+          <span style="font-size: 26px; font-weight: 700; letter-spacing: -0.045em; color: #17663C; line-height: 1">epos</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #10281C">
+          <span style="font-size: 15px; font-weight: 600; letter-spacing: -0.02em; color: #8FB79F">{{ suite }}</span>
+          <span style="width: 1px; height: 24px; background: rgba(255,255,255,0.24)"></span>
+          <span style="font-size: 26px; font-weight: 700; letter-spacing: -0.045em; color: #FFFFFF; line-height: 1">epos</span>
+        </div>
+        <span style="font-size: 14px; line-height: 1.5; color: #6B7A70">Dentro il prodotto si mostra solo il nome del prodotto; il lockup completo vive su login, sito, fatture e materiali commerciali.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 MARCHIO -->
+  <section style="padding: 34px 36px; border-radius: 22px; background: #FFFFFF; border: 1px solid #E2E7E1; display: flex; flex-direction: column; gap: 26px">
+    <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: #17663C">03</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.025em">Marchio della suite</h2>
+      <span style="font-size: 15px; color: #6B7A70">Wordmark Archivo Bold, minuscolo, tracking −4,5%</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px">
+      <div style="padding: 34px; border-radius: 16px; background: #F7F9F7; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 14px; align-items: center; justify-content: center; min-height: 172px">
+        <span style="font-size: 42px; font-weight: 700; letter-spacing: -0.045em; color: #10281C; line-height: 1">{{ suite }}</span>
+        <span style="font-size: 12.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #8B978E">Primario · inchiostro</span>
+      </div>
+      <div style="padding: 34px; border-radius: 16px; background: #10281C; display: flex; flex-direction: column; gap: 14px; align-items: center; justify-content: center; min-height: 172px">
+        <span style="font-size: 42px; font-weight: 700; letter-spacing: -0.045em; color: #FFFFFF; line-height: 1">{{ suite }}</span>
+        <span style="font-size: 12.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #8FB79F">Negativo</span>
+      </div>
+      <div style="padding: 34px; border-radius: 16px; background: #17663C; display: flex; flex-direction: column; gap: 14px; align-items: center; justify-content: center; min-height: 172px">
+        <span style="font-size: 42px; font-weight: 700; letter-spacing: -0.045em; color: #FFFFFF; line-height: 1">{{ suite }}</span>
+        <span style="font-size: 12.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A8C9B5">Su verde di marca</span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px">
+      <div style="padding: 22px 24px; border-radius: 16px; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 14px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Simbolo e app icon</span>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center">
+          <sc-for list="{{ icons }}" as="i" hint-placeholder-count="4">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 7px">
+              <div style="{{ i.tileStyle }}">
+                <span style="{{ i.glyphStyle }}">{{ i.glyph }}</span>
+              </div>
+              <span style="font-size: 12px; color: #8B978E">{{ i.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <span style="font-size: 14px; line-height: 1.5; color: #6B7A70">Il simbolo è la <strong style="font-weight: 700; color: #10281C">e</strong> del wordmark in un quadrato con raggio 22%. Ogni prodotto usa la propria iniziale sulla stessa griglia.</span>
+      </div>
+
+      <div style="padding: 22px 24px; border-radius: 16px; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 14px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Area di rispetto e minimi</span>
+        <div style="padding: 22px; border-radius: 12px; background: #F7F9F7; display: grid; place-items: center">
+          <div style="padding: 24px; border: 1.5px dashed #BFCDC3; border-radius: 8px">
+            <span style="font-size: 34px; font-weight: 700; letter-spacing: -0.045em; color: #10281C; line-height: 1">{{ suite }}</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 7px">
+          <sc-for list="{{ clearspace }}" as="c" hint-placeholder-count="3">
+            <div style="display: flex; align-items: baseline; gap: 10px">
+              <span style="flex: 1; font-size: 14.5px; color: #37493E">{{ c.label }}</span>
+              <span style="font-size: 14.5px; font-weight: 700">{{ c.value }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Usi non ammessi</span>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px">
+        <sc-for list="{{ misuse }}" as="m" hint-placeholder-count="4">
+          <div style="padding: 16px; border-radius: 14px; border: 1px solid #F0DCD9; background: #FDF6F5; display: flex; flex-direction: column; gap: 12px; align-items: center">
+            <span style="{{ m.sampleStyle }}">{{ m.sample }}</span>
+            <span style="font-size: 13.5px; line-height: 1.45; color: #9A2C22; text-align: center; font-weight: 600">{{ m.label }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 COLORE -->
+  <section style="padding: 34px 36px; border-radius: 22px; background: #FFFFFF; border: 1px solid #E2E7E1; display: flex; flex-direction: column; gap: 26px">
+    <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: #17663C">04</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.025em">Colore</h2>
+      <span style="font-size: 15px; color: #6B7A70">Nucleo condiviso da tutta la suite, più un accento per prodotto</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 12px">
+      <sc-for list="{{ coreColors }}" as="c" hint-placeholder-count="6">
+        <div style="border-radius: 16px; overflow: hidden; border: 1px solid #E9EDE9; display: flex; flex-direction: column">
+          <div style="{{ c.swatchStyle }}">
+            <span style="{{ c.roleStyle }}">{{ c.role }}</span>
+          </div>
+          <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 3px">
+            <span style="font-size: 15.5px; font-weight: 700">{{ c.name }}</span>
+            <span style="font-size: 13.5px; font-family: ui-monospace, monospace; color: #6B7A70">{{ c.hex }}</span>
+            <span style="font-size: 13.5px; line-height: 1.45; color: #7C8A81; padding-top: 3px">{{ c.use }}</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px">
+      <div style="padding: 22px 24px; border-radius: 16px; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 14px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Accenti di prodotto</span>
+        <sc-for list="{{ accents }}" as="a" hint-placeholder-count="4">
+          <div style="display: flex; align-items: center; gap: 12px">
+            <span style="{{ a.dotStyle }}"></span>
+            <span style="flex: 1; min-width: 0; font-size: 15px; font-weight: 600">{{ a.name }}</span>
+            <span style="font-size: 13px; font-family: ui-monospace, monospace; color: #7C8A81">{{ a.hex }}</span>
+          </div>
+        </sc-for>
+        <span style="font-size: 14px; line-height: 1.5; color: #6B7A70">L'accento identifica il prodotto in switcher, icone e grafici. Non sostituisce mai il verde sulle azioni primarie.</span>
+      </div>
+      <div style="padding: 22px 24px; border-radius: 16px; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 14px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Stati semantici condivisi</span>
+        <sc-for list="{{ semantic }}" as="s" hint-placeholder-count="4">
+          <div style="display: flex; align-items: center; gap: 12px">
+            <span style="{{ s.chipStyle }}">{{ s.label }}</span>
+            <span style="flex: 1; font-size: 14.5px; line-height: 1.45; color: #6B7A70">{{ s.use }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Proporzioni d'uso</span>
+      <div style="display: flex; height: 52px; border-radius: 12px; overflow: hidden">
+        <sc-for list="{{ ratio }}" as="r" hint-placeholder-count="4">
+          <div style="{{ r.style }}"></div>
+        </sc-for>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px">
+        <sc-for list="{{ ratio }}" as="r" hint-placeholder-count="4">
+          <div style="display: flex; align-items: center; gap: 10px">
+            <span style="{{ r.dotStyle }}"></span>
+            <span style="flex: 1; font-size: 14.5px; color: #37493E">{{ r.label }}</span>
+            <span style="font-size: 14.5px; font-weight: 700">{{ r.pct }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 TIPOGRAFIA -->
+  <section style="padding: 34px 36px; border-radius: 22px; background: #FFFFFF; border: 1px solid #E2E7E1; display: flex; flex-direction: column; gap: 26px">
+    <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: #17663C">05</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.025em">Tipografia</h2>
+      <span style="font-size: 15px; color: #6B7A70">Archivo · SIL Open Font License · una sola famiglia su tutta la suite</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 0">
+      <sc-for list="{{ typeScale }}" as="t" hint-placeholder-count="6">
+        <div style="display: flex; align-items: baseline; gap: 22px; padding: 16px 0; border-bottom: 1px solid #F2F5F2; flex-wrap: wrap">
+          <div style="width: 168px; flex: none; display: flex; flex-direction: column; gap: 3px">
+            <span style="font-size: 14px; font-weight: 700">{{ t.name }}</span>
+            <span style="font-size: 12.5px; font-family: ui-monospace, monospace; color: #8B978E">{{ t.specs }}</span>
+          </div>
+          <span style="{{ t.sampleStyle }}">{{ t.sample }}</span>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px">
+      <div style="padding: 20px 22px; border-radius: 16px; background: #F7F9F7; display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Dati e importi</span>
+        <span style="font-size: 38px; font-weight: 700; letter-spacing: -0.03em; line-height: 1">€439.50</span>
+        <span style="font-size: 14.5px; line-height: 1.5; color: #6B7A70">Numeri tabellari ovunque nella suite: importi, orari, quantità e report restano allineati in colonna.</span>
+      </div>
+      <div style="padding: 20px 22px; border-radius: 16px; background: #F7F9F7; display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Minimi trasversali</span>
+        <div style="display: flex; flex-direction: column; gap: 7px">
+          <sc-for list="{{ minima }}" as="m" hint-placeholder-count="4">
+            <div style="display: flex; align-items: baseline; gap: 10px">
+              <span style="flex: 1; font-size: 14.5px; color: #37493E">{{ m.label }}</span>
+              <span style="font-size: 14.5px; font-weight: 700">{{ m.value }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 SISTEMA UI -->
+  <section style="padding: 34px 36px; border-radius: 22px; background: #FFFFFF; border: 1px solid #E2E7E1; display: flex; flex-direction: column; gap: 26px">
+    <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: #17663C">06</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.025em">Sistema di interfaccia</h2>
+      <span style="font-size: 15px; color: #6B7A70">Le costanti che rendono riconoscibile qualsiasi prodotto della suite</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px">
+      <div style="padding: 22px 24px; border-radius: 16px; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 14px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Griglia e raggi</span>
+        <div style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap">
+          <sc-for list="{{ radii }}" as="r" hint-placeholder-count="4">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+              <div style="{{ r.boxStyle }}"></div>
+              <span style="font-size: 12px; color: #8B978E">{{ r.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 7px; padding-top: 4px">
+          <sc-for list="{{ gridRules }}" as="g" hint-placeholder-count="3">
+            <div style="display: flex; align-items: baseline; gap: 10px">
+              <span style="flex: 1; font-size: 14.5px; color: #37493E">{{ g.label }}</span>
+              <span style="font-size: 14.5px; font-weight: 700">{{ g.value }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="padding: 22px 24px; border-radius: 16px; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 12px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Gerarchia delle azioni</span>
+        <button style="height: 58px; border-radius: 15px; background: #17663C; color: #FFFFFF; font-size: 18px; font-weight: 700" style-hover="background: #0F3D25">Primaria — una per schermata</button>
+        <button style="height: 50px; border-radius: 13px; border: 1px solid #E2E7E1; font-size: 15.5px; font-weight: 600" style-hover="background: #F4F6F3">Secondaria — bordo</button>
+        <button style="height: 44px; border-radius: 11px; font-size: 15px; font-weight: 600; color: #9A2C22" style-hover="background: #FBEEEC">Distruttiva — solo testo</button>
+      </div>
+
+      <div style="padding: 22px 24px; border-radius: 16px; border: 1px solid #E9EDE9; display: flex; flex-direction: column; gap: 12px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Switcher di suite</span>
+        <div style="border-radius: 13px; border: 1px solid #E2E7E1; overflow: hidden">
+          <div style="padding: 11px 14px; background: #F7F9F7; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #8B978E">{{ suite }}</div>
+          <sc-for list="{{ switcher }}" as="s" hint-placeholder-count="4">
+            <div style="{{ s.rowStyle }}">
+              <span style="{{ s.tileStyle }}">{{ s.initial }}</span>
+              <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25">
+                <span style="font-size: 14.5px; font-weight: 600">{{ s.word }}</span>
+                <span style="font-size: 12.5px; color: #7C8A81">{{ s.role }}</span>
+              </div>
+              <span style="{{ s.markStyle }}">{{ s.mark }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 VOCE -->
+  <section style="padding: 34px 36px; border-radius: 22px; background: #FFFFFF; border: 1px solid #E2E7E1; display: flex; flex-direction: column; gap: 24px">
+    <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: #17663C">07</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.025em">Voce e testi</h2>
+      <span style="font-size: 15px; color: #6B7A70">Stessa voce in tutti i prodotti: concreta, di servizio, mai commerciale dentro il software</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 12px">
+      <sc-for list="{{ copyRules }}" as="c" hint-placeholder-count="4">
+        <div style="padding: 18px 20px; border-radius: 16px; background: #F7F9F7; display: flex; flex-direction: column; gap: 10px">
+          <span style="font-size: 15px; font-weight: 700; line-height: 1.3">{{ c.rule }}</span>
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <div style="display: flex; gap: 9px; align-items: baseline">
+              <span style="font-size: 13px; font-weight: 700; color: #17663C; flex: none">Sì</span>
+              <span style="font-size: 14.5px; line-height: 1.45; color: #10281C">{{ c.good }}</span>
+            </div>
+            <div style="display: flex; gap: 9px; align-items: baseline">
+              <span style="font-size: 13px; font-weight: 700; color: #9A2C22; flex: none">No</span>
+              <span style="font-size: 14.5px; line-height: 1.45; color: #7C8A81; text-decoration: line-through">{{ c.bad }}</span>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <!-- 08 APPLICAZIONI -->
+  <section style="padding: 34px 36px; border-radius: 22px; background: #FFFFFF; border: 1px solid #E2E7E1; display: flex; flex-direction: column; gap: 26px">
+    <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: #17663C">08</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.025em">Applicazioni</h2>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; align-items: start">
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Account · schermata comune</span>
+        <div style="border-radius: 14px; overflow: hidden; border: 1px solid #E2E7E1">
+          <div style="padding: 20px 18px; background: #10281C; display: flex; flex-direction: column; gap: 5px">
+            <span style="font-size: 20px; font-weight: 700; letter-spacing: -0.045em; color: #FFFFFF">{{ suite }}</span>
+            <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #8FB79F">Accedi al tuo account</span>
+          </div>
+          <div style="padding: 16px 18px; background: #FFFFFF; display: flex; flex-direction: column; gap: 9px">
+            <div style="height: 42px; border-radius: 10px; border: 1px solid #E2E7E1; display: flex; align-items: center; padding: 0 12px; font-size: 13.5px; color: #A3AFA7">email</div>
+            <div style="height: 42px; border-radius: 10px; background: #17663C; display: grid; place-items: center; font-size: 14px; font-weight: 700; color: #FFFFFF">Continua</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Prodotto · barra applicativa</span>
+        <div style="border-radius: 14px; overflow: hidden; border: 1px solid #E2E7E1">
+          <div style="display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 14px; background: #FFFFFF; border-bottom: 1px solid #E2E7E1">
+            <span style="width: 28px; height: 28px; border-radius: 8px; background: #17663C; color: #FFFFFF; font-size: 15px; font-weight: 700; display: grid; place-items: center; letter-spacing: -0.04em">e</span>
+            <span style="font-size: 19px; font-weight: 700; letter-spacing: -0.04em; color: #17663C">epos</span>
+            <span style="flex: 1"></span>
+            <span style="height: 32px; padding: 0 11px; border-radius: 9px; background: #E8F0EA; color: #17663C; font-size: 13px; font-weight: 600; display: grid; place-items: center">Cassa</span>
+          </div>
+          <div style="height: 74px; background: #F4F6F3"></div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8B978E">Email di sistema</span>
+        <div style="border-radius: 14px; overflow: hidden; border: 1px solid #E2E7E1; background: #FFFFFF">
+          <div style="padding: 16px 18px; border-bottom: 1px solid #EEF1EE; display: flex; align-items: center; gap: 10px">
+            <span style="font-size: 17px; font-weight: 700; letter-spacing: -0.045em; color: #10281C">{{ suite }}</span>
+            <span style="width: 1px; height: 18px; background: #D3DAD3"></span>
+            <span style="font-size: 15px; font-weight: 700; letter-spacing: -0.04em; color: #17663C">epos</span>
+          </div>
+          <div style="padding: 16px 18px; display: flex; flex-direction: column; gap: 8px">
+            <span style="font-size: 16px; font-weight: 700; line-height: 1.3">Report di chiusura turno</span>
+            <span style="font-size: 13.5px; line-height: 1.5; color: #6B7A70">Cassa 1 — Ingresso · 13/09 · €439.50 incassati su 18 ordini.</span>
+            <span style="align-self: flex-start; margin-top: 4px; padding: 9px 14px; border-radius: 10px; background: #17663C; color: #FFFFFF; font-size: 13.5px; font-weight: 700">Apri il report</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer style="padding: 26px 36px; border-radius: 22px; background: #10281C; display: flex; align-items: center; gap: 18px; flex-wrap: wrap">
+    <span style="font-size: 22px; font-weight: 700; letter-spacing: -0.045em; color: #FFFFFF">{{ suite }}</span>
+    <span style="flex: 1; min-width: 220px; font-size: 14.5px; line-height: 1.5; color: #8FB79F">Linee guida di suite v1.0 · le specifiche di prodotto vivono nei documenti dedicati, a partire da epos</span>
+  </footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;suiteName&quot;: {&quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;eventity&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Marchio&quot;}, &quot;tagline&quot;: {&quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;Strumenti separati che si comportano come uno solo.&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Marchio&quot;}, &quot;showProductAccents&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Colore&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const suite = this.props.suiteName ?? 'eventity';
+    const accentOn = this.props.showProductAccents ?? true;
+
+    const PRODUCTS = [
+      { word: 'epos', role: 'Cassa e vendita', desc: 'Punto cassa per eventi, comande e chiusure di turno.', accent: '#17663C', status: 'attivo' },
+      { word: 'order', role: 'Ordinazione self', desc: 'Ordini dal tavolo o in coda, ritiro con codice.', accent: '#2F6F8F', status: 'attivo' },
+      { word: 'stock', role: 'Magazzino', desc: 'Scorte, carichi e consumi per centro di produzione.', accent: '#7A5AA8', status: 'in arrivo' },
+      { word: 'crew', role: 'Turni e personale', desc: 'Volontari, turni e permessi per postazione.', accent: '#B0761C', status: 'in arrivo' }
+    ];
+
+    return {
+      suite,
+      tagline: this.props.tagline ?? 'Strumenti separati che si comportano come uno solo: stesso accesso, stesso linguaggio, stessi gesti, dalla cassa al magazzino.',
+
+      headerFacts: [
+        { label: 'Architettura', value: 'Marca ombrello' },
+        { label: 'Carattere', value: 'Archivo · OFL' },
+        { label: 'Colore guida', value: 'Verde #17663C' },
+        { label: 'Prodotti', value: PRODUCTS.length + ' in suite' }
+      ],
+
+      platform: [
+        { label: 'Missione', title: 'Far girare l\u2019evento', body: 'Software gestionale per eventi temporanei: sagre, festival, fiere. Si monta in un giorno, lo usa chi non l\u2019ha mai visto.' },
+        { label: 'Posizionamento', title: 'Una suite, non un pacchetto', body: 'Ogni prodotto risolve un mestiere e funziona da solo, ma condivide account, dati e linguaggio con gli altri.' },
+        { label: 'Personalit\u00E0', title: 'Collega esperto', body: 'Concreta e asciutta. Dice cosa fare adesso, non celebra s\u00E9 stessa. Nessun tono commerciale dentro il software.' },
+        { label: 'Promessa', title: 'Impari una volta', body: 'Chi sa usare un prodotto sa usare gli altri: stessa gerarchia, stessi colori, stesse parole.' }
+      ],
+
+      principles: [
+        { n: '01', title: 'Leggibile sul campo', body: 'Luce diretta, mani occupate, turni lunghi: contrasto pieno e testo mai sotto 14px.' },
+        { n: '02', title: 'Il colore informa', body: 'Verde per l\u2019azione, accento per il prodotto, semantici solo per le eccezioni.' },
+        { n: '03', title: 'Una gerarchia sola', body: 'Un primario per schermata in ogni prodotto della suite, senza deroghe.' },
+        { n: '04', title: 'Coerenza prima dell\u2019originalit\u00E0', body: 'Un nuovo prodotto riusa i componenti esistenti; se ne serve uno nuovo, entra nel sistema.' }
+      ],
+
+      products: PRODUCTS.map(p => ({
+        word: p.word, role: p.role, desc: p.desc, status: p.status,
+        cardStyle: 'padding:16px 18px;border-radius:14px;background:#FFFFFF;display:flex;flex-direction:column;gap:6px;'
+          + (p.status === 'attivo' ? 'box-shadow:0 0 0 1px #E2E7E1;' : 'box-shadow:0 0 0 1px #E9EDE9;opacity:0.86;'),
+        wordStyle: 'font-size:22px;font-weight:700;letter-spacing:-0.045em;line-height:1;color:' + (accentOn ? p.accent : '#17663C') + ';',
+        statusStyle: 'font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:'
+          + (p.status === 'attivo' ? '#8B978E' : '#A3AFA7') + ';'
+      })),
+
+      naming: [
+        { text: 'Nome prodotto sempre minuscolo, una sola parola, max 6 caratteri: epos, order, stock, crew.' },
+        { text: 'Mai un nome che descriva la funzione in italiano (\u201Ccassa\u201D, \u201Cmagazzino\u201D): la funzione \u00E8 il sottotitolo, non il nome.' },
+        { text: 'Il nome della suite non entra mai nel nome del prodotto: \u201Ceventity epos\u201D come lockup, mai \u201Ceventity\u2011POS\u201D.' },
+        { text: 'Funzionalit\u00E0 interne non ricevono un nome di marca: sono voci di menu.' }
+      ],
+
+      icons: [
+        { glyph: 'e', bg: '#10281C', fg: '#FFFFFF', label: 'Suite' },
+        { glyph: 'e', bg: '#17663C', fg: '#FFFFFF', label: 'epos' },
+        { glyph: 'o', bg: '#2F6F8F', fg: '#FFFFFF', label: 'order' },
+        { glyph: 's', bg: '#7A5AA8', fg: '#FFFFFF', label: 'stock' }
+      ].map(i => ({
+        glyph: i.glyph, label: i.label,
+        tileStyle: 'width:58px;height:58px;border-radius:13px;display:grid;place-items:center;background:' + i.bg + ';',
+        glyphStyle: 'font-size:30px;font-weight:700;letter-spacing:-0.05em;line-height:1;color:' + i.fg + ';'
+      })),
+
+      clearspace: [
+        { label: 'Area di rispetto', value: 'altezza della e' },
+        { label: 'Minimo su schermo', value: '72 px' },
+        { label: 'Minimo in stampa', value: '18 mm' }
+      ],
+
+      misuse: [
+        { label: 'Non ruotare n\u00E9 inclinare', sample: suite, sampleStyle: 'font-size:26px;font-weight:700;letter-spacing:-0.045em;color:#10281C;transform:rotate(-9deg);display:inline-block;' },
+        { label: 'Non applicare gradienti', sample: suite, sampleStyle: 'font-size:26px;font-weight:700;letter-spacing:-0.045em;background:linear-gradient(90deg,#10281C,#8FB79F);-webkit-background-clip:text;-webkit-text-fill-color:transparent;' },
+        { label: 'Non usare le maiuscole', sample: suite.toUpperCase(), sampleStyle: 'font-size:26px;font-weight:700;letter-spacing:-0.02em;color:#10281C;' },
+        { label: 'Non affiancare due prodotti nel lockup', sample: 'epos order', sampleStyle: 'font-size:26px;font-weight:700;letter-spacing:-0.045em;color:#17663C;' }
+      ],
+
+      coreColors: [
+        { name: 'Inchiostro suite', hex: '#10281C', role: 'Marchio', use: 'Wordmark della suite, testo principale, stampa.', sub: '#8B978E' },
+        { name: 'Verde eventity', hex: '#17663C', role: 'Azione', use: 'Azioni primarie e conferme in ogni prodotto.', sub: '#A8C9B5' },
+        { name: 'Verde profondo', hex: '#0F3D25', role: 'Pressed', use: 'Stato premuto e fondi scuri secondari.', sub: '#8FB79F' },
+        { name: 'Verde tenue', hex: '#E8F0EA', role: 'Tinta', use: 'Selezioni, chip positivi, avatar.', sub: '#17663C' },
+        { name: 'Superficie', hex: '#F4F6F3', role: 'Sfondo', use: 'Fondo applicativo; le card restano bianche.', sub: '#6B7A70' },
+        { name: 'Bordo', hex: '#E2E7E1', role: 'Linea', use: 'Bordi 1px, separatori, contorni dei campi.', sub: '#6B7A70' }
+      ].map(c => ({
+        name: c.name, hex: c.hex, role: c.role, use: c.use,
+        swatchStyle: 'height:104px;padding:14px;display:flex;align-items:flex-end;background:' + c.hex + ';',
+        roleStyle: 'font-size:11.5px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:' + c.sub + ';'
+      })),
+
+      accents: PRODUCTS.map(p => ({
+        name: p.word + ' — ' + p.role.toLowerCase(),
+        hex: p.accent,
+        dotStyle: 'width:22px;height:22px;border-radius:7px;flex:none;background:' + (accentOn ? p.accent : '#17663C') + ';'
+      })),
+
+      semantic: [
+        { label: 'Completato', bg: '#E8F0EA', fg: '#17663C', use: 'Operazione conclusa, pagamento riuscito.' },
+        { label: 'In attesa', bg: '#FFF4E2', fg: '#8A5A0B', use: 'Richiede un\u2019azione: da pagare, da confermare.' },
+        { label: 'Neutro', bg: '#F0F3F0', fg: '#7C8A81', use: 'Voci storiche, archiviate o non attive.' },
+        { label: 'Critico', bg: '#FBEEEC', fg: '#9A2C22', use: 'Solo azioni irreversibili ed errori bloccanti.' }
+      ].map(s => ({
+        label: s.label, use: s.use,
+        chipStyle: 'flex:none;padding:6px 12px;border-radius:8px;font-size:13.5px;font-weight:700;background:' + s.bg + ';color:' + s.fg + ';'
+      })),
+
+      ratio: [
+        { label: 'Bianco e superficie', pct: '70%', color: '#F4F6F3', w: 70 },
+        { label: 'Verde di marca', pct: '17%', color: '#17663C', w: 17 },
+        { label: 'Inchiostro e bordi', pct: '9%', color: '#10281C', w: 9 },
+        { label: 'Accenti e semantici', pct: '4%', color: '#2F6F8F', w: 4 }
+      ].map(r => ({
+        label: r.label, pct: r.pct,
+        style: 'width:' + r.w + '%;background:' + r.color + ';' + (r.color === '#F4F6F3' ? 'box-shadow:inset 0 0 0 1px #E2E7E1;' : ''),
+        dotStyle: 'width:11px;height:11px;border-radius:3px;flex:none;background:' + r.color + ';' + (r.color === '#F4F6F3' ? 'box-shadow:inset 0 0 0 1px #D3DAD3;' : '')
+      })),
+
+      typeScale: [
+        { name: 'Display', specs: '40 / 700 / \u22123.5%', sample: 'Un sistema, molti strumenti', size: 40, weight: 700, ls: '-0.035em' },
+        { name: 'Titolo schermata', specs: '26 / 700 / \u22122.5%', sample: 'Chiusura turno', size: 26, weight: 700, ls: '-0.025em' },
+        { name: 'Dato primario', specs: '34 / 700 / \u22123%', sample: '\u20AC439.50', size: 34, weight: 700, ls: '-0.03em' },
+        { name: 'Titolo blocco', specs: '19 / 700 / \u22122%', sample: 'Metodi di pagamento', size: 19, weight: 700, ls: '-0.02em' },
+        { name: 'Corpo', specs: '16 / 500 / 0', sample: 'Panino con porchetta', size: 16, weight: 500, ls: '0' },
+        { name: 'Etichetta', specs: '11.5 / 700 / +12% maiusc.', sample: 'Da incassare', size: 11.5, weight: 700, ls: '0.12em', upper: true },
+        { name: 'Nota', specs: '13.5 / 400 / 0', sample: 'Il report resta disponibile per 12 mesi.', size: 13.5, weight: 400, ls: '0' }
+      ].map(t => ({
+        name: t.name, specs: t.specs, sample: t.sample,
+        sampleStyle: 'font-size:' + t.size + 'px;font-weight:' + t.weight + ';letter-spacing:' + t.ls + ';line-height:1.2;'
+          + (t.upper ? 'text-transform:uppercase;color:#8B978E;' : 'color:#10281C;')
+      })),
+
+      minima: [
+        { label: 'Testo interfaccia', value: '14 px' },
+        { label: 'Dato primario', value: '24 px' },
+        { label: 'Target tattile', value: '44 px' },
+        { label: 'Contrasto testo', value: '4.5 : 1' }
+      ],
+
+      radii: [8, 11, 15, 22].map(r => ({
+        label: r + ' px',
+        boxStyle: 'width:' + (30 + r) + 'px;height:44px;border-radius:' + r + 'px;background:#E8F0EA;box-shadow:inset 0 0 0 1.5px #17663C;'
+      })),
+
+      gridRules: [
+        { label: 'Passo di spaziatura', value: '4 px' },
+        { label: 'Gap tra bersagli', value: '8 px' },
+        { label: 'Padding di sezione', value: '20 / 34 px' }
+      ],
+
+      switcher: PRODUCTS.map((p, i) => ({
+        word: p.word, role: p.role, initial: p.word.charAt(0),
+        mark: p.status === 'attivo' ? (i === 0 ? 'in uso' : 'apri') : 'presto',
+        rowStyle: 'display:flex;align-items:center;gap:11px;padding:11px 14px;'
+          + (i === 0 ? 'background:#F7F9F7;' : 'background:#FFFFFF;')
+          + (i < PRODUCTS.length - 1 ? 'border-bottom:1px solid #F2F5F2;' : ''),
+        tileStyle: 'width:30px;height:30px;border-radius:9px;flex:none;display:grid;place-items:center;font-size:15px;font-weight:700;letter-spacing:-0.05em;color:#FFFFFF;background:'
+          + (accentOn ? p.accent : '#17663C') + ';' + (p.status === 'attivo' ? '' : 'opacity:0.45;'),
+        markStyle: 'font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:'
+          + (i === 0 ? '#17663C' : '#A3AFA7') + ';'
+      })),
+
+      copyRules: [
+        { rule: 'Dì cosa succede, non cosa manca', good: 'Apri la cassa per incassare', bad: 'Operazione non consentita' },
+        { rule: 'Il dato sta nel bottone', good: 'Paga \u20AC22.00', bad: 'Procedi' },
+        { rule: 'Parole del mestiere, non del software', good: 'Chiudi turno', bad: 'Termina sessione operativa' },
+        { rule: 'Conferme che spiegano l\u2019effetto', good: 'La cassa resta aperta', bad: 'Sei sicuro?' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
